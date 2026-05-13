@@ -1,0 +1,12 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+samples/
+.env
+**/models/
+**/migrations/
+**/generated/
+*.wav
+result.txt
+

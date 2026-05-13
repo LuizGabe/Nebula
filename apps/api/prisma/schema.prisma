@@ -1,0 +1,171 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String   @id @default(cuid())
+  username       String   @unique
+  hashedPassword String
+  config         Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  sessions RecordingSession[]
+
+  @@map("users")
+}
+
+model Document {
+  id        String       @id @default(uuid())
+  type      DocumentType
+  content   String
+  version   Int          @default(1)
+  modelUsed String
+  createdAt DateTime     @default(now())
+
+  sessionId String
+  session   RecordingSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, version])
+  @@map("documents")
+}
+
+model TranscriptBlock {
+  id             String   @id @default(uuid())
+  blockIndex     Int
+  rawText        String
+  timestampStart Float
+  timestampEnd   Float
+  createdAt      DateTime @default(now())
+
+  sessionId    String
+  session      RecordingSession @relation(fields: [sessionId], references: [id])
+  propositions Proposition[]
+
+  @@unique([sessionId, blockIndex])
+  @@index([sessionId, blockIndex])
+  @@map("transcript_blocks")
+}
+
+model Proposition {
+  id        String   @id @default(uuid())
+  text      String
+  vectorId  String?
+  createdAt DateTime @default(now())
+
+  blockId String
+  block   TranscriptBlock @relation(fields: [blockId], references: [id])
+
+  @@index([blockId])
+  @@map("propositions")
+}
+
+enum DocumentType {
+  MEETING_MINUTES
+  CLASS_NOTES
+}
+
+model RecordingSession {
+  id        String                 @id @default(cuid())
+  mode      RecordingMode
+  status    RecordingSessionStatus @default(ACTIVE)
+  title     String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  endedAt   DateTime?
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  transcripts       Transcript[]
+  audioChunks       AudioChunk[]
+  documents         Document[]
+  transcriptBlocks  TranscriptBlock[]
+  transcriptionJobs TranscriptionJobs[]
+  rawAudioChunks    RawAudioChunk[]
+
+  @@map("recording_sessions")
+}
+
+model AudioChunk {
+  id         String @id @default(cuid())
+  chunkIndex Int
+  storageKey String
+  status     String   @default("PENDING_UPLOAD") // e.g. "pending", "uploaded", "processed"
+  
+  timestampStart BigInt?
+  timestampEnd   BigInt?
+  createdAt      DateTime @default(now())
+
+  sessionId String
+  session   RecordingSession @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, chunkIndex])
+  @@map("audio_chunks")
+}
+
+model Transcript {
+  id             String   @id @default(cuid())
+  chunkIndex     Int
+  text           String
+  timestampStart Float
+  timestampEnd   Float
+  createdAt      DateTime @default(now())
+
+  sessionId String
+  session   RecordingSession @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, chunkIndex])
+  @@map("transcripts")
+}
+
+model TranscriptionJobs {
+  id        String @id @default(cuid())
+  audioPath String
+  startSec  Float
+  endSec    Float
+
+  status     String   @default("pending") // e.g. "pending", "processing", "done", "failed"
+  transcript String? // the actual transcription text result (optional, can be stored in remotePathKey instead)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sessionId String
+  session   RecordingSession @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId, status])
+  @@map("transcription_jobs")
+}
+
+model RawAudioChunk {
+  id        Int      @id @default(autoincrement())
+  sessionId String
+  seq       Int
+  s3Key     String
+  type      String   @default("chunk") // e.g. "chunk", "full
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  session RecordingSession @relation(fields: [sessionId], references: [id])
+
+  @@index([status, sessionId, seq])
+  @@map("raw_audio_chunks")
+}
+
+enum RecordingMode {
+  MEETING
+  CLASS
+}
+
+enum RecordingSessionStatus {
+  ACTIVE
+  ENDED
+}

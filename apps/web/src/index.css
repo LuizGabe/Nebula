@@ -1,0 +1,147 @@
+  @tailwind base;
+  @tailwind components;
+  @tailwind utilities;
+
+  @layer base {
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      @apply bg-ink-50 text-ink-900 font-sans;
+      min-height: 100vh;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      @apply bg-ink-200 rounded-full;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      @apply bg-ink-300;
+    }
+  }
+
+  @layer components {
+    .tiptap {
+      @apply outline-none min-h-[200px];
+    }
+
+    .tiptap p {
+      @apply mb-3 leading-relaxed;
+    }
+
+    .tiptap h1 {
+      @apply text-2xl font-display font-semibold mb-4 mt-6 text-ink-900;
+    }
+
+    .tiptap h2 {
+      @apply text-xl font-display font-semibold mb-3 mt-5 text-ink-900;
+    }
+
+    .tiptap h3 {
+      @apply text-lg font-semibold mb-2 mt-4 text-ink-800;
+    }
+
+    .tiptap ul {
+      @apply list-disc list-outside pl-5 mb-3 space-y-1;
+    }
+
+    .tiptap ol {
+      @apply list-decimal list-outside pl-5 mb-3 space-y-1;
+    }
+
+    .tiptap blockquote {
+      @apply border-l-2 border-jade-400 pl-4 text-ink-600 italic my-4;
+    }
+
+    .tiptap code {
+      @apply font-mono text-sm bg-ink-100 text-rose-500 px-1.5 py-0.5 rounded;
+    }
+
+    .tiptap pre {
+      @apply font-mono text-sm bg-ink-900 text-ink-100 p-4 rounded-xl my-4 overflow-x-auto;
+    }
+
+    .tiptap pre code {
+      @apply bg-transparent text-inherit p-0;
+    }
+
+    .tiptap strong {
+      @apply font-semibold text-ink-900;
+    }
+
+    .tiptap em {
+      @apply italic;
+    }
+
+    .tiptap p.is-editor-empty:first-child::before {
+      @apply text-ink-400;
+      content: attr(data-placeholder);
+      float: left;
+      height: 0;
+      pointer-events: none;
+    }
+
+    /* Recording pulse animation */
+    @keyframes pulse-ring {
+      0% { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    .recording-pulse::before {
+      content: '';
+      @apply absolute inset-0 rounded-full bg-rose-400;
+      animation: pulse-ring 1.2s ease-out infinite;
+    }
+
+    /* SSE status bar animation */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .shimmer {
+      background: linear-gradient(
+        90deg,
+        theme('colors.ink.100') 25%,
+        theme('colors.ink.200') 50%,
+        theme('colors.ink.100') 75%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.6s infinite;
+    }
+
+    /* Fade in animation */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+
+    /* Drawer slide in */
+    @keyframes slideInRight {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .slide-in-right {
+      animation: slideInRight 0.25s ease-out forwards;
+    }
+  }

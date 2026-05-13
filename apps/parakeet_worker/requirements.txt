@@ -1,0 +1,14 @@
+# ONNX Runtime CPU-only (NÃO instalar onnxruntime-gpu)
+onnxruntime==1.20.1
+
+# Pacote oficial do autor do modelo ONNX (istupakov)
+# Resolve o pipeline TDT completo — sem PyTorch, sem NeMo, sem librosa
+onnx-asr==0.10.2
+
+# Worker
+asyncpg==0.31.0
+redis==6.4.0
+miniopy-async==1.23.4
+python-dotenv==1.0.1
+
+bullmq==2.23.0
