@@ -165,7 +165,7 @@ export function DashboardPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">Sessões</h1>
-          <p className="text-sm text-ink-500 mt-0.5">{sessionList.length} sessão{sessionList.length !== 1 ? 'ões' : ''}</p>
+          <p className="text-sm text-ink-500 mt-0.5">{sessionList.length} Sess{sessionList.length !== 1 ? 'ões' : 'ão'}</p>
         </div>
         <Button variant="primary" onClick={() => setShowModal(true)}>
           <Plus className="w-4 h-4" />

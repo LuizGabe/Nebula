@@ -13,7 +13,7 @@ import { Spinner } from '../components/ui/misc'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { safeDate } from '@/utils/SafeDate'
-import { DetailedProcessingStatus, useProcessingStatus } from '@/hooks/useProcessingStatus'
+import { DetailedProcessingStatus, useSessionEvents } from '@/hooks/useProcessingStatus'
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -28,7 +28,7 @@ export function SessionPage() {
 
   const isEnded = session?.status === 'ENDED' || ended
 
-  const processingStatus: DetailedProcessingStatus = useProcessingStatus(id || '', isEnded)
+  const { status, liveText, transcriptionProgress } = useSessionEvents(id || '', isEnded)
 
   const handleRename = async () => {
     if (!id || !renameValue.trim()) return
@@ -177,8 +177,8 @@ export function SessionPage() {
         {/* Pipeline status — shown after ending */}
           <div className="fade-in w-full max-w-4xl">
             
-        {isEnded && processingStatus !== 'idle' && (
-            <PipelineStatus status={processingStatus} />
+        {isEnded && status !== 'idle' && (
+            <PipelineStatus status={status} />
         )}
             {
               session.title?.includes('[testes]') && (
@@ -188,7 +188,8 @@ export function SessionPage() {
                     <div>Session ID: {session.id}</div>
                     <div>Status: {session.status}</div>
                     <div>Mode: {session.mode}</div>
-                    <div>Processing: {processingStatus}</div>
+                    <div>Processing: {status}</div>
+                    <div>Live Text: {liveText ? 'tem conteúdo' : 'null'}</div>
                   </div>
                 </div>
               )
@@ -198,7 +199,8 @@ export function SessionPage() {
         {/* Transcript — shown after session ended */}
         {isEnded && (
           <div className="fade-in w-full max-w-4xl">
-            <TranscriptViewer sessionId={session.id} />
+            <TranscriptViewer sessionId={session.id} liveText={liveText} transcriptionProgress={transcriptionProgress} />
+            
           </div>
         )}
 
