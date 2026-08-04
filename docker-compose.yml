@@ -3,11 +3,16 @@ services:
     image: redis:7-alpine
     container_name: dev-redis
     restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction --appendonly yes
     ports:
       - "6379:6379" # TCP
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   postgres:
     image: postgres:16-alpine
@@ -19,6 +24,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-transcriber}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio:
     image: pgsty/minio:latest
@@ -32,15 +42,15 @@ services:
       MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_API: "${MINIO_WEBHOOK_SECRET}"
     ports:
       - "9000:9000" # API S3
-      - "9001:9001" # Web Page
+      - "9001:9001" # Web Page Console
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
@@ -65,23 +75,65 @@ services:
 
   parakeet:
     build:
-      context: .
-      dockerfile: apps/parakeet_worker/Dockerfile
-    container_name: parakeet-v3
-    # network_mode: host # Use se for rodar a worker remotamente
+      context: apps/parakeet_worker/
+      dockerfile: Dockerfile
+    image: parakeet-worker:latest
+    network_mode: host
+    tmpfs:
+      - /tmp:exec,mode=1777
     restart: unless-stopped
     env_file:
-      - .env
-    environment:
-      - MODELS_DIR=/models
-    depends_on:
-      - postgres
-      - redis
-      - minio
+      - apps/parakeet_worker/.env
+    ports:
+      - "50051:50051"   # gRPC
+      - "9091:9090"     # Prometheus metrics
     volumes:
-      - ./apps/parakeet_worker/models:/models:ro
+      # Mantém o cache dos modelos de IA salvo no seu SSD (fora do container)
+      - model-cache:/app/.cache
+      
+      # ── VOLUMES DE DESENVOLVIMENTO (Sincronização instantânea) ──────────────
+      # Mapeia os seus arquivos locais direto para dentro do container
+      - ./apps/parakeet_worker/core:/app/core
+      - ./apps/parakeet_worker/grpc_server:/app/grpc_server
+      - ./apps/parakeet_worker/session:/app/session
+      - ./apps/parakeet_worker/inference:/app/inference
+      - ./apps/parakeet_worker/batch:/app/batch
+      - ./apps/parakeet_worker/emit:/app/emit
+      - ./apps/parakeet_worker/observability:/app/observability
+      - ./apps/parakeet_worker/infra:/app/infra
+      - ./apps/parakeet_worker/utils:/app/utils
+      - ./apps/parakeet_worker/worker.py:/app/worker.py
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s   
+      retries: 3
+    # Nota: Se você configurou o limite de 50m globalmente no Daemon (Opção 1 anterior),
+    # você pode remover essas linhas de logging abaixo se quiser deixar o arquivo mais limpo.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
 
 volumes:
   postgres-data:
   redis-data:
   minio-data:
+  model-cache:
+    external: true

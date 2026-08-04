@@ -1,5 +1,0 @@
-Generate the document based on these propositions extracted from transcription blocks:
-
-{blocks}
-
-Remember: every statement must have citation tags [block_id].
