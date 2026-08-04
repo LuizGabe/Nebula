@@ -3,6 +3,7 @@ import Fastify, { FastifyError } from "fastify";
 import cors from '@fastify/cors'
 import sessionPlugin from "@/plugins/session";
 import { FastifySSEPlugin } from 'fastify-sse-v2';
+import websocket from '@fastify/websocket'
 
 import { config } from "@/config";
 import { ensureBucketExists } from "@/lib/storage";
@@ -17,6 +18,8 @@ import llmRoutes from "@/routes/llm.js";
 import uploadRoutes from "@/routes/uploads.js";
 import documentsRoutes from "@/routes/documents.js";
 import transcriptsRoutes from "@/routes/transcripts.js";
+import wsRoutes from '@/routes/ws'
+import transcriptionStreamRoutes from '@/routes/transcription-stream'
 
 const app = Fastify({
   logger: {
@@ -25,7 +28,7 @@ const app = Fastify({
       config.NODE_ENV === "development"
         ? { target: "pino-pretty" }
         : undefined,
-  },
+  }
 });
 
 app.setErrorHandler((error: FastifyError, request, reply) => {
@@ -39,18 +42,19 @@ app.setErrorHandler((error: FastifyError, request, reply) => {
 });
 
 await app.register(cors, {
-  origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5500'],
   credentials: true,
   methods: ['GET', 'PATCH', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   exposedHeaders: ['Content-Type', 'Set-Cookie']
 })
 
+await app.register(websocket)
+
 app.get("/health", async () => "OK");
 
 await app.register(sessionPlugin);
 await app.register(FastifySSEPlugin);
-
 await app.register(authRoutes);
 await app.register(sessionRoutes);
 await app.register(chunkRoutes);
@@ -59,6 +63,8 @@ await app.register(uploadRoutes);
 await app.register(internalWebhookRoutes);
 await app.register(documentsRoutes);
 await app.register(transcriptsRoutes);
+await app.register(wsRoutes);
+await app.register(transcriptionStreamRoutes);
 
 try {
   await ensureBucketExists();

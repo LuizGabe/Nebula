@@ -19,3 +19,7 @@ export type PostProcessJobData = {
   sessionId: string;
   triggeredBy: "session_end" | "user_reprocess";
 };
+
+export const transcriptionJobsQueue = new Queue("transcription-jobs", {
+  connection: redisConnection,
+});

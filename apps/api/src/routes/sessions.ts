@@ -46,31 +46,34 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
     const channel = `session:status:${session.id}`;
 
-    const history = {
-      rows: [{
-        id: "1",
-        type: "waiting:transcript",
-        payload: { timestamp: new Date().toISOString() },
-      },
-      {
-        id: "2",
-        type: "processing:transcript",
-        payload: { timestamp: new Date().toISOString() },
-      }
-    ]
-    } // MOCK - substituir por consulta real ao banco para obter status históricos
+    const history = await prisma.sessionEvent.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "desc" },
+      take: 10
+    })
 
     async function* eventStream() {
       // Flush do histórico primeiro
-      for (const row of history.rows) {
+      for (const row of history) {
+        let payloadTratado: any = {}
+
+        if (typeof row.payload === 'string') {
+          try {
+            // Se for um JSON stringificado válido (ex: '{"totalChunks":11}'), vira objeto
+            payloadTratado = JSON.parse(row.payload)
+          } catch {
+            // Se for uma string pura (ex: "onde blocos são atualizados"), vira uma propriedade text
+            payloadTratado = { text: row.payload }
+          }
+        } else {
+          payloadTratado = row.payload ?? {}
+        }
         yield {
           id:   row.id,
           event: 'progress',
           data: JSON.stringify({
             type: row.type,
-            data: JSON.stringify({
-            ...row.payload,
-            })
+            data: payloadTratado,
           }),
         }
       }
@@ -80,7 +83,6 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const emitter = new EventEmitter()
 
       const onMessage = (chan: string, message: string) => {
-        console.log('Received message on channel', chan, message)
         if (chan === channel) emitter.emit('workflow', message)
       }
 
@@ -89,7 +91,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       try {
         for await (const [message] of on(emitter, 'workflow')) {
           const parsed = JSON.parse(message)
-          console.log(parsed)
+          let payloadTratado: any = {}
+          if (typeof parsed.payload === 'string') {
+            try {
+              payloadTratado = JSON.parse(parsed.payload)
+            } catch {
+              payloadTratado = { text: parsed.payload }
+            }
+          } else {
+            payloadTratado = parsed.payload ?? {}
+          }
           yield {
             id:    parsed.id ?? Date.now().toString(),
             event: 'progress',
@@ -97,7 +108,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
               type: parsed.status,
               data: JSON.stringify({
               timestamp: new Date().toISOString(),
-              ...parsed.payload,
+              ...payloadTratado,
               })
             }),
           }
@@ -138,10 +149,12 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
   // GET /sessions — lista sessões do usuário
   fastify.get("/sessions", async (request, reply) => {
+    // TODO: paginação, filtros, etc
+    // TODO: quando listar sessões, trazer também o número de transcrições, documentos, etc para evitar múltiplas queries na UI
     const ownerId = request.session.get("userId")!;
 
     const list = await prisma.recordingSession.findMany({
-      where: { ownerId },
+      where: { ownerId, isDeleted: false },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -163,7 +176,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const ownerId = request.session.get("userId")!;
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
         include: {
           documents: { orderBy: { version: "desc" }, take: 1 },
           _count: { select: { transcripts: true } },
@@ -183,7 +196,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const ownerId = request.session.get("userId")!;
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
 
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
@@ -217,7 +230,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       }
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
         include: { owner: { select: { config: true } } },
       });
 
@@ -294,7 +307,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const ownerId = request.session.get("userId")!;
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
 
@@ -318,12 +331,12 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const { title } = request.body as { title: string }
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       })
       if (!session) return reply.status(404).send({ error: 'Não encontrada' })
 
       const updated = await prisma.recordingSession.update({
-        where: { id: session.id },
+        where: { id: session.id, ownerId, isDeleted: false },
         data: { title },
         select: { id: true, title: true },
       })
@@ -343,7 +356,10 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       })
       if (!session) return reply.status(404).send({ error: 'Não encontrada' })
 
-      await prisma.recordingSession.delete({ where: { id: session.id } })
+      await prisma.recordingSession.update({
+        where: { id: session.id },
+        data: { isDeleted: true },
+      })
 
       return reply.status(204).send()
     }

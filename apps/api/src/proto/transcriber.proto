@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package transcriber;
+
+// ── serviço principal ─────────────────────────────────────────────────────────
+
+service Transcriber {
+  // Streaming bidirecional em tempo real.
+  // Backend envia AudioChunk continuamente; worker devolve TranscriptResult
+  // incrementalmente conforme o VAD detecta fim de utterance.
+  rpc TranscribeStream(stream AudioChunk) returns (stream TranscriptResult);
+
+  // Submissão assíncrona de upload completo.
+  // Retorna imediatamente com job_id; resultado é persistido no banco.
+  rpc SubmitBatch(BatchRequest) returns (BatchAck);
+
+  // Health check (protocolo grpc.health.v1 implementado separadamente;
+  // este endpoint é o wrapper de capacidade do worker).
+  rpc GetWorkerStatus(WorkerStatusRequest) returns (WorkerStatusResponse);
+}
+
+// ── mensagens de stream ───────────────────────────────────────────────────────
+
+message AudioChunk {
+  // Identificador da sessão — gerado pelo backend antes de abrir o stream.
+  string session_id = 1;
+
+  // PCM mono 16kHz, little-endian int16, já normalizado pelo backend.
+  // O worker NÃO faz resampling.
+  bytes pcm_data = 2;
+
+  // Timestamp absoluto em milissegundos do início deste pacote
+  // em relação ao início da sessão. Usado para offset dos segmentos.
+  uint64 timestamp_ms = 3;
+
+  // Metadados enviados apenas no primeiro chunk da sessão.
+  SessionMeta meta = 4;
+
+  // Se true, indica que o cliente encerrou a gravação.
+  // O worker drena o buffer restante e fecha o stream.
+  bool end_of_stream = 5;
+}
+
+message SessionMeta {
+  // "MEETING" | "CLASS" — controla o gap mínimo de parágrafo.
+  string mode = 1;
+  // Idioma hint (ex: "pt", "en"). Informativo — modelo é multilingual.
+  string language_hint = 2;
+}
+
+message TranscriptResult {
+  string session_id = 1;
+
+  // Texto transcrito do utterance detectado.
+  string text = 2;
+
+  // Segmentos com timestamps absolutos em ms desde o início da sessão.
+  repeated Segment segments = 3;
+
+  // Tempo de inferência em milissegundos (latência GPU).
+  uint32 inference_ms = 4;
+
+  // Se true, é o resultado final da sessão (buffer drenado após end_of_stream).
+  bool is_final = 5;
+
+  // Tipo do resultado.
+  ResultType result_type = 6;
+}
+
+enum ResultType {
+  RESULT_TYPE_UNSPECIFIED = 0;
+  PARTIAL   = 1;  // utterance intermediário (VAD detectou pausa)
+  FINAL     = 2;  // sessão encerrada, último flush
+}
+
+message Segment {
+  string text       = 1;
+  uint64 start_ms   = 2;
+  uint64 end_ms     = 3;
+}
+
+// ── mensagens de batch ────────────────────────────────────────────────────────
+
+message BatchRequest {
+  string session_id = 1;
+  // Chave do objeto no MinIO/S3.
+  string storage_key = 2;
+  string filename    = 3;
+  string mode        = 4;  // "MEETING" | "CLASS"
+}
+
+message BatchAck {
+  string job_id    = 1;
+  string session_id = 2;
+  // Posição estimada na fila.
+  uint32 queue_position = 3;
+}
+
+// ── worker status ─────────────────────────────────────────────────────────────
+
+message WorkerStatusRequest {}
+
+message WorkerStatusResponse {
+  bool   model_ready       = 1;
+  uint32 active_sessions   = 2;
+  uint32 batch_queue_size  = 3;
+  float  gpu_utilization   = 4;  // 0.0 – 100.0
+  uint64 vram_used_bytes   = 5;
+  uint64 vram_total_bytes  = 6;
+  bool   accepting_streams = 7;
+}

@@ -10,6 +10,59 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AudioMediaSource {
+  STREAM
+  UPLOAD
+}
+
+enum AudioMediaStatus {
+  PENDING_UPLOAD
+  UPLOADED
+  PROCESSING
+  TRANSCRIBED
+  FAILED
+}
+
+enum DocumentType {
+  MEETING_MINUTES
+  CLASS_NOTES
+}
+
+enum SessionEventType {
+  // Fluxo de chunk (streaming)
+  CHUNK_RECEIVED
+  CHUNK_QUEUED
+  CHUNK_TRANSCRIPTION_STARTED
+  CHUNK_TRANSCRIBED
+  CHUNK_FAILED
+  
+
+  // Fluxo de upload completo
+  UPLOAD_RECEIVED
+  UPLOAD_QUEUED
+  UPLOAD_TRANSCRIPTION_STARTED
+  UPLOAD_TRANSCRIBED
+  UPLOAD_FAILED
+
+  // Pós-processamento (LLM)
+  DOCUMENT_QUEUED
+  DOCUMENT_GENERATING
+  DOCUMENT_READY
+  DOCUMENT_SKIPPED
+  DOCUMENT_FAILED
+}
+
+enum RecordingMode {
+  MEETING
+  CLASS
+}
+
+enum RecordingSessionStatus {
+  ACTIVE
+  IN_PROGRESS
+  ENDED
+}
+
 model User {
   id             String   @id @default(cuid())
   username       String   @unique
@@ -38,41 +91,6 @@ model Document {
   @@map("documents")
 }
 
-model TranscriptBlock {
-  id             String   @id @default(uuid())
-  blockIndex     Int
-  rawText        String
-  timestampStart Float
-  timestampEnd   Float
-  createdAt      DateTime @default(now())
-
-  sessionId    String
-  session      RecordingSession @relation(fields: [sessionId], references: [id])
-  propositions Proposition[]
-
-  @@unique([sessionId, blockIndex])
-  @@index([sessionId, blockIndex])
-  @@map("transcript_blocks")
-}
-
-model Proposition {
-  id        String   @id @default(uuid())
-  text      String
-  vectorId  String?
-  createdAt DateTime @default(now())
-
-  blockId String
-  block   TranscriptBlock @relation(fields: [blockId], references: [id])
-
-  @@index([blockId])
-  @@map("propositions")
-}
-
-enum DocumentType {
-  MEETING_MINUTES
-  CLASS_NOTES
-}
-
 model RecordingSession {
   id        String                 @id @default(cuid())
   mode      RecordingMode
@@ -81,34 +99,36 @@ model RecordingSession {
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
   endedAt   DateTime?
+  isDeleted Boolean                @default(false)
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id])
 
-  transcripts       Transcript[]
-  audioChunks       AudioChunk[]
-  documents         Document[]
-  transcriptBlocks  TranscriptBlock[]
-  transcriptionJobs TranscriptionJobs[]
-  rawAudioChunks    RawAudioChunk[]
+  transcripts   Transcript[]
+  audioMedias   AudioMedia[]
+  documents     Document[]
+  sessionEvents SessionEvent[]
 
   @@map("recording_sessions")
 }
 
-model AudioChunk {
-  id         String @id @default(cuid())
-  chunkIndex Int
+model AudioMedia {
+  id         String           @id @default(cuid())
   storageKey String
-  status     String   @default("PENDING_UPLOAD") // e.g. "pending", "uploaded", "processed"
-  
+  source     AudioMediaSource
+  status     AudioMediaStatus @default(PENDING_UPLOAD)
+
+  chunkIndex     Int?
   timestampStart BigInt?
   timestampEnd   BigInt?
-  createdAt      DateTime @default(now())
+
+  createdAt DateTime @default(now())
 
   sessionId String
   session   RecordingSession @relation(fields: [sessionId], references: [id])
 
   @@unique([sessionId, chunkIndex])
+  @@index([sessionId, status])
   @@map("audio_chunks")
 }
 
@@ -127,45 +147,20 @@ model Transcript {
   @@map("transcripts")
 }
 
-model TranscriptionJobs {
-  id        String @id @default(cuid())
-  audioPath String
-  startSec  Float
-  endSec    Float
+// ── Pipeline de Eventos ───────────────────────────────────────────────────────
 
-  status     String   @default("pending") // e.g. "pending", "processing", "done", "failed"
-  transcript String? // the actual transcription text result (optional, can be stored in remotePathKey instead)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+/// Trilha de auditoria imutável de cada etapa do pipeline.
+/// Alimenta o SSE de status e o histórico persistente.
+model SessionEvent {
+  id        String           @id @default(cuid())
+  type      SessionEventType
+  /// Dados extras: chunkIndex, erro, versão do documento, etc.
+  payload   Json?
+  createdAt DateTime         @default(now())
 
   sessionId String
   session   RecordingSession @relation(fields: [sessionId], references: [id])
 
-  @@index([sessionId, status])
-  @@map("transcription_jobs")
-}
-
-model RawAudioChunk {
-  id        Int      @id @default(autoincrement())
-  sessionId String
-  seq       Int
-  s3Key     String
-  type      String   @default("chunk") // e.g. "chunk", "full
-  status    String   @default("pending")
-  createdAt DateTime @default(now())
-
-  session RecordingSession @relation(fields: [sessionId], references: [id])
-
-  @@index([status, sessionId, seq])
-  @@map("raw_audio_chunks")
-}
-
-enum RecordingMode {
-  MEETING
-  CLASS
-}
-
-enum RecordingSessionStatus {
-  ACTIVE
-  ENDED
+  @@index([sessionId, createdAt])
+  @@map("session_events")
 }

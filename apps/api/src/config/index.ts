@@ -18,6 +18,9 @@ const envSchema = z.object({
   // PostgreSQL
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatório"),
 
+  // gRPC Worker
+  GRPC_WORKER_HOST: z.string().default("localhost:50051"),
+
   // Redis
   REDIS_URL: z.string().min(1, "REDIS_URL é obrigatório"),
 

@@ -24,7 +24,7 @@ const uploadBody = z.object({
   sessionId:   z.string(),
   filename:    z.string().max(200),
   contentType: z.string(),
-  sizeBytes:   z.number().int().positive().max(500 * 1024 * 1024), // 500MB
+  sizeBytes:   z.number().int().positive().max(1000 * 1024 * 1024), // 1GB max (ajustar conforme necessário)
 });
 
 const uploads: FastifyPluginAsync = async (fastify) => {
@@ -54,6 +54,8 @@ const uploads: FastifyPluginAsync = async (fastify) => {
     // extensão original preservada na chave
     const ext = filename.split(".").pop()?.toLowerCase() ?? "audio";
     const key = `sessions/${sessionId}/uploads/${Date.now()}.${ext}`;
+    // TODO: pensar em alguma forma de rastreabilidade, pois atualmente o /chunks simplesmente adiciona um chunk
+    // porem o upload não pode fazer isso, pq um upload vai gerar varios AudioChunk
 
     const command = new PutObjectCommand({
       Bucket:      BUCKET,

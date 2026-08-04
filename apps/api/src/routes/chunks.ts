@@ -10,7 +10,7 @@ import { s3Public, BUCKET } from "../lib/storage.js";
 const presignedBody = z.object({
   sessionId: z.string(),
   chunkIndex: z.number().int().min(0),
-
+  
   contentType: z.string().default("audio/webm"),
 
   // informações que antes iam no /confirm
@@ -64,7 +64,7 @@ const chunks: FastifyPluginAsync = async (fastify) => {
     
 
     // cria registro PENDENTE antes do upload
-    await prisma.audioChunk.upsert({
+    await prisma.audioMedia.upsert({
       where: {
         sessionId_chunkIndex: {
           sessionId,
@@ -88,6 +88,7 @@ const chunks: FastifyPluginAsync = async (fastify) => {
         timestampEnd: BigInt(timestampEnd),
 
         status: "PENDING_UPLOAD",
+        source: "STREAM",
       },
     });
 
