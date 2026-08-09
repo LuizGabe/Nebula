@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Plus, Settings } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Plus, Settings } from 'lucide-react'
 import clsx from 'clsx'
 import { folders, sessions, type Folder as FolderItem, type Session } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
@@ -44,11 +44,13 @@ function TreeFolder({
   depth,
   onChanged,
   onMoveSession,
+  onNewSession,
 }: {
   node: FolderNode
   depth: number
   onChanged: () => Promise<void>
   onMoveSession: (sessionId: string, folderId: string) => Promise<void>
+  onNewSession?: (folderId?: string | null) => void
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
@@ -110,6 +112,13 @@ function TreeFolder({
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
+        <button
+          onClick={() => onNewSession?.(node.id)}
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          title="Nova sessao nesta pasta"
+        >
+          <FilePlus2 className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {open && (
@@ -138,7 +147,14 @@ function TreeFolder({
             </div>
           )}
           {node.children.map((child) => (
-            <TreeFolder key={child.id} node={child} depth={depth + 1} onChanged={onChanged} onMoveSession={onMoveSession} />
+            <TreeFolder
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              onChanged={onChanged}
+              onMoveSession={onMoveSession}
+              onNewSession={onNewSession}
+            />
           ))}
           {node.sessions.map((session) => (
             <button
@@ -162,7 +178,7 @@ function TreeFolder({
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | null) => void }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [folderList, setFolderList] = useState<FolderItem[]>([])
@@ -181,6 +197,14 @@ export function Sidebar() {
       setFolderList([])
       setSessionList([])
     })
+  }, [])
+
+  useEffect(() => {
+    const refresh = () => {
+      loadTree().catch(() => undefined)
+    }
+    window.addEventListener('nebula:sessions-changed', refresh)
+    return () => window.removeEventListener('nebula:sessions-changed', refresh)
   }, [])
 
   const tree = useMemo(() => buildTree(folderList, sessionList), [folderList, sessionList])
@@ -209,6 +233,13 @@ export function Sidebar() {
       </div>
 
       <nav className="px-3 py-4 flex flex-col gap-0.5 border-b border-ink-100">
+        <button
+          onClick={() => onNewSession?.(null)}
+          className="mb-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium bg-jade-600 text-white hover:bg-jade-700 transition-all"
+        >
+          <FilePlus2 className="w-4 h-4" />
+          Nova sessao
+        </button>
         <NavLink
           to="/"
           end
@@ -274,7 +305,14 @@ export function Sidebar() {
 
         <div className="flex flex-col gap-0.5">
           {tree.map((node) => (
-            <TreeFolder key={node.id} node={node} depth={0} onChanged={loadTree} onMoveSession={moveSessionToFolder} />
+            <TreeFolder
+              key={node.id}
+              node={node}
+              depth={0}
+              onChanged={loadTree}
+              onMoveSession={moveSessionToFolder}
+              onNewSession={onNewSession}
+            />
           ))}
           {looseSessions.map((session) => (
             <button
