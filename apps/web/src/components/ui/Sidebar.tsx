@@ -39,11 +39,22 @@ function buildTree(folderList: FolderItem[], sessionList: Session[]) {
   return roots
 }
 
-function TreeFolder({ node, depth, onChanged }: { node: FolderNode; depth: number; onChanged: () => Promise<void> }) {
+function TreeFolder({
+  node,
+  depth,
+  onChanged,
+  onMoveSession,
+}: {
+  node: FolderNode
+  depth: number
+  onChanged: () => Promise<void>
+  onMoveSession: (sessionId: string, folderId: string) => Promise<void>
+}) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
   const [creatingChild, setCreatingChild] = useState(false)
   const [childName, setChildName] = useState('')
+  const [dropActive, setDropActive] = useState(false)
   const hasChildren = node.children.length > 0 || node.sessions.length > 0
 
   const createChild = async () => {
@@ -57,7 +68,26 @@ function TreeFolder({ node, depth, onChanged }: { node: FolderNode; depth: numbe
 
   return (
     <div>
-      <div className="flex items-center gap-1" style={{ paddingLeft: depth * 10 }}>
+      <div
+        className={clsx(
+          'group/folder flex items-center gap-1 rounded-lg',
+          dropActive && 'bg-jade-50 ring-1 ring-jade-200'
+        )}
+        style={{ paddingLeft: depth * 10 }}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDropActive(true)
+        }}
+        onDragLeave={() => setDropActive(false)}
+        onDrop={async (event) => {
+          event.preventDefault()
+          setDropActive(false)
+          const sessionId = event.dataTransfer.getData('application/x-nebula-session')
+          if (!sessionId) return
+          await onMoveSession(sessionId, node.id)
+          setOpen(true)
+        }}
+      >
         <button
           onClick={() => setOpen((value) => !value)}
           className="w-5 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
@@ -75,7 +105,7 @@ function TreeFolder({ node, depth, onChanged }: { node: FolderNode; depth: numbe
         </button>
         <button
           onClick={() => setCreatingChild(true)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50"
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
           title="Nova subpasta"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -108,13 +138,18 @@ function TreeFolder({ node, depth, onChanged }: { node: FolderNode; depth: numbe
             </div>
           )}
           {node.children.map((child) => (
-            <TreeFolder key={child.id} node={child} depth={depth + 1} onChanged={onChanged} />
+            <TreeFolder key={child.id} node={child} depth={depth + 1} onChanged={onChanged} onMoveSession={onMoveSession} />
           ))}
           {node.sessions.map((session) => (
             <button
               key={session.id}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData('application/x-nebula-session', session.id)
+                event.dataTransfer.effectAllowed = 'move'
+              }}
               onClick={() => navigate(`/sessions/${session.id}`)}
-              className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50"
+              className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50 cursor-grab active:cursor-grabbing"
               style={{ paddingLeft: depth * 10 + 31 }}
             >
               <Mic className="w-3 h-3 shrink-0" />
@@ -156,6 +191,11 @@ export function Sidebar() {
     await folders.create({ name: folderName.trim() })
     setFolderName('')
     setCreating(false)
+    await loadTree()
+  }
+
+  const moveSessionToFolder = async (sessionId: string, folderId: string | null) => {
+    await sessions.update(sessionId, { folderId })
     await loadTree()
   }
 
@@ -234,13 +274,18 @@ export function Sidebar() {
 
         <div className="flex flex-col gap-0.5">
           {tree.map((node) => (
-            <TreeFolder key={node.id} node={node} depth={0} onChanged={loadTree} />
+            <TreeFolder key={node.id} node={node} depth={0} onChanged={loadTree} onMoveSession={moveSessionToFolder} />
           ))}
           {looseSessions.map((session) => (
             <button
               key={session.id}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData('application/x-nebula-session', session.id)
+                event.dataTransfer.effectAllowed = 'move'
+              }}
               onClick={() => navigate(`/sessions/${session.id}`)}
-              className="h-7 flex items-center gap-2 px-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50"
+              className="h-7 flex items-center gap-2 px-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50 cursor-grab active:cursor-grabbing"
             >
               <Mic className="w-3 h-3 shrink-0" />
               <span className="truncate">{session.title || session.prompt?.name || 'Sessao'}</span>
