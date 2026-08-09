@@ -30,7 +30,7 @@ export function SessionPage() {
   const [processingHint, setProcessingHint] = useState(false)
 
   const isEnded = session?.status === 'ENDED' || ended
-  const { status, liveText, transcriptionProgress } = useSessionEvents(id || '', isEnded)
+  const { status, liveText, transcriptionProgress, transcriptVersion, documentVersion } = useSessionEvents(id || '', isEnded)
   const visibleStatus = status === 'idle' && processingHint ? 'waiting:transcript' : status
 
   const handleRename = async () => {
@@ -219,7 +219,12 @@ export function SessionPage() {
 
         {isEnded && (
           <div className="fade-in w-full max-w-4xl">
-            <TranscriptViewer sessionId={session.id} liveText={liveText} transcriptionProgress={transcriptionProgress} />
+            <TranscriptViewer
+              sessionId={session.id}
+              liveText={liveText}
+              transcriptionProgress={transcriptionProgress}
+              reloadToken={transcriptVersion}
+            />
           </div>
         )}
 
@@ -227,6 +232,7 @@ export function SessionPage() {
           <div className="fade-in w-full max-w-4xl">
             <DocumentEditor
               sessionId={session.id}
+              reloadToken={documentVersion}
               onReprocessed={() => setReprocessTrigger((n) => n + 1)}
             />
           </div>

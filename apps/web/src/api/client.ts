@@ -101,6 +101,13 @@ export const sessions = {
     )
   },
 
+  transcription: (sessionId: string) => {
+    return new EventSource(
+      `${config.VITE_API_BASE_URL}/sessions/${sessionId}/transcription/stream`,
+      { withCredentials: true }
+    )
+  },
+
   rename: (id: string, title: string) =>
     request<{ session: Session }>(`/sessions/${id}`, {
       method: 'PATCH',

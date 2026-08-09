@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { transcriptionJobsQueue } from "@/jobs/queues";
 import { promptNameToTranscriptionMode } from "@/lib/prompts";
+import { createEventPublisher } from "@/events/publisher";
 
 // shape mínimo do evento MinIO
 const minioEventSchema = z.object({
@@ -35,6 +36,7 @@ function parseUploadKey(key: string): { sessionId: string, filename: string } | 
 }
 
 const internalWebhook: FastifyPluginAsync = async (fastify) => {
+  const events = createEventPublisher();
 
   fastify.post("/internal/minio-webhook", async (request, reply) => {
     // valida secret
@@ -78,7 +80,7 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
 
       await prisma.audioMedia.updateMany({
         where: { sessionId, storageKey: key },
-        data: { status: "UPLOADED" },
+        data: { status: "PROCESSING" },
       });
 
       await prisma.recordingSession.update({
@@ -86,7 +88,7 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
         data: { status: "IN_PROGRESS" },
       });
 
-      await transcriptionJobsQueue.add('transcribe-upload', {
+      const job = await transcriptionJobsQueue.add('transcribe-upload', {
           sessionId: sessionId,
           storageKey: key,
           filename: filename,
@@ -96,6 +98,12 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
           attempts: 3,
           backoff: { type: "exponential", delay: 5000 },
         });
+
+      await events.emit(sessionId, "UPLOAD_QUEUED", {
+        jobId: job.id,
+        storageKey: key,
+        filename,
+      });
     }
 
     return reply.status(200).send({ ok: true });

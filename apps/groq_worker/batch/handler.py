@@ -113,6 +113,7 @@ class BatchHandler:
         t0 = time.monotonic()
 
         try:
+            slog.info("iniciando job job_id=%s filename=%s storage_key=%s", job.job_id, job.filename, job.storage_key)
             await self._event_service.emit(
                 job.session_id,
                 EventType.UPLOAD_RECEIVED,
@@ -140,11 +141,13 @@ class BatchHandler:
             )
 
             async with self._api_sem:
+                slog.info("groq request iniciando job_id=%s", job.job_id)
                 result = await self._groq.transcribe(
                     audio,
                     session_id=job.session_id,
                     language=job.language,
                 )
+                slog.info("groq request finalizado job_id=%s segments=%d", job.job_id, len(result.segments))
 
             saved_chunks = await self._emit_segments(job.session_id, result.segments)
             total_sec = time.monotonic() - t0
@@ -198,6 +201,7 @@ class BatchHandler:
 
     async def _emit_segments(self, session_id: str, segments: list[dict]) -> int:
         saved = 0
+        total = len(segments)
         for chunk_index, segment in enumerate(segments):
             text = str(segment.get("text") or "").strip()
             if not text:
@@ -210,4 +214,16 @@ class BatchHandler:
                 timestamp_end=int(segment.get("end_ms") or 0),
             )
             saved += 1
+            await self._event_service.emit(
+                session_id,
+                EventType.UPLOAD_TRANSCRIPTION_PROGRESS,
+                {
+                    "chunkIndex": chunk_index,
+                    "current": saved,
+                    "totalChunks": total,
+                    "text": text,
+                    "timestampStartMs": int(segment.get("start_ms") or 0),
+                    "timestampEndMs": int(segment.get("end_ms") or 0),
+                },
+            )
         return saved

@@ -36,10 +36,11 @@ function EditorInner({ content, onReady }: EditorInnerProps) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 interface Props {
   sessionId: string
+  reloadToken?: number
   onReprocessed?: () => void
 }
 
-export function DocumentEditor({ sessionId, onReprocessed }: Props) {
+export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed }: Props) {
   const [versions, setVersions] = useState<DocumentVersion[]>([])
   const [current, setCurrent] = useState<DocumentContent | null>(null)
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
@@ -87,7 +88,7 @@ export function DocumentEditor({ sessionId, onReprocessed }: Props) {
       if (v.length > 0) loadContent()
       else setLoading(false)
     })
-  }, [loadVersions])
+  }, [loadVersions, reloadToken])
 
   const save = async () => {
     setSaving(true)

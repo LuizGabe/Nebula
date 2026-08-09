@@ -29,6 +29,11 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RecordingSessionStatus') THEN
     ALTER TYPE "RecordingSessionStatus" ADD VALUE IF NOT EXISTS 'IN_PROGRESS';
   END IF;
+
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SessionEventType') THEN
+    ALTER TYPE "SessionEventType" ADD VALUE IF NOT EXISTS 'CHUNK_TRANSCRIPTION_PROGRESS';
+    ALTER TYPE "SessionEventType" ADD VALUE IF NOT EXISTS 'UPLOAD_TRANSCRIPTION_PROGRESS';
+  END IF;
 END $$;
 
 ALTER TABLE "prompts"

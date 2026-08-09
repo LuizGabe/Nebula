@@ -38,6 +38,15 @@ class BullMQConsumer:
         if not storage_key:
             raise ValueError("job sem storageKey")
 
+        log.info(
+            "job recebido queue=%s job_id=%s session=%s filename=%s storage_key=%s",
+            self._queue_name,
+            job.id,
+            session_id,
+            filename,
+            storage_key,
+        )
+
         await self._handler.enqueue(
             job_id=job.id,
             session_id=session_id,

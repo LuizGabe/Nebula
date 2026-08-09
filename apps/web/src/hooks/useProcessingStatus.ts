@@ -1,7 +1,6 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { sessions } from '@/api/client'
 
-// Enum espelhando SessionEventType do backend
 export type SessionEventType =
   | 'CHUNK_RECEIVED'
   | 'CHUNK_QUEUED'
@@ -18,6 +17,7 @@ export type SessionEventType =
   | 'DOCUMENT_QUEUED'
   | 'DOCUMENT_GENERATING'
   | 'DOCUMENT_READY'
+  | 'DOCUMENT_SKIPPED'
   | 'DOCUMENT_FAILED'
 
 export interface LiveTranscription {
@@ -35,18 +35,60 @@ export type DetailedProcessingStatus =
   | 'done'
   | 'error:unknown'
 
-type StatusEventPayload = {
-  type: SessionEventType
-  data: string | Record<string, any>
+type RawStatusEvent = {
+  type?: string
+  status?: string
+  event_type?: string
+  data?: unknown
+  payload?: unknown
 }
 
-function parsePayload(data: StatusEventPayload['data']) {
-  if (typeof data !== 'string') return data ?? {}
+type NormalizedEvent = {
+  type: SessionEventType
+  payload: Record<string, any>
+}
+
+function parseJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value
   try {
-    return JSON.parse(data)
+    return JSON.parse(value)
   } catch {
     return {}
   }
+}
+
+function asObject(value: unknown): Record<string, any> {
+  const parsed = parseJson(value)
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, any> : {}
+}
+
+function normalizeStatusEvent(raw: RawStatusEvent): NormalizedEvent | null {
+  const type = raw.type ?? raw.status ?? raw.event_type
+  if (!type) return null
+  return {
+    type: type as SessionEventType,
+    payload: asObject(raw.data ?? raw.payload),
+  }
+}
+
+function normalizeTranscriptionEvent(raw: Record<string, any>): NormalizedEvent | null {
+  if (raw.status === 'completed') {
+    return { type: 'UPLOAD_TRANSCRIBED', payload: raw }
+  }
+
+  if (typeof raw.text === 'string' && raw.text.trim()) {
+    return {
+      type: 'UPLOAD_TRANSCRIPTION_PROGRESS',
+      payload: {
+        text: raw.text,
+        chunkIndex: raw.chunk_index ?? raw.chunkIndex ?? 0,
+        timestampStartMs: raw.segment?.start_ms ?? raw.timestampStartMs ?? 0,
+        timestampEndMs: raw.segment?.end_ms ?? raw.timestampEndMs ?? 0,
+      },
+    }
+  }
+
+  return null
 }
 
 function mapEventToStatus(eventType: SessionEventType): DetailedProcessingStatus {
@@ -58,24 +100,25 @@ function mapEventToStatus(eventType: SessionEventType): DetailedProcessingStatus
       return 'waiting:transcript'
 
     case 'CHUNK_TRANSCRIPTION_STARTED':
+    case 'CHUNK_TRANSCRIPTION_PROGRESS':
     case 'UPLOAD_TRANSCRIPTION_STARTED':
+    case 'UPLOAD_TRANSCRIPTION_PROGRESS':
       return 'processing:transcript'
 
     case 'CHUNK_TRANSCRIBED':
     case 'UPLOAD_TRANSCRIBED':
-      return 'done:transcript'
+    case 'DOCUMENT_QUEUED':
+      return 'waiting:document'
 
     case 'CHUNK_FAILED':
     case 'UPLOAD_FAILED':
       return 'error:transcript'
 
-    case 'DOCUMENT_QUEUED':
-      return 'waiting:document'
-
     case 'DOCUMENT_GENERATING':
       return 'processing:document'
 
     case 'DOCUMENT_READY':
+    case 'DOCUMENT_SKIPPED':
       return 'done'
 
     case 'DOCUMENT_FAILED':
@@ -89,59 +132,82 @@ function mapEventToStatus(eventType: SessionEventType): DetailedProcessingStatus
 export function useSessionEvents(sessionId: string, enabled: boolean) {
   const [status, setStatus] = useState<DetailedProcessingStatus>('idle')
   const [liveText, setLiveText] = useState<LiveTranscription[] | null>(null)
-  const [transcriptionProgress, setTranscriptionProgress] = useState<[number, number] | null>(null) // [total, current]
-  const eventSourceRef = useRef<EventSource | null>(null)
+  const [transcriptionProgress, setTranscriptionProgress] = useState<[number, number] | null>(null)
+  const [transcriptVersion, setTranscriptVersion] = useState(0)
+  const [documentVersion, setDocumentVersion] = useState(0)
+  const statusSourceRef = useRef<EventSource | null>(null)
+  const transcriptionSourceRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !sessionId) return
 
-    const eventSource = sessions.status(sessionId)
-    eventSourceRef.current = eventSource
-
-    eventSource.addEventListener('progress', (event) => {
-      if (!event.data) return
-
-      const eventParsed = JSON.parse(event.data) as StatusEventPayload
-      const type = eventParsed.type as SessionEventType
-      console.log('Received event', { type, data: eventParsed.data })
-
-      const payload = parsePayload(eventParsed.data)
+    const applyEvent = (event: NormalizedEvent) => {
+      const { type, payload } = event
+      setStatus(mapEventToStatus(type))
 
       if (type === 'UPLOAD_TRANSCRIPTION_STARTED') {
-        setTranscriptionProgress([payload.totalChunks ?? 1, 0])
+        setTranscriptionProgress([payload.totalChunks ?? payload.total_chunks ?? 1, 0])
       }
 
       if (type === 'CHUNK_TRANSCRIPTION_PROGRESS' || type === 'UPLOAD_TRANSCRIPTION_PROGRESS') {
-        setLiveText((prev) => [...(prev || []), {
-          text: payload.text,
-          timestamp_start_ms: payload.timestampStartMs,
-          timestamp_end_ms: payload.timestampEndMs,
-        }])
-        setTranscriptionProgress((prev) => prev ? [prev[0], payload.chunkIndex + 1] : null)
-        setStatus('processing:transcript')
-        return
+        const text = String(payload.text ?? '').trim()
+        if (text) {
+          setLiveText((prev) => [...(prev || []), {
+            text,
+            timestamp_start_ms: payload.timestampStartMs ?? payload.timestamp_start_ms ?? 0,
+            timestamp_end_ms: payload.timestampEndMs ?? payload.timestamp_end_ms ?? 0,
+          }])
+        }
+
+        setTranscriptionProgress((prev) => {
+          const total = payload.totalChunks ?? payload.total_chunks ?? prev?.[0] ?? 1
+          const current = payload.current ?? (payload.chunkIndex !== undefined ? payload.chunkIndex + 1 : prev?.[1] ?? 0)
+          return [total, current]
+        })
       }
-
-      if (!eventParsed?.type) return
-
-      const newStatus = mapEventToStatus(eventParsed.type)
-      setStatus(newStatus)
 
       if (type === 'CHUNK_TRANSCRIBED' || type === 'UPLOAD_TRANSCRIBED') {
         setLiveText(null)
         setTranscriptionProgress(null)
+        setTranscriptVersion((value) => value + 1)
       }
+
+      if (type === 'DOCUMENT_READY' || type === 'DOCUMENT_SKIPPED') {
+        setDocumentVersion((value) => value + 1)
+      }
+    }
+
+    const statusSource = sessions.status(sessionId)
+    const transcriptionSource = sessions.transcription(sessionId)
+    statusSourceRef.current = statusSource
+    transcriptionSourceRef.current = transcriptionSource
+
+    statusSource.addEventListener('progress', (event) => {
+      if (!event.data) return
+      const normalized = normalizeStatusEvent(JSON.parse(event.data))
+      if (normalized) applyEvent(normalized)
     })
 
-    eventSource.addEventListener('error', () => {
-      setStatus('error:unknown')
-      eventSource.close()
+    transcriptionSource.addEventListener('transcription', (event) => {
+      if (!event.data) return
+      const normalized = normalizeTranscriptionEvent(JSON.parse(event.data))
+      if (normalized) applyEvent(normalized)
+    })
+
+    statusSource.addEventListener('error', () => {
+      if (statusSource.readyState === EventSource.CLOSED) return
+      setStatus((current) => current === 'idle' ? 'error:unknown' : current)
+    })
+
+    transcriptionSource.addEventListener('error', () => {
+      if (transcriptionSource.readyState === EventSource.CLOSED) return
     })
 
     return () => {
-      eventSource.close()
+      statusSource.close()
+      transcriptionSource.close()
     }
   }, [sessionId, enabled])
 
-  return { status, liveText, transcriptionProgress }
+  return { status, liveText, transcriptionProgress, transcriptVersion, documentVersion }
 }

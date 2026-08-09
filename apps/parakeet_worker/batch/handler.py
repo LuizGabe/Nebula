@@ -188,6 +188,18 @@ class BatchHandler:
                             timestamp_start=start_ms,
                             timestamp_end=end_ms,
                         )
+                        await self._event_service.emit(
+                            job.session_id,
+                            EventType.UPLOAD_TRANSCRIPTION_PROGRESS,
+                            {
+                                "chunkIndex": chunk_idx,
+                                "current": chunk_idx + 1,
+                                "totalChunks": len(result.segments),
+                                "text": " ".join(current_text_parts),
+                                "timestampStartMs": start_ms,
+                                "timestampEndMs": end_ms,
+                            },
+                        )
                         
                         # Incrementa o índice para o próximo grupo e limpa o buffer
                         chunk_idx += 1
@@ -203,6 +215,18 @@ class BatchHandler:
                         text=" ".join(current_text_parts),
                         timestamp_start=start_ms,
                         timestamp_end=end_ms,
+                    )
+                    await self._event_service.emit(
+                        job.session_id,
+                        EventType.UPLOAD_TRANSCRIPTION_PROGRESS,
+                        {
+                            "chunkIndex": chunk_idx,
+                            "current": chunk_idx + 1,
+                            "totalChunks": len(result.segments),
+                            "text": " ".join(current_text_parts),
+                            "timestampStartMs": start_ms,
+                            "timestampEndMs": end_ms,
+                        },
                     )
 
             total_sec = time.monotonic() - t0

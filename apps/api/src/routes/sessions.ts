@@ -74,12 +74,12 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     const history = await prisma.sessionEvent.findMany({
       where: { sessionId: session.id },
       orderBy: { createdAt: "desc" },
-      take: 10
+      take: 30
     })
 
     async function* eventStream() {
       // Flush do histórico primeiro
-      for (const row of history) {
+      for (const row of [...history].reverse()) {
         let payloadTratado: any = {}
 
         if (typeof row.payload === 'string') {
@@ -116,6 +116,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       try {
         for await (const [message] of on(emitter, 'workflow')) {
           const parsed = JSON.parse(message)
+          const eventType = parsed.status ?? parsed.event_type ?? parsed.type
           let payloadTratado: any = {}
           if (typeof parsed.payload === 'string') {
             try {
@@ -130,9 +131,9 @@ const sessions: FastifyPluginAsync = async (fastify) => {
             id:    parsed.id ?? Date.now().toString(),
             event: 'progress',
             data:  JSON.stringify({
-              type: parsed.status,
+              type: eventType,
               data: {
-                timestamp: new Date().toISOString(),
+                timestamp: parsed.timestamp ?? parsed.timestamp_ms ?? new Date().toISOString(),
                 ...payloadTratado,
               }
             }),

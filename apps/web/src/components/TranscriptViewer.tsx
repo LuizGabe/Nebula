@@ -16,9 +16,10 @@ interface TranscriptViewerProps {
   sessionId: string
   liveText?: LiveTranscription[] | null
   transcriptionProgress?: [total: number, current: number] | null
+  reloadToken?: number
 }
 
-export function TranscriptViewer({ sessionId, liveText, transcriptionProgress }: TranscriptViewerProps) {
+export function TranscriptViewer({ sessionId, liveText, transcriptionProgress, reloadToken = 0 }: TranscriptViewerProps) {
   const [blocks, setBlocks] = useState<TranscriptBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [frozenLive, setFrozenLive] = useState<LiveTranscription[] | null>(null)
@@ -30,7 +31,7 @@ export function TranscriptViewer({ sessionId, liveText, transcriptionProgress }:
       setBlocks(result.transcripts)
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [sessionId])
+  }, [sessionId, reloadToken])
 
   useEffect(() => {
     if (liveText != null && liveText.length > 0) {
