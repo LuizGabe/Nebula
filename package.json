@@ -1,7 +1,7 @@
 {
   "name": "nebula",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": ["apps/*"],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

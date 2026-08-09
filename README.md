@@ -1,183 +1,296 @@
 # Nebula
 
-> **Uma plataforma inteligente e assíncrona para gravação, transcrição e geração automática de documentos utilizando IA local e em nuvem.**
+Nebula e uma aplicacao para gravar ou enviar audio, transcrever o conteudo e gerar documentos com IA. O projeto combina um frontend React, uma API Fastify, PostgreSQL, Redis/BullMQ, MinIO e workers Python para processamento de audio.
 
----
+O fluxo principal e simples: o usuario cria uma sessao, escolhe um prompt cadastrado no banco, grava ou envia um audio, acompanha o processamento e revisa o documento Markdown gerado. Os prompts nao vivem mais em arquivos compartilhados; eles sao registros editaveis no banco de dados.
 
-## 📌 Sobre o Projeto
+## Funcionalidades
 
-O **Nebula** é um ecossistema projetado para resolver o problema de documentação manual em reuniões e aulas. O sistema permite que o usuário grave áudio em tempo real ou faça o upload de arquivos de mídia. Utilizando uma arquitetura orientada a eventos e filas de processamento, o projeto transcreve o áudio foneticamente com precisão utilizando modelos ONNX (NVIDIA NeMo Parakeet) e, em seguida, aplica Modelos de Linguagem de Grande Escala (LLMs via Groq ou Ollama local) para gerar atas de reuniões, resumos de aulas e permitir interações de Perguntas e Respostas (Q&A) baseadas no contexto transcrito.
+- Autenticacao local com usuario e senha.
+- Redirecionamento automatico de `/login` para o dashboard quando o usuario ja esta logado.
+- Dashboard de sessoes com criacao por prompt dinamico.
+- Gravacao pelo navegador e upload de arquivos de audio.
+- Upload seguro para MinIO usando presigned URLs.
+- Processamento assincrono com Redis e BullMQ.
+- Transcricao por workers Python.
+- Geracao de documentos com LLM via Groq ou Ollama.
+- Editor Markdown para revisar documentos gerados.
+- Q&A via SSE sobre a transcricao da sessao.
+- CRUD de prompts em `/prompts`.
+- Prompts publicos e privados, com dono (`ownerId`) e prompt padrao (`isDefault`).
 
-A arquitetura foi desenhada em um formato de **Monorepo** (gerenciado pelo `pnpm workspaces`), separando claramente as responsabilidades entre a interface de usuário (Frontend), a API de orquestração (Backend) e o processamento intensivo de áudio/IA (Worker Python).
-
----
-
-## 🚀 Funcionalidades
-
-* **Gravação e Upload Chunked:** Gravação de áudio em tempo real direto do navegador ou upload de arquivos longos com suporte a fatiamento seguro.
-* **Processamento Assíncrono com BullMQ:** Orquestração de tarefas pesadas (transcrição e geração de LLM) em background utilizando Redis.
-* **Transcrição Inteligente (AudioSplitter):** Worker Python customizado que divide áudios longos baseado em detecção de silêncio (evitando *Out of Memory* no modelo ONNX) e remove automaticamente *overlaps* textuais.
-* **Geração Contextual de Documentos:** Templates específicos de LLM para formatar as transcrições em "Atas de Reunião" ou "Anotações de Aula".
-* **Editor Markdown Rico:** Interface de edição integrada utilizando Milkdown/Crepe para revisão final dos documentos gerados.
-* **Q&A Interativo via SSE:** Chat integrado com *Server-Sent Events* para fazer perguntas sobre o conteúdo da transcrição e receber respostas geradas por IA em tempo real (streaming).
-* **Armazenamento S3:** Armazenamento seguro de *chunks* de áudio em infraestrutura compatível com S3 (MinIO).
-
----
-
-## 🛠️ Tecnologias Utilizadas
-
-| Camada | Tecnologias Principais | Propósito |
-| --- | --- | --- |
-| **Frontend** (`apps/web`) | React 18, Vite, Tailwind CSS, Zustand, Milkdown | Interface SPA, gerenciamento de estado e editor de texto rico (Markdown). |
-| **Backend** (`apps/api`) | Node.js, Fastify, Prisma ORM, Zod, BullMQ | API RESTful, gerenciamento de banco de dados, orquestração de filas e integração S3/LLM. |
-| **Worker** (`apps/parakeet_worker`) | Python 3.11, ONNX Runtime, asyncpg, FFmpeg | Inferência de IA para *Speech-to-Text* (Parakeet TDT 0.6B) e processamento de mídia. |
-| **Integrações de IA** | Groq SDK, Ollama | Provedores de LLM para análise sintática e geração de documentos. |
-| **Infraestrutura** | Docker, PostgreSQL, Redis, MinIO | Banco de dados relacional, cache/filas e *Object Storage*. |
-
----
-
-## 📂 Estrutura de Pastas
-
-O projeto utiliza um padrão de monorepo estruturado da seguinte forma:
+## Arquitetura
 
 ```text
 nebula/
-├── apps/
-│   ├── api/                   # Backend em Node.js/Fastify
-│   │   ├── prisma/            # Schema do banco e migrações
-│   │   └── src/
-│   │       ├── jobs/          # Processadores de fila (BullMQ) para LLM
-│   │       ├── lib/           # Adaptadores LLM (Groq/Ollama) e S3
-│   │       └── routes/        # Endpoints da API (auth, sessions, chunks, documents)
-│   ├── parakeet_worker/       # Serviço Python para Transcrição de Áudio
-│   │   ├── audio_splitter.py  # Lógica de fatiamento de áudio seguro
-│   │   ├── transcriber.py     # Wrapper de inferência do ONNX Runtime
-│   │   └── worker.py          # Consumidor da fila Redis
-│   └── web/                   # Frontend React
-│       └── src/
-│           ├── api/           # Integração com a API Backend
-│           ├── components/    # Componentes UI reutilizáveis (Editor, Recorder)
-│           └── pages/         # Páginas (Dashboard, Session, Login)
-├── packages/
-│   └── prompts/               # Templates textuais compartilhados para os LLMs
-├── scripts/                   # Scripts de utilidade (ex: download de modelos)
-└── docker-compose.yml         # Orquestração de dependências da infraestrutura
-
+|-- apps/
+|   |-- api/                 # Backend Fastify + Prisma + BullMQ
+|   |   |-- prisma/          # Schema, SQL bootstrap e seed
+|   |   `-- src/
+|   |       |-- events/      # Eventos de pipeline e status
+|   |       |-- jobs/        # Filas e processadores
+|   |       |-- lib/         # Prisma, Redis, storage, LLM e prompts
+|   |       |-- routes/      # Rotas REST, SSE e WebSocket
+|   |       `-- workers/     # Inicializacao de workers Node
+|   |-- web/                 # Frontend React + Vite + Tailwind
+|   |   `-- src/
+|   |       |-- api/         # Client HTTP
+|   |       |-- components/  # Recorder, editor, status, UI
+|   |       |-- hooks/       # Recorder e status de processamento
+|   |       |-- pages/       # Login, Dashboard, Session, Settings
+|   |       `-- store/       # Estado de autenticacao
+|   |-- groq_worker/         # Worker Python para processamento Groq/batch
+|   `-- parakeet_worker/     # Worker Python/gRPC para transcricao
+|-- scripts/                 # Utilitarios, como download de modelos
+|-- docker-compose.yml       # Ambiente production-like local
+|-- docker-compose.dev.yml   # Ambiente de desenvolvimento com volumes
+|-- pnpm-workspace.yaml
+`-- package.json
 ```
 
----
+## Stack
 
-## 🔧 Configuração e Instalação
+| Area | Tecnologias |
+| --- | --- |
+| Web | React 18, Vite, Tailwind CSS, Zustand, Milkdown/Crepe, lucide-react |
+| API | Node.js, Fastify, Prisma 7, Zod, BullMQ, secure-session |
+| Banco/Fila/Storage | PostgreSQL 16, Redis 7, MinIO |
+| IA | Groq SDK, Ollama, workers Python |
+| Audio | Web MediaRecorder, workers Python, gRPC, FFmpeg |
 
-### Pré-requisitos
+## Variaveis de Ambiente
 
-* [Node.js](https://nodejs.org/) (v20+) e [pnpm](https://pnpm.io/) (v9+)
-* [Python 3.11+](https://www.python.org/)
-* [Docker](https://www.docker.com/) e Docker Compose
-* [FFmpeg](https://ffmpeg.org/) (necessário localmente para o worker Python)
+Use `.env.example` como base para criar `.env` na raiz do projeto.
 
-### Passo a Passo
+Variaveis principais:
 
-**1. Clone o repositório e acesse o diretório:**
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- `DATABASE_URL`
+- `REDIS_URL`
+- `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`
+- `MINIO_PUBLIC_ENDPOINT`, `MINIO_INTERNAL_ENDPOINT`, `MINIO_ENDPOINT`
+- `MINIO_WEBHOOK_SECRET`
+- `SESSION_SECRET`, `SESSION_SALT`
+- `REGISTRATION_ENABLED`
+- `GROQ_API_KEY`
+- `OLLAMA_URL`
+- `DEFAULT_MODEL`
+- `VITE_API_BASE_URL`
+
+Prompts ficam na tabela `prompts` e sao carregados dinamicamente pela API.
+
+## Rodando com Docker
+
+Para subir o ambiente principal:
 
 ```bash
-git clone <url-do-repositorio>
-cd nebula
-
+docker compose up -d --build
 ```
 
-**2. Configure as variáveis de ambiente:**
-Copie o arquivo de exemplo e ajuste as chaves necessárias (especialmente `GROQ_API_KEY` se for utilizar a nuvem).
+Servicos expostos:
+
+- Web: `http://localhost:5173`
+- API: `http://localhost:3333`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+O `docker-compose.yml` usa build production-like:
+
+- `web` serve arquivos estaticos via Nginx na porta interna `80`, exposta como `5173`.
+- `api` roda `pnpm run start`.
+- `groq_worker` roda separado.
+- `parakeet` fica em profile opcional.
+
+Para subir o worker Parakeet:
 
 ```bash
-cp .env.example .env
-
+docker compose --profile parakeet up -d --build parakeet
 ```
 
-**3. Suba a Infraestrutura (Banco, Redis, MinIO):**
+## Rodando em Desenvolvimento
+
+Suba o compose de desenvolvimento:
 
 ```bash
-docker-compose up -d postgres redis minio
-
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-**4. Baixe o modelo ONNX para a transcrição:**
+Esse arquivo monta volumes para `apps/api/src`, `apps/api/prisma` e `apps/web/src`, facilitando hot reload.
 
-```bash
-bash scripts/download_models.sh
-
-```
-
-**5. Instale as dependências Node.js:**
+Tambem e possivel rodar Node localmente:
 
 ```bash
 pnpm install
-
+pnpm dev
 ```
 
-**6. Configure o Banco de Dados (Prisma):**
+## Banco de Dados
+
+O schema Prisma fica em:
+
+```text
+apps/api/prisma/schema.prisma
+```
+
+Para gerar o Prisma Client:
 
 ```bash
 cd apps/api
-pnpm exec prisma db push
-
+pnpm exec prisma generate
 ```
 
-**7. Execute os serviços localmente:**
-Você pode utilizar o Turborepo (configurado no diretório raiz) para rodar a API e o Web simultaneamente:
+Para validar o schema:
 
 ```bash
+pnpm exec prisma validate
+```
+
+Para aplicar o bootstrap conservador usado neste projeto:
+
+```bash
+pnpm exec prisma db execute --file prisma/prompt_bootstrap.sql
+```
+
+O arquivo `prompt_bootstrap.sql` existe para criar/adaptar a tabela de prompts sem derrubar dados antigos de sessoes/documentos.
+
+## Seed de Prompts
+
+O seed atual cria ou atualiza tres prompts iniciais:
+
+- `Reuniao` como padrao
+- `Aula`
+- `Entrevista`
+
+Todos sao marcados como publicos. Se existir o usuario `luizgabe`, eles tambem ficam associados a ele via `ownerId`.
+
+Para rodar:
+
+```bash
+cd apps/api
+pnpm run db:seed
+```
+
+## Prompts
+
+Prompts sao gerenciados pelo backend e pelo frontend.
+
+Campos principais:
+
+- `id`
+- `name`
+- `content`
+- `isDefault`
+- `isPublic`
+- `ownerId`
+- `createdAt`
+
+Regras atuais:
+
+- `GET /prompts` lista prompts publicos e prompts privados do usuario logado.
+- `POST /prompts` cria prompt do usuario logado.
+- `PUT /prompts/:id` edita prompt do usuario ou prompt sem dono.
+- `DELETE /prompts/:id` remove prompt do usuario ou prompt sem dono.
+- Ao criar uma sessao, o frontend envia `promptId`.
+- O job de pos-processamento busca o prompt da sessao no banco para gerar o documento.
+
+## Rotas Principais da API
+
+Autenticacao:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/logout`
+- `GET /auth/me`
+
+Sessoes:
+
+- `GET /sessions`
+- `POST /sessions`
+- `GET /sessions/:id`
+- `PATCH /sessions/:id/end`
+- `PATCH /sessions/:id`
+- `DELETE /sessions/:id`
+- `GET /sessions/:id/status/stream`
+- `POST /sessions/:id/question`
+
+Prompts:
+
+- `GET /prompts`
+- `POST /prompts`
+- `PUT /prompts/:id`
+- `DELETE /prompts/:id`
+
+Documentos:
+
+- `GET /sessions/:id/document`
+- `GET /sessions/:id/document/content`
+- `PATCH /sessions/:id/document`
+- `POST /sessions/:id/document/reprocess`
+
+Audio:
+
+- `POST /chunks/presigned-url`
+- `POST /uploads/audio/presigned-url`
+- `GET /ws/transcribe`
+
+LLM:
+
+- `GET /llm/models`
+- `PATCH /users/config`
+
+## Fluxo de Uso
+
+1. Acesse `http://localhost:5173`.
+2. Crie ou entre com um usuario.
+3. Abra Configuracoes para conferir ou editar prompts.
+4. No dashboard, clique em Nova sessao.
+5. Escolha um prompt cadastrado.
+6. Grave audio ou envie um arquivo.
+7. Encerre a sessao e acompanhe o status.
+8. Revise o documento gerado e use o Q&A quando necessario.
+
+## Comandos Uteis
+
+Na raiz:
+
+```bash
+pnpm install
 pnpm dev
-
+pnpm build
+docker compose up -d --build
+docker compose logs -f api
+docker compose logs -f web
 ```
 
-Para o worker Python (em um terminal separado):
+Na API:
 
 ```bash
-cd apps/parakeet_worker
-pip install -r requirements.txt
-python worker.py
-
+cd apps/api
+pnpm run dev
+pnpm run build
+pnpm run db:seed
+pnpm exec prisma generate
+pnpm exec prisma validate
 ```
 
----
+No Web:
 
-## 💡 Exemplos de Uso (API)
-
-A comunicação com a API é tipicamente mediada pelo frontend, mas aqui estão exemplos dos fluxos principais:
-
-* **Criar Sessão:** `POST /sessions`
-```json
-{ "mode": "MEETING", "title": "Reunião de Planejamento" }
-
+```bash
+cd apps/web
+pnpm run dev
+pnpm run build
+pnpm run preview
 ```
 
+## Observacoes
 
-* **Solicitar Upload de Áudio:** `POST /chunks/presigned-url`
-Gera um link seguro (presigned URL) do MinIO para enviar blocos de gravação via PUT.
-* **Interagir via SSE (Q&A):** `POST /sessions/:id/question`
-```json
-{ "question": "Quais foram as decisões tomadas sobre o novo design?" }
+- Prompts sao registros do banco e podem ser publicos ou privados.
+- O compose production-like expoe o Web em `5173`, mas o Nginx dentro do container escuta em `80`.
+- Se a API retornar `Route GET:/prompts not found`, o container da API esta com imagem antiga. Rode `docker compose up -d --build api web`.
+- Se os prompts nao aparecerem, confirme que o seed rodou no banco usado pelo container.
 
-```
+## Licenca
 
-
-*A resposta será recebida em formato de Stream (`text/event-stream`).*
-
----
-
-## 🤝 Contribuição
-
-Contribuições são sempre bem-vindas! Siga os passos abaixo:
-
-1. Faça um *Fork* do projeto
-2. Crie uma *Branch* para sua Feature (`git checkout -b feature/IncrivelFeature`)
-3. Faça o *Commit* de suas mudanças (`git commit -m 'feat: Adiciona IncrivelFeature'`)
-4. Faça o *Push* para a Branch (`git push origin feature/IncrivelFeature`)
-5. Abra um *Pull Request*
-
----
-
-## 📝 Licença
-
-ISC (conforme especificado no pacote do backend). Sinta-se livre para utilizar e modificar para uso pessoal ou estudos.
+ISC.

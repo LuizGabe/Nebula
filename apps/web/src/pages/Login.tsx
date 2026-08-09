@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { redirect, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Mic } from 'lucide-react'
 import { auth } from '../api/client'
 import { useAuthStore } from '../store/auth'
@@ -14,6 +14,21 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const { setUser, user, loading: authLoading, fetchMe } = useAuthStore()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true })
+      return
+    }
+
+    fetchMe().catch(() => { })
+  }, [fetchMe, navigate, user])
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/', { replace: true })
+    }
+  }, [authLoading, navigate, user])
 
   const handle = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -24,9 +24,6 @@ const envSchema = z.object({
   // Redis
   REDIS_URL: z.string().min(1, "REDIS_URL é obrigatório"),
 
-  // Prompts DIR
-  PROMPTS_DIR: z.string().default(resolve(__dirname, "../../../prompts")),
-
   // MinIO
   MINIO_PUBLIC_ENDPOINT: z.string().min(1),
   MINIO_INTERNAL_ENDPOINT: z.string().default("http://minio:9000"),

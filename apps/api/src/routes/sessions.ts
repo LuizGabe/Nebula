@@ -1,8 +1,6 @@
 // src/routes/sessions.ts
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 import Redis from "ioredis";
 import { EventEmitter, on } from 'node:events'
 
@@ -11,10 +9,11 @@ import { requireAuth } from "@/hooks/requireAuth";
 import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import { config, type UserConfig } from "@/config";
 import { postProcessQueue } from "@/jobs/queues";
+import { getDefaultPrompt } from "@/lib/prompts";
 
 
 const createBody = z.object({
-  mode: z.enum(["MEETING", "CLASS"]),
+  promptId: z.string().optional(),
   title: z.string().max(120).optional(),
 });
 
@@ -131,12 +130,25 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     }
 
     const ownerId = request.session.get("userId")!;
+    const prompt = parsed.data.promptId
+      ? await prisma.prompt.findFirst({
+          where: {
+            id: parsed.data.promptId,
+            OR: [{ isPublic: true }, { ownerId }],
+          },
+        })
+      : await getDefaultPrompt(ownerId);
+
+    if (!prompt) {
+      return reply.status(400).send({ error: "Cadastre um prompt antes de criar sessões" });
+    }
 
     const session = await prisma.recordingSession.create({
-      data: { ...parsed.data, ownerId },
+      data: { title: parsed.data.title, promptId: prompt.id, ownerId },
       select: {
         id: true,
-        mode: true,
+        promptId: true,
+        prompt: true,
         status: true,
         title: true,
         createdAt: true,
@@ -158,7 +170,8 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
-        mode: true,
+        promptId: true,
+        prompt: true,
         status: true,
         title: true,
         createdAt: true,
@@ -178,6 +191,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
         include: {
+          prompt: true,
           documents: { orderBy: { version: "desc" }, take: 1 },
           _count: { select: { transcripts: true } },
         },
@@ -231,7 +245,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
-        include: { owner: { select: { config: true } } },
+        include: { owner: { select: { config: true } }, prompt: true },
       });
 
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
@@ -253,22 +267,11 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const userConfig = (session.owner.config ?? {}) as UserConfig;
       const modelId = userConfig.defaultModel ?? DEFAULT_MODEL;
 
-      // Carrega prompt de question
-      const promptMode = session.mode === "MEETING" ? "meeting" : "class";
-      const promptPath = resolve(
-        import.meta.dirname,
-        "../../../../packages/prompts/question",
-        `${promptMode}.txt`
-      );
-      let promptTemplate: string;
-      try {
-        promptTemplate = readFileSync(promptPath, "utf-8");
-      } catch {
-        promptTemplate =
-          "Use o contexto abaixo para responder a pergunta.\n\nCONTEXTO:\n{{context}}\n\nPERGUNTA: {{question}}";
-      }
+      const promptTemplate =
+        "Use o contexto abaixo para responder a pergunta considerando o tipo de documento \"{{promptName}}\".\n\nCONTEXTO:\n{{context}}\n\nPERGUNTA: {{question}}";
 
       const userPrompt = promptTemplate
+        .replaceAll("{{promptName}}", session.prompt?.name ?? "Documento")
         .replaceAll("{{context}}", context)
         .replaceAll("{{question}}", parsed.data.question);
 

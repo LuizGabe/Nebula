@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { transcriptionJobsQueue } from "@/jobs/queues";
+import { promptNameToTranscriptionMode } from "@/lib/prompts";
 
 // shape mínimo do evento MinIO
 const minioEventSchema = z.object({
@@ -66,7 +67,7 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
 
       const session = await prisma.recordingSession.findUnique({
         where: { id: sessionId },
-        select: { mode: true },
+        select: { prompt: { select: { name: true } } },
       });
       if (!session) {
         fastify.log.warn(`[webhook] sessão não encontrada para chunk upload: sessionId=${sessionId} key=${key}`);
@@ -79,7 +80,7 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
           sessionId: sessionId,
           storageKey: key,
           filename: filename,
-          mode: session.mode,
+          mode: promptNameToTranscriptionMode(session.prompt?.name),
           language: 'pt'
         }, {
           attempts: 3,

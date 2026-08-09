@@ -37,7 +37,8 @@ const uploads: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid request body' });
     }
 
-    const { sessionId, filename, contentType, sizeBytes } = parsed.data; // TODO: usar sizeBytes para validar o tamanho do upload depois que o arquivo for enviado para S3
+    const { sessionId, filename, contentType, sizeBytes } = parsed.data;
+    void sizeBytes; // TODO: validar o tamanho do upload depois que o arquivo for enviado para S3
     const ownerId = request.session.get("userId")!;
 
     if (!ALLOWED_TYPES.has(contentType)) {

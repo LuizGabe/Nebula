@@ -23,11 +23,6 @@ enum AudioMediaStatus {
   FAILED
 }
 
-enum DocumentType {
-  MEETING_MINUTES
-  CLASS_NOTES
-}
-
 enum SessionEventType {
   // Fluxo de chunk (streaming)
   CHUNK_RECEIVED
@@ -52,11 +47,6 @@ enum SessionEventType {
   DOCUMENT_FAILED
 }
 
-enum RecordingMode {
-  MEETING
-  CLASS
-}
-
 enum RecordingSessionStatus {
   ACTIVE
   IN_PROGRESS
@@ -72,13 +62,14 @@ model User {
   updatedAt      DateTime @updatedAt
 
   sessions RecordingSession[]
+  prompts  Prompt[]
 
   @@map("users")
 }
 
 model Document {
   id        String       @id @default(uuid())
-  type      DocumentType
+  type      String       @default("DOCUMENT")
   content   String
   version   Int          @default(1)
   modelUsed String
@@ -86,14 +77,34 @@ model Document {
 
   sessionId String
   session   RecordingSession @relation(fields: [sessionId], references: [id])
+  promptId  String?
+  prompt    Prompt?          @relation(fields: [promptId], references: [id], onDelete: SetNull)
 
   @@index([sessionId, version])
+  @@index([promptId])
   @@map("documents")
+}
+
+model Prompt {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  content   String
+  isDefault Boolean  @default(false)
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ownerId   String?
+  owner     User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  sessions  RecordingSession[]
+  documents Document[]
+
+  @@index([ownerId])
+  @@map("prompts")
 }
 
 model RecordingSession {
   id        String                 @id @default(cuid())
-  mode      RecordingMode
   status    RecordingSessionStatus @default(ACTIVE)
   title     String?
   createdAt DateTime               @default(now())
@@ -103,12 +114,15 @@ model RecordingSession {
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id])
+  promptId String?
+  prompt   Prompt? @relation(fields: [promptId], references: [id], onDelete: SetNull)
 
   transcripts   Transcript[]
   audioMedias   AudioMedia[]
   documents     Document[]
   sessionEvents SessionEvent[]
 
+  @@index([promptId])
   @@map("recording_sessions")
 }
 

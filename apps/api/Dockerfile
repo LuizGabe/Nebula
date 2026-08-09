@@ -30,7 +30,6 @@ CMD ["pnpm", "run", "dev"]
 FROM deps AS production
 ENV NODE_ENV=production
 COPY apps/api apps/api
-RUN mkdir -p packages/prompts
 WORKDIR /app/apps/api
 RUN pnpm exec prisma generate
 EXPOSE 3333

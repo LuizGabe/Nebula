@@ -18,6 +18,7 @@ import llmRoutes from "@/routes/llm.js";
 import uploadRoutes from "@/routes/uploads.js";
 import documentsRoutes from "@/routes/documents.js";
 import transcriptsRoutes from "@/routes/transcripts.js";
+import promptsRoutes from "@/routes/prompts.js";
 import wsRoutes from '@/routes/ws'
 import transcriptionStreamRoutes from '@/routes/transcription-stream'
 
@@ -63,6 +64,7 @@ await app.register(uploadRoutes);
 await app.register(internalWebhookRoutes);
 await app.register(documentsRoutes);
 await app.register(transcriptsRoutes);
+await app.register(promptsRoutes);
 await app.register(wsRoutes);
 await app.register(transcriptionStreamRoutes);
 

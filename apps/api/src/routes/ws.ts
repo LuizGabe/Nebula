@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { createTranscriberClient, startTranscriptionStream } from '@/lib/grpc-client';
 import { prisma } from '@/lib/prisma';
 import { requireAuthWs } from '@/hooks/requireAuth';
+import { promptNameToTranscriptionMode } from '@/lib/prompts';
 
 const ws: FastifyPluginAsync = async (fastify) => {
   fastify.get('/ws/transcribe', { websocket: true }, (connection, req) => {
@@ -17,6 +18,7 @@ const ws: FastifyPluginAsync = async (fastify) => {
     let grpcStream: ReturnType<typeof startTranscriptionStream> | null = null;
     let isFirstMessage = true;
     let sessionMode: 'MEETING' | 'CLASS' = 'MEETING';
+    let sessionLanguage = 'pt';
     let metaSent = false;
     let startTime: number | null = null;
     let accumulatedMs = 0;
@@ -80,15 +82,16 @@ const ws: FastifyPluginAsync = async (fastify) => {
             return;
           }
 
-          const { sessionId: sid, mode, language = 'pt' } = data;
-          if (!sid || !mode) {
-            fastify.log.warn('Missing sessionId or mode');
-            connection.close(1003, 'Missing sessionId or mode');
+          const { sessionId: sid, language = 'pt' } = data;
+          if (!sid) {
+            fastify.log.warn('Missing sessionId');
+            connection.close(1003, 'Missing sessionId');
             return;
           }
 
           const session = await prisma.recordingSession.findFirst({
             where: { id: sid, ownerId: userId },
+            include: { prompt: { select: { name: true } } },
           });
           if (!session) {
             fastify.log.warn(`Session ${sid} not found for user ${userId}`);
@@ -97,7 +100,8 @@ const ws: FastifyPluginAsync = async (fastify) => {
           }
 
           sessionId = sid;
-          sessionMode = mode.toUpperCase() as 'MEETING' | 'CLASS';
+          sessionMode = promptNameToTranscriptionMode(session.prompt?.name) as 'MEETING' | 'CLASS';
+          sessionLanguage = language;
 
           await updateSessionStatus('IN_PROGRESS');
 
@@ -126,7 +130,7 @@ const ws: FastifyPluginAsync = async (fastify) => {
             end_of_stream: false,
             meta: {
               mode: sessionMode,
-              language_hint: 'pt',
+              language_hint: language,
             },
           };
           try {
@@ -194,7 +198,7 @@ const ws: FastifyPluginAsync = async (fastify) => {
         if (!metaSent) {
           chunk.meta = {
             mode: sessionMode,
-            language_hint: 'pt',
+            language_hint: sessionLanguage,
           };
           metaSent = true;
           fastify.log.info(`Sending meta with first audio chunk for session ${sessionId}`);

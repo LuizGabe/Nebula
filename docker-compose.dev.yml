@@ -71,7 +71,6 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_INTERNAL_ENDPOINT=http://minio:9000
       - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
-      - PROMPTS_DIR=/app/packages/prompts
     command: ["pnpm", "run", "dev"]
     depends_on:
       - postgres
@@ -84,7 +83,6 @@ services:
       - ./apps/api/prisma:/app/apps/api/prisma
       - ./apps/api/package.json:/app/apps/api/package.json:ro
       - ./apps/api/tsconfig.json:/app/apps/api/tsconfig.json:ro
-      - ./packages/prompts:/app/packages/prompts:ro
 
   web:
     build:

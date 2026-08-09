@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, MessageSquare, Mic, BookOpen, CheckCircle2, Trash2, Pencil } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, FileText, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { sessions as sessionsApi, type Session } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
 import { PipelineStatus } from '../components/PipelineStatus'
@@ -8,12 +8,11 @@ import { TranscriptViewer } from '../components/TranscriptViewer'
 import { DocumentEditor } from '../components/DocumentEditor'
 import { QADrawer } from '../components/QADrawer'
 import { Button } from '../components/ui/Button'
-import { Badge } from '../components/ui/misc'
-import { Spinner } from '../components/ui/misc'
+import { Badge, Spinner } from '../components/ui/misc'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { safeDate } from '@/utils/SafeDate'
-import { DetailedProcessingStatus, useSessionEvents } from '@/hooks/useProcessingStatus'
+import { useSessionEvents } from '@/hooks/useProcessingStatus'
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -27,30 +26,31 @@ export function SessionPage() {
   const [reprocessTrigger, setReprocessTrigger] = useState(0)
 
   const isEnded = session?.status === 'ENDED' || ended
-
   const { status, liveText, transcriptionProgress } = useSessionEvents(id || '', isEnded)
 
   const handleRename = async () => {
     if (!id || !renameValue.trim()) return
     await sessionsApi.rename(id, renameValue.trim())
-    setSession((s) => s ? { ...s, title: renameValue.trim() } : s)
+    setSession((current) => current ? { ...current, title: renameValue.trim() } : current)
     setRenaming(false)
   }
 
   const handleDelete = async () => {
-    if (!id || !confirm('Excluir esta sessão? Esta ação não pode ser desfeita.')) return
+    if (!id || !confirm('Excluir esta sessao? Esta acao nao pode ser desfeita.')) return
     await sessionsApi.delete(id)
     navigate('/')
   }
 
   useEffect(() => {
     if (!id) return
-    sessionsApi.get(id).then((data) => {
-      const session = data.session
-      setSession(session)
-      if (session.status === 'ENDED') setEnded(true)
-      setLoading(false)
-    }).catch(() => navigate('/'))
+    sessionsApi.get(id)
+      .then((data) => {
+        const loaded = data.session
+        setSession(loaded)
+        if (loaded.status === 'ENDED') setEnded(true)
+        setLoading(false)
+      })
+      .catch(() => navigate('/'))
   }, [id, navigate])
 
   const handleEnd = async () => {
@@ -58,7 +58,7 @@ export function SessionPage() {
     try {
       await sessionsApi.end(id)
       setEnded(true)
-      setSession((s) => s ? { ...s, status: 'ENDED' } : s)
+      setSession((current) => current ? { ...current, status: 'ENDED' } : current)
     } catch { }
   }
 
@@ -72,26 +72,24 @@ export function SessionPage() {
 
   if (!session) return null
 
+  const promptName = session.prompt?.name ?? 'Documento'
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
-      {/* Back */}
       <Link
         to="/"
         className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900 mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Sessões
+        Sessoes
       </Link>
 
-      {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant={session.mode === 'MEETING' ? 'ink' : 'default'}>
-              {session.mode === 'MEETING'
-                ? <><Mic className="w-3 h-3" /> Reunião</>
-                : <><BookOpen className="w-3 h-3" /> Aula</>
-              }
+            <Badge variant="ink">
+              <FileText className="w-3 h-3" />
+              {promptName}
             </Badge>
             {isEnded ? (
               <Badge variant="jade">
@@ -108,6 +106,7 @@ export function SessionPage() {
               </Badge>
             )}
           </div>
+
           {renaming ? (
             <div className="flex items-center gap-2 mt-1">
               <input
@@ -126,7 +125,7 @@ export function SessionPage() {
           ) : (
             <div className="flex items-center gap-2 mt-1 group">
               <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">
-                {session.title || (session.mode === 'MEETING' ? 'Reunião sem título' : 'Aula sem título')}
+                {session.title || `${promptName} sem titulo`}
               </h1>
               <button
                 onClick={() => { setRenameValue(session.title ?? ''); setRenaming(true) }}
@@ -139,20 +138,15 @@ export function SessionPage() {
 
           <p className="text-sm text-ink-400 mt-1">
             {safeDate(session.createdAt)
-              ? format(safeDate(session.createdAt)!, "d 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })
-              : '—'
+              ? format(safeDate(session.createdAt)!, "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })
+              : '-'
             }
           </p>
-          <p className="text-sm text-ink-400 mt-1">
-            Id: {session.id}
-          </p>
+          <p className="text-sm text-ink-400 mt-1">Id: {session.id}</p>
         </div>
 
         {isEnded && (
-          <Button
-            variant="secondary"
-            onClick={() => setShowQA(true)}
-          >
+          <Button variant="secondary" onClick={() => setShowQA(true)}>
             <MessageSquare className="w-4 h-4" />
             Perguntar
           </Button>
@@ -162,49 +156,38 @@ export function SessionPage() {
         </Button>
       </div>
 
-      {/* Content stack */}
       <div className="flex flex-col gap-4 items-center">
-        {/* Recording panel — always shown while active */}
         {!isEnded && (
           <div className="fade-in w-full max-w-4xl">
-            <RecordingPanel
-              sessionId={session.id}
-              onEnd={handleEnd}
-            />
+            <RecordingPanel sessionId={session.id} onEnd={handleEnd} />
           </div>
         )}
 
-        {/* Pipeline status — shown after ending */}
-          <div className="fade-in w-full max-w-4xl">
-            
         {isEnded && status !== 'idle' && (
+          <div className="fade-in w-full max-w-4xl">
             <PipelineStatus status={status} />
-        )}
-            {
-              session.title?.includes('[testes]') && (
-                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="text-sm text-yellow-800">⚠️ Sessão para testes</p>
-                  <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 rounded font-mono text-xs text-yellow-900 max-h-40 overflow-y-auto">
-                    <div>Session ID: {session.id}</div>
-                    <div>Status: {session.status}</div>
-                    <div>Mode: {session.mode}</div>
-                    <div>Processing: {status}</div>
-                    <div>Live Text: {liveText ? 'tem conteúdo' : 'null'}</div>
-                  </div>
-                </div>
-              )
-            }
           </div>
+        )}
 
-        {/* Transcript — shown after session ended */}
+        {session.title?.includes('[testes]') && (
+          <div className="fade-in w-full max-w-4xl mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-sm text-yellow-800">Sessao para testes</p>
+            <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 rounded font-mono text-xs text-yellow-900 max-h-40 overflow-y-auto">
+              <div>Session ID: {session.id}</div>
+              <div>Status: {session.status}</div>
+              <div>Prompt: {promptName}</div>
+              <div>Processing: {status}</div>
+              <div>Live Text: {liveText ? 'tem conteudo' : 'null'}</div>
+            </div>
+          </div>
+        )}
+
         {isEnded && (
           <div className="fade-in w-full max-w-4xl">
             <TranscriptViewer sessionId={session.id} liveText={liveText} transcriptionProgress={transcriptionProgress} />
-            
           </div>
         )}
 
-        {/* Document — shown after session ended */}
         {isEnded && (
           <div className="fade-in w-full max-w-4xl">
             <DocumentEditor
@@ -215,12 +198,9 @@ export function SessionPage() {
         )}
       </div>
 
-      {/* QA Drawer */}
-      {
-        showQA && (
-          <QADrawer sessionId={session.id} onClose={() => setShowQA(false)} />
-        )
-      }
-    </div >
+      {showQA && (
+        <QADrawer sessionId={session.id} onClose={() => setShowQA(false)} />
+      )}
+    </div>
   )
 }

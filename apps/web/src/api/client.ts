@@ -8,7 +8,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
 
   if (res.status === 401) {
-    window.location.href = '/login'
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login'
+    }
     throw new Error('Unauthorized')
   }
 
@@ -43,12 +45,23 @@ export const auth = {
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
-export type SessionMode = 'MEETING' | 'CLASS'
 export type SessionStatus = 'ACTIVE' | 'ENDED'
+
+export interface Prompt {
+  id: string
+  name: string
+  content: string
+  isDefault: boolean
+  isPublic: boolean
+  createdAt: string
+  ownerId?: string | null
+  owner?: { id: string; username: string } | null
+}
 
 export interface Session {
   id: string
-  mode: SessionMode
+  promptId: string | null
+  prompt: Prompt | null
   status: SessionStatus
   title: string | null
   createdAt: string
@@ -57,14 +70,14 @@ export interface Session {
 }
 
 export const sessions = {
-  list: () => request<Session[]>('/sessions'),
+  list: () => request<{ sessions: Session[] }>('/sessions'),
 
   get: (id: string) => request<{ session: Session }>(`/sessions/${id}`),
 
-  create: (mode: SessionMode, title?: string) =>
-    request<Session>('/sessions', {
+  create: (promptId: string, title?: string) =>
+    request<{ session: Session }>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ mode, title }),
+      body: JSON.stringify({ promptId, title }),
     }),
 
   end: (id: string) =>
@@ -85,6 +98,27 @@ export const sessions = {
 
   delete: (id: string) =>
     request<void>(`/sessions/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
+}
+
+// â”€â”€ Prompts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const prompts = {
+  list: () => request<{ prompts: Prompt[] }>('/prompts'),
+
+  create: (data: { name: string; content: string; isDefault?: boolean; isPublic?: boolean }) =>
+    request<{ prompt: Prompt }>('/prompts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: { name?: string; content?: string; isDefault?: boolean; isPublic?: boolean }) =>
+    request<{ prompt: Prompt }>(`/prompts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    request<void>(`/prompts/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
 }
 
 // ── Chunks ────────────────────────────────────────────────────────────────────
