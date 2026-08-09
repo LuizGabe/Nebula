@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS "folders" (
 ALTER TABLE "recording_sessions"
   ADD COLUMN IF NOT EXISTS "folderId" TEXT;
 
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RecordingSessionStatus') THEN
+    ALTER TYPE "RecordingSessionStatus" ADD VALUE IF NOT EXISTS 'IN_PROGRESS';
+  END IF;
+END $$;
+
 ALTER TABLE "prompts"
   ADD COLUMN IF NOT EXISTS "isPublic" BOOLEAN NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS "ownerId" TEXT;
