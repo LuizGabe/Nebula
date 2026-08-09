@@ -17,7 +17,7 @@ export const postProcessEvents = new QueueEvents("post-processing", {
 
 export type PostProcessJobData = {
   sessionId: string;
-  triggeredBy: "session_end" | "user_reprocess";
+  triggeredBy: "session_end" | "user_reprocess" | "batch_transcription_done";
 };
 
 export const transcriptionJobsQueue = new Queue("transcription-jobs", {

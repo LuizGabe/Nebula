@@ -11,7 +11,7 @@ import * as payloads from "@/events/payloads";
 
 export async function postProcessHandler(job: Job<PostProcessJobData>) {
   const { sessionId, triggeredBy } = job.data;
-  const validTriggers = new Set(["session_end", "user_reprocess"]);
+  const validTriggers = new Set(["session_end", "user_reprocess", "batch_transcription_done"]);
 
   const log = (msg: string) => {
     const line = `[post-process] ${msg}`;
@@ -44,6 +44,21 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
     log("abortado - nenhum TranscriptBlock encontrado");
     await publisher.emit(sessionId, "DOCUMENT_SKIPPED", payloads.documentSkipped("no_transcripts"));
     return { skipped: true, reason: "no_transcripts" };
+  }
+
+  if (triggeredBy === "batch_transcription_done" && session.status !== "ENDED") {
+    await prisma.recordingSession.update({
+      where: { id: sessionId },
+      data: {
+        status: "ENDED",
+        endedAt: session.endedAt ?? new Date(),
+      },
+    });
+
+    await prisma.audioMedia.updateMany({
+      where: { sessionId, source: "UPLOAD", status: "PROCESSING" },
+      data: { status: "TRANSCRIBED" },
+    });
   }
 
   log(`${blocks.length} bloco(s) carregados`);

@@ -55,6 +55,29 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     });
   }
 
+  async function reconcileCompletedSessions(ownerId: string, sessionId?: string) {
+    await prisma.recordingSession.updateMany({
+      where: {
+        ownerId,
+        ...(sessionId ? { id: sessionId } : {}),
+        status: "IN_PROGRESS",
+        OR: [
+          { documents: { some: {} } },
+          {
+            sessionEvents: {
+              some: {
+                type: {
+                  in: ["UPLOAD_TRANSCRIBED", "DOCUMENT_READY", "DOCUMENT_SKIPPED", "DOCUMENT_FAILED"],
+                },
+              },
+            },
+          },
+        ],
+      },
+      data: { status: "ENDED", endedAt: new Date() },
+    });
+  }
+
   // GET /sessions/:id/status/stream — SSE de status do pós-processamento
   fastify.get("/sessions/:id/status/stream", async (request, reply) => {
     const ownerId = request.session.get("userId")!;
@@ -201,6 +224,8 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     // TODO: quando listar sessões, trazer também o número de transcrições, documentos, etc para evitar múltiplas queries na UI
     const ownerId = request.session.get("userId")!;
 
+    await reconcileCompletedSessions(ownerId);
+
     const list = await prisma.recordingSession.findMany({
       where: { ownerId, isDeleted: false },
       orderBy: { createdAt: "desc" },
@@ -226,6 +251,8 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     "/sessions/:id",
     async (request, reply) => {
       const ownerId = request.session.get("userId")!;
+
+      await reconcileCompletedSessions(ownerId, request.params.id);
 
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
