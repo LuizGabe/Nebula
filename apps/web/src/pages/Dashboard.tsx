@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Calendar, FileText, Mic, Plus } from 'lucide-react'
-import { prompts as promptsApi, sessions as sessionsApi, type Prompt, type Session } from '../api/client'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Calendar, FileText, FolderOpen, Mic, Plus } from 'lucide-react'
+import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, type Folder, type Prompt, type Session } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { Badge, Spinner } from '../components/ui/misc'
 import { format } from 'date-fns'
@@ -13,9 +13,12 @@ function NewSessionModal({ onClose, onCreate }: {
   onCreate: (s: Session) => void
 }) {
   const [promptList, setPromptList] = useState<Prompt[]>([])
+  const [folderList, setFolderList] = useState<Folder[]>([])
   const [promptId, setPromptId] = useState('')
+  const [folderId, setFolderId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [loading, setLoading] = useState(false)
+  const [searchParams] = useSearchParams()
 
   useEffect(() => {
     promptsApi.list()
@@ -24,13 +27,20 @@ function NewSessionModal({ onClose, onCreate }: {
         setPromptId(prompts.find((p) => p.isDefault)?.id ?? prompts[0]?.id ?? '')
       })
       .catch(() => setPromptList([]))
+
+    foldersApi.list()
+      .then(({ folders }) => {
+        setFolderList(folders)
+        setFolderId(searchParams.get('folder'))
+      })
+      .catch(() => setFolderList([]))
   }, [])
 
   const handle = async () => {
     if (!promptId) return
     setLoading(true)
     try {
-      const { session } = await sessionsApi.create(promptId, title || undefined)
+      const { session } = await sessionsApi.create(promptId, title || undefined, folderId)
       onCreate(session)
     } finally {
       setLoading(false)
@@ -83,6 +93,20 @@ function NewSessionModal({ onClose, onCreate }: {
               onKeyDown={(e) => e.key === 'Enter' && handle()}
               className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
             />
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-ink-700 mb-2">Pasta</p>
+            <select
+              value={folderId ?? ''}
+              onChange={(e) => setFolderId(e.target.value || null)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 transition-all"
+            >
+              <option value="">Sem pasta</option>
+              {folderList.map((folder) => (
+                <option key={folder.id} value={folder.id}>{folder.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -152,14 +176,23 @@ function SessionCard({ session }: { session: Session }) {
 
 export function DashboardPage() {
   const [sessionList, setSessionList] = useState<Session[]>([])
+  const [folderList, setFolderList] = useState<Folder[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const selectedFolderId = searchParams.get('folder')
 
   useEffect(() => {
-    sessionsApi.list()
-      .then((res) => setSessionList(res.sessions ?? []))
-      .catch(() => setSessionList([]))
+    Promise.all([sessionsApi.list(), foldersApi.list()])
+      .then(([sessionRes, folderRes]) => {
+        setSessionList(sessionRes.sessions ?? [])
+        setFolderList(folderRes.folders ?? [])
+      })
+      .catch(() => {
+        setSessionList([])
+        setFolderList([])
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -168,12 +201,22 @@ export function DashboardPage() {
     navigate(`/sessions/${session.id}`)
   }
 
+  const visibleSessions = selectedFolderId
+    ? sessionList.filter((session) => session.folderId === selectedFolderId)
+    : sessionList
+  const selectedFolder = folderList.find((folder) => folder.id === selectedFolderId)
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">Sessoes</h1>
-          <p className="text-sm text-ink-500 mt-0.5">{sessionList.length} sessao{sessionList.length !== 1 ? 'es' : ''}</p>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">
+            {selectedFolder ? selectedFolder.name : 'Sessoes'}
+          </h1>
+          <p className="text-sm text-ink-500 mt-0.5 flex items-center gap-1.5">
+            {selectedFolder && <FolderOpen className="w-3.5 h-3.5" />}
+            {visibleSessions.length} sessao{visibleSessions.length !== 1 ? 'es' : ''}
+          </p>
         </div>
         <Button variant="primary" onClick={() => setShowModal(true)}>
           <Plus className="w-4 h-4" />
@@ -185,7 +228,7 @@ export function DashboardPage() {
         <div className="flex items-center justify-center py-16">
           <Spinner className="w-8 h-8" />
         </div>
-      ) : sessionList.length === 0 ? (
+      ) : visibleSessions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-ink-100 flex items-center justify-center">
             <Mic className="w-8 h-8 text-ink-400" />
@@ -201,7 +244,7 @@ export function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sessionList.map((session) => (
+          {visibleSessions.map((session) => (
             <SessionCard key={session.id} session={session} />
           ))}
         </div>

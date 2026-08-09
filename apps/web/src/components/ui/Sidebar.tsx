@@ -1,20 +1,166 @@
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutGrid, Settings, LogOut, Mic } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Plus, Settings } from 'lucide-react'
 import clsx from 'clsx'
+import { folders, sessions, type Folder as FolderItem, type Session } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
+
+type FolderNode = FolderItem & { children: FolderNode[]; sessions: Session[] }
+
+function buildTree(folderList: FolderItem[], sessionList: Session[]) {
+  const nodes = new Map<string, FolderNode>()
+  const roots: FolderNode[] = []
+
+  folderList.forEach((folder) => nodes.set(folder.id, { ...folder, children: [], sessions: [] }))
+  nodes.forEach((node) => {
+    if (node.parentId && nodes.has(node.parentId)) {
+      nodes.get(node.parentId)!.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+
+  sessionList.forEach((session) => {
+    if (session.folderId && nodes.has(session.folderId)) {
+      nodes.get(session.folderId)!.sessions.push(session)
+    }
+  })
+
+  const sortNodes = (items: FolderNode[]) => {
+    items.sort((a, b) => a.name.localeCompare(b.name))
+    items.forEach((item) => {
+      item.children.sort((a, b) => a.name.localeCompare(b.name))
+      item.sessions.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+      sortNodes(item.children)
+    })
+  }
+  sortNodes(roots)
+
+  return roots
+}
+
+function TreeFolder({ node, depth, onChanged }: { node: FolderNode; depth: number; onChanged: () => Promise<void> }) {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(true)
+  const [creatingChild, setCreatingChild] = useState(false)
+  const [childName, setChildName] = useState('')
+  const hasChildren = node.children.length > 0 || node.sessions.length > 0
+
+  const createChild = async () => {
+    if (!childName.trim()) return
+    await folders.create({ name: childName.trim(), parentId: node.id })
+    setChildName('')
+    setCreatingChild(false)
+    setOpen(true)
+    await onChanged()
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1" style={{ paddingLeft: depth * 10 }}>
+        <button
+          onClick={() => setOpen((value) => !value)}
+          className="w-5 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
+          disabled={!hasChildren}
+          title={open ? 'Recolher' : 'Expandir'}
+        >
+          {hasChildren ? (open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />) : null}
+        </button>
+        <button
+          onClick={() => navigate(`/?folder=${node.id}`)}
+          className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50"
+        >
+          <Folder className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{node.name}</span>
+        </button>
+        <button
+          onClick={() => setCreatingChild(true)}
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50"
+          title="Nova subpasta"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {open && (
+        <div>
+          {creatingChild && (
+            <div className="mb-1 flex items-center gap-1" style={{ paddingLeft: depth * 10 + 31 }}>
+              <input
+                autoFocus
+                value={childName}
+                onChange={(e) => setChildName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') createChild()
+                  if (e.key === 'Escape') setCreatingChild(false)
+                }}
+                placeholder="Subpasta"
+                className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-ink-200 text-xs outline-none focus:border-ink-400"
+              />
+              <button
+                onClick={createChild}
+                className="w-7 h-7 rounded-lg flex items-center justify-center bg-ink-900 text-white disabled:opacity-40"
+                disabled={!childName.trim()}
+                title="Criar subpasta"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          {node.children.map((child) => (
+            <TreeFolder key={child.id} node={child} depth={depth + 1} onChanged={onChanged} />
+          ))}
+          {node.sessions.map((session) => (
+            <button
+              key={session.id}
+              onClick={() => navigate(`/sessions/${session.id}`)}
+              className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50"
+              style={{ paddingLeft: depth * 10 + 31 }}
+            >
+              <Mic className="w-3 h-3 shrink-0" />
+              <span className="truncate">{session.title || session.prompt?.name || 'Sessao'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function Sidebar() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const [folderList, setFolderList] = useState<FolderItem[]>([])
+  const [sessionList, setSessionList] = useState<Session[]>([])
+  const [creating, setCreating] = useState(false)
+  const [folderName, setFolderName] = useState('')
 
-  const navItems = [
-    { to: '/', icon: LayoutGrid, label: 'Sessões' },
-    { to: '/settings', icon: Settings, label: 'Configurações' },
-  ]
+  const loadTree = async () => {
+    const [folderRes, sessionRes] = await Promise.all([folders.list(), sessions.list()])
+    setFolderList(folderRes.folders ?? [])
+    setSessionList(sessionRes.sessions ?? [])
+  }
+
+  useEffect(() => {
+    loadTree().catch(() => {
+      setFolderList([])
+      setSessionList([])
+    })
+  }, [])
+
+  const tree = useMemo(() => buildTree(folderList, sessionList), [folderList, sessionList])
+  const looseSessions = sessionList.filter((session) => !session.folderId)
+
+  const createFolder = async () => {
+    if (!folderName.trim()) return
+    await folders.create({ name: folderName.trim() })
+    setFolderName('')
+    setCreating(false)
+    await loadTree()
+  }
 
   return (
-    <aside className="w-56 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-ink-100">
-      {/* Logo */}
+    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-ink-100">
       <div className="px-5 py-5 flex items-center gap-2.5 border-b border-ink-100">
         <div className="w-8 h-8 rounded-xl bg-ink-900 flex items-center justify-center">
           <Mic className="w-4 h-4 text-white" strokeWidth={2} />
@@ -22,29 +168,87 @@ export function Sidebar() {
         <span className="font-display font-semibold text-ink-900 text-lg tracking-tight">nebula</span>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              clsx(
-                'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
-                isActive
-                  ? 'bg-ink-900 text-white'
-                  : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
-              )
-            }
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </NavLink>
-        ))}
+      <nav className="px-3 py-4 flex flex-col gap-0.5 border-b border-ink-100">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            clsx(
+              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+              isActive ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+            )
+          }
+        >
+          <LayoutGrid className="w-4 h-4" />
+          Sessoes
+        </NavLink>
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            clsx(
+              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+              isActive ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+            )
+          }
+        >
+          <Settings className="w-4 h-4" />
+          Configuracoes
+        </NavLink>
       </nav>
 
-      {/* User */}
+      <div className="flex-1 min-h-0 px-3 py-4 overflow-y-auto">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Cadernos</p>
+          <button
+            onClick={() => setCreating(true)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50"
+            title="Nova pasta"
+          >
+            <FolderPlus className="w-4 h-4" />
+          </button>
+        </div>
+
+        {creating && (
+          <div className="mb-3 flex items-center gap-1">
+            <input
+              autoFocus
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') createFolder()
+                if (e.key === 'Escape') setCreating(false)
+              }}
+              placeholder="Nome da pasta"
+              className="min-w-0 flex-1 h-8 px-2 rounded-lg border border-ink-200 text-xs outline-none focus:border-ink-400"
+            />
+            <button
+              onClick={createFolder}
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-900 text-white disabled:opacity-40"
+              disabled={!folderName.trim()}
+              title="Criar"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-0.5">
+          {tree.map((node) => (
+            <TreeFolder key={node.id} node={node} depth={0} onChanged={loadTree} />
+          ))}
+          {looseSessions.map((session) => (
+            <button
+              key={session.id}
+              onClick={() => navigate(`/sessions/${session.id}`)}
+              className="h-7 flex items-center gap-2 px-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50"
+            >
+              <Mic className="w-3 h-3 shrink-0" />
+              <span className="truncate">{session.title || session.prompt?.name || 'Sessao'}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="px-3 pb-4 border-t border-ink-100 pt-3 flex flex-col gap-0.5">
         <div className="px-3 py-2 flex items-center gap-3">
           <div className="w-7 h-7 rounded-full bg-ink-200 flex items-center justify-center shrink-0">

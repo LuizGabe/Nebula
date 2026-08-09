@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlignLeft, Radio } from 'lucide-react'
+import { AlignLeft, Check, Copy, Radio } from 'lucide-react'
 import { transcripts, type TranscriptBlock } from '../api/client'
 import { Spinner } from './ui/misc'
 import { type LiveTranscription } from '@/hooks/useProcessingStatus'
@@ -22,6 +22,7 @@ export function TranscriptViewer({ sessionId, liveText, transcriptionProgress }:
   const [blocks, setBlocks] = useState<TranscriptBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [frozenLive, setFrozenLive] = useState<LiveTranscription[] | null>(null)
+  const [copied, setCopied] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -53,6 +54,16 @@ export function TranscriptViewer({ sessionId, liveText, transcriptionProgress }:
   const hasLive = liveText != null && liveText.length > 0
   const isLive = hasLive || (transcriptionProgress != null && transcriptionProgress[0] > 0)
   const displayLive = hasLive ? liveText : frozenLive
+  const transcriptText = displayLive
+    ? displayLive.map((item) => item.text).join('\n')
+    : blocks.map((block) => block.text).join('\n')
+
+  const copyTranscript = async () => {
+    if (!transcriptText.trim()) return
+    await navigator.clipboard.writeText(transcriptText)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-ink-100 shadow-soft">
@@ -74,6 +85,15 @@ export function TranscriptViewer({ sessionId, liveText, transcriptionProgress }:
             Ao vivo
           </span>
         )}
+        <button
+          onClick={copyTranscript}
+          disabled={!transcriptText.trim()}
+          className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-500 hover:text-ink-900 hover:bg-ink-50 disabled:opacity-40 disabled:hover:bg-transparent"
+          title="Copiar transcricao"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-jade-500" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? 'Copiado' : 'Copiar'}
+        </button>
       </div>
 
       <div className="px-6 py-4 max-h-72 overflow-y-auto">

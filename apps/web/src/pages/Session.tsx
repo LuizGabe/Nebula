@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, FileText, MessageSquare, Pencil, Trash2 } from 'lucide-react'
-import { sessions as sessionsApi, type Session } from '../api/client'
+import { ArrowLeft, CheckCircle2, FileText, FolderOpen, MessageSquare, Pencil, Trash2 } from 'lucide-react'
+import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, type Folder, type Prompt, type Session } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
 import { PipelineStatus } from '../components/PipelineStatus'
 import { TranscriptViewer } from '../components/TranscriptViewer'
@@ -24,9 +24,13 @@ export function SessionPage() {
   const [ended, setEnded] = useState(false)
   const [showQA, setShowQA] = useState(false)
   const [reprocessTrigger, setReprocessTrigger] = useState(0)
+  const [promptList, setPromptList] = useState<Prompt[]>([])
+  const [folderList, setFolderList] = useState<Folder[]>([])
+  const [processingHint, setProcessingHint] = useState(false)
 
   const isEnded = session?.status === 'ENDED' || ended
   const { status, liveText, transcriptionProgress } = useSessionEvents(id || '', isEnded)
+  const visibleStatus = status === 'idle' && processingHint ? 'waiting:transcript' : status
 
   const handleRename = async () => {
     if (!id || !renameValue.trim()) return
@@ -43,11 +47,13 @@ export function SessionPage() {
 
   useEffect(() => {
     if (!id) return
-    sessionsApi.get(id)
-      .then((data) => {
+    Promise.all([sessionsApi.get(id), promptsApi.list(), foldersApi.list()])
+      .then(([data, promptRes, folderRes]) => {
         const loaded = data.session
         setSession(loaded)
-        if (loaded.status === 'ENDED') setEnded(true)
+        setPromptList(promptRes.prompts ?? [])
+        setFolderList(folderRes.folders ?? [])
+        if (loaded.status === 'ENDED' || loaded.status === 'IN_PROGRESS') setEnded(true)
         setLoading(false)
       })
       .catch(() => navigate('/'))
@@ -60,6 +66,24 @@ export function SessionPage() {
       setEnded(true)
       setSession((current) => current ? { ...current, status: 'ENDED' } : current)
     } catch { }
+  }
+
+  const handlePromptChange = async (promptId: string) => {
+    if (!id || !session) return
+    const { session: updated } = await sessionsApi.update(id, { promptId })
+    setSession((current) => current ? { ...current, ...updated } : updated)
+  }
+
+  const handleFolderChange = async (folderId: string) => {
+    if (!id || !session) return
+    const { session: updated } = await sessionsApi.update(id, { folderId: folderId || null })
+    setSession((current) => current ? { ...current, ...updated } : updated)
+  }
+
+  const handleUploadStarted = () => {
+    setProcessingHint(true)
+    setEnded(true)
+    setSession((current) => current ? { ...current, status: 'IN_PROGRESS' } : current)
   }
 
   if (loading) {
@@ -91,6 +115,12 @@ export function SessionPage() {
               <FileText className="w-3 h-3" />
               {promptName}
             </Badge>
+            {session.folder && (
+              <Badge variant="ink">
+                <FolderOpen className="w-3 h-3" />
+                {session.folder.name}
+              </Badge>
+            )}
             {isEnded ? (
               <Badge variant="jade">
                 <CheckCircle2 className="w-3 h-3" />
@@ -143,6 +173,34 @@ export function SessionPage() {
             }
           </p>
           <p className="text-sm text-ink-400 mt-1">Id: {session.id}</p>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-ink-500">Tipo de prompt</span>
+              <select
+                value={session.promptId ?? ''}
+                onChange={(e) => handlePromptChange(e.target.value)}
+                className="h-10 px-3 rounded-xl border border-ink-200 bg-white text-sm text-ink-800 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100"
+              >
+                {promptList.map((prompt) => (
+                  <option key={prompt.id} value={prompt.id}>{prompt.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-ink-500">Pasta</span>
+              <select
+                value={session.folderId ?? ''}
+                onChange={(e) => handleFolderChange(e.target.value)}
+                className="h-10 px-3 rounded-xl border border-ink-200 bg-white text-sm text-ink-800 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100"
+              >
+                <option value="">Sem pasta</option>
+                {folderList.map((folder) => (
+                  <option key={folder.id} value={folder.id}>{folder.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         {isEnded && (
@@ -159,13 +217,13 @@ export function SessionPage() {
       <div className="flex flex-col gap-4 items-center">
         {!isEnded && (
           <div className="fade-in w-full max-w-4xl">
-            <RecordingPanel sessionId={session.id} onEnd={handleEnd} />
+            <RecordingPanel sessionId={session.id} onEnd={handleEnd} onUploadStarted={handleUploadStarted} />
           </div>
         )}
 
-        {isEnded && status !== 'idle' && (
+        {isEnded && visibleStatus !== 'idle' && (
           <div className="fade-in w-full max-w-4xl">
-            <PipelineStatus status={status} />
+            <PipelineStatus status={visibleStatus} />
           </div>
         )}
 
@@ -176,7 +234,7 @@ export function SessionPage() {
               <div>Session ID: {session.id}</div>
               <div>Status: {session.status}</div>
               <div>Prompt: {promptName}</div>
-              <div>Processing: {status}</div>
+              <div>Processing: {visibleStatus}</div>
               <div>Live Text: {liveText ? 'tem conteudo' : 'null'}</div>
             </div>
           </div>
