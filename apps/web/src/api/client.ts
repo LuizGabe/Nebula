@@ -45,7 +45,16 @@ export const auth = {
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
-export type SessionStatus = 'ACTIVE' | 'ENDED'
+export type SessionStatus = 'ACTIVE' | 'IN_PROGRESS' | 'ENDED'
+
+export interface Folder {
+  id: string
+  name: string
+  parentId: string | null
+  createdAt: string
+  updatedAt: string
+  _count?: { sessions: number; children: number }
+}
 
 export interface Prompt {
   id: string
@@ -62,6 +71,8 @@ export interface Session {
   id: string
   promptId: string | null
   prompt: Prompt | null
+  folderId: string | null
+  folder: Folder | null
   status: SessionStatus
   title: string | null
   createdAt: string
@@ -74,10 +85,10 @@ export const sessions = {
 
   get: (id: string) => request<{ session: Session }>(`/sessions/${id}`),
 
-  create: (promptId: string, title?: string) =>
+  create: (promptId: string, title?: string, folderId?: string | null) =>
     request<{ session: Session }>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ promptId, title }),
+      body: JSON.stringify({ promptId, title, folderId }),
     }),
 
   end: (id: string) =>
@@ -96,8 +107,33 @@ export const sessions = {
       body: JSON.stringify({ title }),
     }),
 
+  update: (id: string, data: { title?: string; promptId?: string | null; folderId?: string | null }) =>
+    request<{ session: Session }>(`/sessions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
   delete: (id: string) =>
     request<void>(`/sessions/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
+}
+
+export const folders = {
+  list: () => request<{ folders: Folder[] }>('/folders'),
+
+  create: (data: { name: string; parentId?: string | null }) =>
+    request<{ folder: Folder }>('/folders', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: { name?: string; parentId?: string | null }) =>
+    request<{ folder: Folder }>(`/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    request<void>(`/folders/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
 }
 
 // â”€â”€ Prompts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

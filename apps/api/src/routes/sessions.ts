@@ -14,7 +14,14 @@ import { getDefaultPrompt } from "@/lib/prompts";
 
 const createBody = z.object({
   promptId: z.string().optional(),
+  folderId: z.string().nullable().optional(),
   title: z.string().max(120).optional(),
+});
+
+const updateBody = z.object({
+  title: z.string().max(120).optional(),
+  promptId: z.string().nullable().optional(),
+  folderId: z.string().nullable().optional(),
 });
 
 const questionBody = z.object({
@@ -28,6 +35,25 @@ const statusStreamParams = z.object({
 const sessions: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
   const subscriber = new Redis(config.REDIS_URL);
+
+  async function getVisiblePrompt(promptId: string | null | undefined, ownerId: string) {
+    if (!promptId) return null;
+    return prisma.prompt.findFirst({
+      where: {
+        id: promptId,
+        OR: [{ isPublic: true }, { ownerId }],
+      },
+      select: { id: true },
+    });
+  }
+
+  async function getOwnedFolder(folderId: string | null | undefined, ownerId: string) {
+    if (!folderId) return null;
+    return prisma.folder.findFirst({
+      where: { id: folderId, ownerId },
+      select: { id: true },
+    });
+  }
 
   // GET /sessions/:id/status/stream — SSE de status do pós-processamento
   fastify.get("/sessions/:id/status/stream", async (request, reply) => {
@@ -105,10 +131,10 @@ const sessions: FastifyPluginAsync = async (fastify) => {
             event: 'progress',
             data:  JSON.stringify({
               type: parsed.status,
-              data: JSON.stringify({
-              timestamp: new Date().toISOString(),
-              ...payloadTratado,
-              })
+              data: {
+                timestamp: new Date().toISOString(),
+                ...payloadTratado,
+              }
             }),
           }
         }
@@ -143,15 +169,24 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: "Cadastre um prompt antes de criar sessões" });
     }
 
+    const folder = await getOwnedFolder(parsed.data.folderId, ownerId);
+    if (parsed.data.folderId && !folder) {
+      return reply.status(404).send({ error: "Pasta nao encontrada" });
+    }
+
     const session = await prisma.recordingSession.create({
-      data: { title: parsed.data.title, promptId: prompt.id, ownerId },
+      data: { title: parsed.data.title, promptId: prompt.id, folderId: folder?.id ?? null, ownerId },
       select: {
         id: true,
         promptId: true,
         prompt: true,
+        folderId: true,
+        folder: true,
         status: true,
         title: true,
         createdAt: true,
+        updatedAt: true,
+        endedAt: true,
         owner: { select: { id: true, username: true } },
       },
     });
@@ -172,8 +207,11 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         id: true,
         promptId: true,
         prompt: true,
+        folderId: true,
+        folder: true,
         status: true,
         title: true,
+        updatedAt: true,
         createdAt: true,
         endedAt: true,
       },
@@ -192,6 +230,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         where: { id: request.params.id, ownerId, isDeleted: false },
         include: {
           prompt: true,
+          folder: true,
           documents: { orderBy: { version: "desc" }, take: 1 },
           _count: { select: { transcripts: true } },
         },
@@ -327,21 +366,47 @@ const sessions: FastifyPluginAsync = async (fastify) => {
   );
 
   // PATCH /sessions/:id — renomear título
-  fastify.patch<{ Params: { id: string }, Body: { title: string } }>(
+  fastify.patch<{ Params: { id: string } }>(
     '/sessions/:id',
     async (request, reply) => {
       const ownerId = request.session.get('userId')!
-      const { title } = request.body as { title: string }
+      const parsed = updateBody.safeParse(request.body)
+      if (!parsed.success) return reply.status(400).send({ error: 'Dados invalidos' })
 
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
       })
       if (!session) return reply.status(404).send({ error: 'Não encontrada' })
 
+      const prompt = await getVisiblePrompt(parsed.data.promptId, ownerId)
+      if (parsed.data.promptId && !prompt) {
+        return reply.status(404).send({ error: 'Prompt nao encontrado' })
+      }
+
+      const folder = await getOwnedFolder(parsed.data.folderId, ownerId)
+      if (parsed.data.folderId && !folder) {
+        return reply.status(404).send({ error: 'Pasta nao encontrada' })
+      }
+
       const updated = await prisma.recordingSession.update({
-        where: { id: session.id, ownerId, isDeleted: false },
-        data: { title },
-        select: { id: true, title: true },
+        where: { id: session.id },
+        data: {
+          ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+          ...(parsed.data.promptId !== undefined ? { promptId: prompt?.id ?? null } : {}),
+          ...(parsed.data.folderId !== undefined ? { folderId: folder?.id ?? null } : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          promptId: true,
+          prompt: true,
+          folderId: true,
+          folder: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          endedAt: true,
+        },
       })
 
       return reply.send({ session: updated })

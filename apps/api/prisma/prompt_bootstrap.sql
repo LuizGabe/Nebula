@@ -12,6 +12,18 @@ ALTER TABLE "recording_sessions"
 ALTER TABLE "documents"
   ADD COLUMN IF NOT EXISTS "promptId" TEXT;
 
+CREATE TABLE IF NOT EXISTS "folders" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "ownerId" TEXT NOT NULL,
+  "parentId" TEXT
+);
+
+ALTER TABLE "recording_sessions"
+  ADD COLUMN IF NOT EXISTS "folderId" TEXT;
+
 ALTER TABLE "prompts"
   ADD COLUMN IF NOT EXISTS "isPublic" BOOLEAN NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS "ownerId" TEXT;
@@ -74,8 +86,38 @@ BEGIN
       FOREIGN KEY ("ownerId") REFERENCES "users"("id")
       ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'folders_ownerId_fkey'
+  ) THEN
+    ALTER TABLE "folders"
+      ADD CONSTRAINT "folders_ownerId_fkey"
+      FOREIGN KEY ("ownerId") REFERENCES "users"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'folders_parentId_fkey'
+  ) THEN
+    ALTER TABLE "folders"
+      ADD CONSTRAINT "folders_parentId_fkey"
+      FOREIGN KEY ("parentId") REFERENCES "folders"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'recording_sessions_folderId_fkey'
+  ) THEN
+    ALTER TABLE "recording_sessions"
+      ADD CONSTRAINT "recording_sessions_folderId_fkey"
+      FOREIGN KEY ("folderId") REFERENCES "folders"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
 END $$;
 
 CREATE INDEX IF NOT EXISTS "recording_sessions_promptId_idx" ON "recording_sessions"("promptId");
+CREATE INDEX IF NOT EXISTS "recording_sessions_folderId_idx" ON "recording_sessions"("folderId");
 CREATE INDEX IF NOT EXISTS "documents_promptId_idx" ON "documents"("promptId");
 CREATE INDEX IF NOT EXISTS "prompts_ownerId_idx" ON "prompts"("ownerId");
+CREATE INDEX IF NOT EXISTS "folders_ownerId_idx" ON "folders"("ownerId");
+CREATE INDEX IF NOT EXISTS "folders_parentId_idx" ON "folders"("parentId");

@@ -63,6 +63,7 @@ model User {
 
   sessions RecordingSession[]
   prompts  Prompt[]
+  folders  Folder[]
 
   @@map("users")
 }
@@ -83,6 +84,26 @@ model Document {
   @@index([sessionId, version])
   @@index([promptId])
   @@map("documents")
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  parentId String?
+  parent   Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[] @relation("FolderTree")
+
+  sessions RecordingSession[]
+
+  @@index([ownerId])
+  @@index([parentId])
+  @@map("folders")
 }
 
 model Prompt {
@@ -116,6 +137,8 @@ model RecordingSession {
   owner   User   @relation(fields: [ownerId], references: [id])
   promptId String?
   prompt   Prompt? @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   transcripts   Transcript[]
   audioMedias   AudioMedia[]
@@ -123,6 +146,7 @@ model RecordingSession {
   sessionEvents SessionEvent[]
 
   @@index([promptId])
+  @@index([folderId])
   @@map("recording_sessions")
 }
 
