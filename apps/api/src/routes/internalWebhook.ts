@@ -76,6 +76,16 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
 
       fastify.log.info(`[webhook] upload detectado: sessão=${sessionId} key=${key}`);
 
+      await prisma.audioMedia.updateMany({
+        where: { sessionId, storageKey: key },
+        data: { status: "UPLOADED" },
+      });
+
+      await prisma.recordingSession.update({
+        where: { id: sessionId },
+        data: { status: "IN_PROGRESS" },
+      });
+
       await transcriptionJobsQueue.add('transcribe-upload', {
           sessionId: sessionId,
           storageKey: key,

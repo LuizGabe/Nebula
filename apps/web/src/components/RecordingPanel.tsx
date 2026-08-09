@@ -14,10 +14,11 @@ function formatTime(s: number) {
 interface Props {
   sessionId: string
   onEnd: () => void
+  onUploadStarted?: () => void
   disabled?: boolean
 }
 
-export function RecordingPanel({ sessionId, onEnd, disabled }: Props) {
+export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: Props) {
   const { state, elapsed, start, pause, resume, stop } = useRecorder({ sessionId })
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
@@ -54,7 +55,7 @@ export function RecordingPanel({ sessionId, onEnd, disabled }: Props) {
       await uploads.uploadToMinio(url, uploadFile)
       setUploadState('done')
       setUploadFile(null)
-      onEnd()
+      onUploadStarted?.()
     } catch (e: any) {
       setUploadState('error')
       setUploadError(e.message ?? 'Erro no upload')

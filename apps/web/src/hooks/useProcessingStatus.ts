@@ -37,7 +37,16 @@ export type DetailedProcessingStatus =
 
 type StatusEventPayload = {
   type: SessionEventType
-  data: string
+  data: string | Record<string, any>
+}
+
+function parsePayload(data: StatusEventPayload['data']) {
+  if (typeof data !== 'string') return data ?? {}
+  try {
+    return JSON.parse(data)
+  } catch {
+    return {}
+  }
 }
 
 function mapEventToStatus(eventType: SessionEventType): DetailedProcessingStatus {
@@ -96,12 +105,10 @@ export function useSessionEvents(sessionId: string, enabled: boolean) {
       const type = eventParsed.type as SessionEventType
       console.log('Received event', { type, data: eventParsed.data })
 
-      const payload = typeof eventParsed.data === 'string'
-        ? JSON.parse(eventParsed.data)
-        : eventParsed.data
+      const payload = parsePayload(eventParsed.data)
 
       if (type === 'UPLOAD_TRANSCRIPTION_STARTED') {
-        setTranscriptionProgress([payload.totalChunks, 0])
+        setTranscriptionProgress([payload.totalChunks ?? 1, 0])
       }
 
       if (type === 'CHUNK_TRANSCRIPTION_PROGRESS' || type === 'UPLOAD_TRANSCRIPTION_PROGRESS') {

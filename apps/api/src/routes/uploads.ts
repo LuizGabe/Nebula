@@ -6,6 +6,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../hooks/requireAuth.js";
 import { s3Public, BUCKET } from "../lib/storage.js";
+import { createEventPublisher } from "@/events/publisher";
 
 const ALLOWED_TYPES = new Set([
   "audio/mpeg",       // .mp3
@@ -29,6 +30,7 @@ const uploadBody = z.object({
 
 const uploads: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
+  const events = createEventPublisher();
 
   // Pede presigned URL para upload de áudio completo
   fastify.post("/uploads/audio/presigned-url", async (request, reply) => {
@@ -65,6 +67,28 @@ const uploads: FastifyPluginAsync = async (fastify) => {
     });
 
     const url = await getSignedUrl(s3Public, command, { expiresIn: 900 }); // 15min para arquivos grandes
+
+    await prisma.$transaction([
+      prisma.audioMedia.create({
+        data: {
+          sessionId,
+          storageKey: key,
+          source: "UPLOAD",
+          status: "PENDING_UPLOAD",
+        },
+      }),
+      prisma.recordingSession.update({
+        where: { id: session.id },
+        data: { status: "IN_PROGRESS" },
+      }),
+    ]);
+
+    await events.emit(sessionId, "UPLOAD_RECEIVED", {
+      filename,
+      storageKey: key,
+      sizeBytes,
+      status: "waiting_for_upload",
+    });
 
     return reply.send({ url, key, expiresIn: 900 });
   });

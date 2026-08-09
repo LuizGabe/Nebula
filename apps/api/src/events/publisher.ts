@@ -27,6 +27,11 @@ import { config } from "@/config";
 // ── tipos ─────────────────────────────────────────────────────────────────────
 
 export type EventType =
+  | "UPLOAD_RECEIVED"
+  | "UPLOAD_QUEUED"
+  | "UPLOAD_TRANSCRIPTION_STARTED"
+  | "UPLOAD_TRANSCRIBED"
+  | "UPLOAD_FAILED"
   | "DOCUMENT_GENERATING"
   | "DOCUMENT_READY"
   | "DOCUMENT_SKIPPED"
