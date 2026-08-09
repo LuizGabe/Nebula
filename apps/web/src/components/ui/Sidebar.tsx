@@ -178,6 +178,85 @@ function TreeFolder({
   )
 }
 
+function RootFolder({
+  sessions: looseSessions,
+  onMoveSession,
+  onNewSession,
+}: {
+  sessions: Session[]
+  onMoveSession: (sessionId: string, folderId: string | null) => Promise<void>
+  onNewSession?: (folderId?: string | null) => void
+}) {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(true)
+  const [dropActive, setDropActive] = useState(false)
+  const hasChildren = looseSessions.length > 0
+
+  return (
+    <div>
+      <div
+        className={clsx(
+          'group/folder flex items-center gap-1 rounded-lg',
+          dropActive && 'bg-jade-50 ring-1 ring-jade-200'
+        )}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDropActive(true)
+        }}
+        onDragLeave={() => setDropActive(false)}
+        onDrop={async (event) => {
+          event.preventDefault()
+          setDropActive(false)
+          const sessionId = event.dataTransfer.getData('application/x-nebula-session')
+          if (!sessionId) return
+          await onMoveSession(sessionId, null)
+          setOpen(true)
+        }}
+      >
+        <button
+          onClick={() => setOpen((value) => !value)}
+          className="w-5 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
+          disabled={!hasChildren}
+          title={open ? 'Recolher' : 'Expandir'}
+        >
+          {hasChildren ? (open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />) : null}
+        </button>
+        <button
+          onClick={() => navigate('/?folder=root')}
+          className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50"
+        >
+          <Folder className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">/root</span>
+        </button>
+        <button
+          onClick={() => onNewSession?.(null)}
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          title="Nova sessao em /root"
+        >
+          <FilePlus2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {open && looseSessions.map((session) => (
+        <button
+          key={session.id}
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.setData('application/x-nebula-session', session.id)
+            event.dataTransfer.effectAllowed = 'move'
+          }}
+          onClick={() => navigate(`/sessions/${session.id}`)}
+          className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50 cursor-grab active:cursor-grabbing"
+          style={{ paddingLeft: 31 }}
+        >
+          <Mic className="w-3 h-3 shrink-0" />
+          <span className="truncate">{session.title || session.prompt?.name || 'Sessao'}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | null) => void }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
@@ -233,13 +312,6 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
       </div>
 
       <nav className="px-3 py-4 flex flex-col gap-0.5 border-b border-ink-100">
-        <button
-          onClick={() => onNewSession?.(null)}
-          className="mb-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium bg-jade-600 text-white hover:bg-jade-700 transition-all"
-        >
-          <FilePlus2 className="w-4 h-4" />
-          Nova sessao
-        </button>
         <NavLink
           to="/"
           end
@@ -265,6 +337,13 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
           <Settings className="w-4 h-4" />
           Configuracoes
         </NavLink>
+        <button
+          onClick={() => onNewSession?.(null)}
+          className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium bg-jade-600 text-white hover:bg-jade-700 transition-all"
+        >
+          <FilePlus2 className="w-4 h-4" />
+          Nova sessao
+        </button>
       </nav>
 
       <div className="flex-1 min-h-0 px-3 py-4 overflow-y-auto">
@@ -304,6 +383,11 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         )}
 
         <div className="flex flex-col gap-0.5">
+          <RootFolder
+            sessions={looseSessions}
+            onMoveSession={moveSessionToFolder}
+            onNewSession={onNewSession}
+          />
           {tree.map((node) => (
             <TreeFolder
               key={node.id}
@@ -313,21 +397,6 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
               onMoveSession={moveSessionToFolder}
               onNewSession={onNewSession}
             />
-          ))}
-          {looseSessions.map((session) => (
-            <button
-              key={session.id}
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.setData('application/x-nebula-session', session.id)
-                event.dataTransfer.effectAllowed = 'move'
-              }}
-              onClick={() => navigate(`/sessions/${session.id}`)}
-              className="h-7 flex items-center gap-2 px-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50 cursor-grab active:cursor-grabbing"
-            >
-              <Mic className="w-3 h-3 shrink-0" />
-              <span className="truncate">{session.title || session.prompt?.name || 'Sessao'}</span>
-            </button>
           ))}
         </div>
       </div>

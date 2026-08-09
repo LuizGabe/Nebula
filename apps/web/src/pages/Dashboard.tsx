@@ -38,16 +38,12 @@ function latestSession(sessionList: Session[]) {
 function formatSessionDate(value: string) {
   const date = safeDate(value)
   if (!date) return '-'
-  return format(date, "d MMM, HH:mm", { locale: ptBR })
+  return format(date, 'd MMM, HH:mm', { locale: ptBR })
 }
 
 function statusBadge(session: Session) {
-  if (session.status === 'IN_PROGRESS') {
-    return <Badge variant="amber">Transcrevendo</Badge>
-  }
-  if (session.status === 'ACTIVE') {
-    return <Badge variant="rose">Ativa</Badge>
-  }
+  if (session.status === 'IN_PROGRESS') return <Badge variant="amber">Transcrevendo</Badge>
+  if (session.status === 'ACTIVE') return <Badge variant="rose">Ativa</Badge>
   return <Badge variant="jade">Pronta</Badge>
 }
 
@@ -113,13 +109,13 @@ function SessionCard({ session }: { session: Session }) {
 }
 
 function NotebookCard({
-  folder,
+  name,
   sessions,
   childCount,
   onOpen,
   onNewSession,
 }: {
-  folder: FolderItem
+  name: string
   sessions: Session[]
   childCount: number
   onOpen: () => void
@@ -138,9 +134,9 @@ function NotebookCard({
           </div>
           <ArrowRight className="w-4 h-4 text-ink-300" />
         </div>
-        <h3 className="font-display font-semibold text-lg text-ink-900 mt-4 truncate">{folder.name}</h3>
+        <h3 className="font-display font-semibold text-lg text-ink-900 mt-4 truncate">{name}</h3>
         <p className="text-sm text-ink-400 mt-1">
-          {sessions.length} sessao{sessions.length !== 1 ? 'es' : ''} · {childCount} subpasta{childCount !== 1 ? 's' : ''}
+          {sessions.length} sessao{sessions.length !== 1 ? 'es' : ''} - {childCount} subpasta{childCount !== 1 ? 's' : ''}
         </p>
       </button>
 
@@ -177,16 +173,16 @@ function NotebookCard({
 function AlertPanel({
   active,
   processing,
-  unfiled,
+  root,
 }: {
   active: number
   processing: number
-  unfiled: number
+  root: number
 }) {
   const items = [
     active > 0 ? `${active} sessao${active !== 1 ? 'es' : ''} ainda ativa${active !== 1 ? 's' : ''}` : null,
     processing > 0 ? `${processing} audio${processing !== 1 ? 's' : ''} em processamento` : null,
-    unfiled > 0 ? `${unfiled} sessao${unfiled !== 1 ? 'es' : ''} sem caderno` : null,
+    root > 0 ? `${root} sessao${root !== 1 ? 'es' : ''} em /root` : null,
   ].filter(Boolean)
 
   if (items.length === 0) return null
@@ -199,7 +195,7 @@ function AlertPanel({
         </div>
         <div className="min-w-0">
           <p className="font-medium text-ink-900">Pontos que merecem atencao</p>
-          <p className="text-sm text-ink-500 mt-1">{items.join(' · ')}</p>
+          <p className="text-sm text-ink-500 mt-1">{items.join(' - ')}</p>
         </div>
       </div>
     </div>
@@ -214,6 +210,7 @@ export function DashboardPage() {
   const { openNewSession } = useOutletContext<AppLayoutContext>()
   const [searchParams] = useSearchParams()
   const selectedFolderId = searchParams.get('folder')
+  const isRootFolder = selectedFolderId === 'root'
 
   const load = async () => {
     const [sessionRes, folderRes] = await Promise.all([sessionsApi.list(), foldersApi.list()])
@@ -238,38 +235,44 @@ export function DashboardPage() {
     return () => window.removeEventListener('nebula:sessions-changed', refresh)
   }, [])
 
-  const selectedFolder = folderList.find((folder) => folder.id === selectedFolderId)
+  const selectedFolder = isRootFolder ? null : folderList.find((folder) => folder.id === selectedFolderId)
   const selectedSessions = useMemo(() => {
+    if (isRootFolder) return sessionList.filter((session) => !session.folderId)
     if (!selectedFolderId) return sessionList
     return sessionsInFolder(selectedFolderId, sessionList, folderList)
-  }, [selectedFolderId, sessionList, folderList])
+  }, [isRootFolder, selectedFolderId, sessionList, folderList])
   const recentSessions = [...sessionList].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 4)
   const rootFolders = folderList.filter((folder) => !folder.parentId)
-  const childFolders = selectedFolderId ? folderList.filter((folder) => folder.parentId === selectedFolderId) : rootFolders
+  const childFolders = selectedFolderId && !isRootFolder
+    ? folderList.filter((folder) => folder.parentId === selectedFolderId)
+    : rootFolders
   const activeCount = sessionList.filter((session) => session.status === 'ACTIVE').length
   const processingCount = sessionList.filter((session) => session.status === 'IN_PROGRESS').length
   const readyCount = sessionList.filter((session) => session.status === 'ENDED').length
-  const unfiledSessions = sessionList.filter((session) => !session.folderId)
+  const rootSessions = sessionList.filter((session) => !session.folderId)
+  const selectedName = isRootFolder ? '/root' : selectedFolder?.name
+  const selectedModalFolderId = isRootFolder ? null : selectedFolderId
+  const scopedSessions = selectedFolder || isRootFolder ? selectedSessions : rootSessions
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          {selectedFolder && (
+          {(selectedFolder || isRootFolder) && (
             <button onClick={() => navigate('/')} className="text-sm text-ink-400 hover:text-ink-800 mb-2">
-              Sessoes / {selectedFolder.name}
+              Sessoes / {selectedName}
             </button>
           )}
           <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">
-            {selectedFolder ? selectedFolder.name : 'Painel principal'}
+            {selectedName ?? 'Painel principal'}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            {selectedFolder
-              ? `${selectedSessions.length} sessao${selectedSessions.length !== 1 ? 'es' : ''} neste caderno e subpastas`
+            {selectedFolder || isRootFolder
+              ? `${selectedSessions.length} sessao${selectedSessions.length !== 1 ? 'es' : ''} neste caderno`
               : 'Visao rapida das sessoes, cadernos e itens que estao em andamento.'}
           </p>
         </div>
-        <Button variant="primary" onClick={() => openNewSession(selectedFolderId)}>
+        <Button variant="primary" onClick={() => openNewSession(selectedModalFolderId)}>
           <Plus className="w-4 h-4" />
           Nova sessao
         </Button>
@@ -281,7 +284,7 @@ export function DashboardPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-8">
-          {!selectedFolder && (
+          {!selectedFolder && !isRootFolder && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 <MetricCard label="Sessoes" value={sessionList.length} icon={Mic} detail="Tudo que ja foi criado" />
@@ -290,7 +293,7 @@ export function DashboardPage() {
                 <MetricCard label="Prontas" value={readyCount} icon={Clock} detail="Documentos finalizados" />
               </div>
 
-              <AlertPanel active={activeCount} processing={processingCount} unfiled={unfiledSessions.length} />
+              <AlertPanel active={activeCount} processing={processingCount} root={rootSessions.length} />
 
               {recentSessions.length > 0 && (
                 <section>
@@ -311,15 +314,29 @@ export function DashboardPage() {
             <div className="flex items-center justify-between gap-4 mb-3">
               <div>
                 <h2 className="font-display font-semibold text-lg text-ink-900">
-                  {selectedFolder ? 'Subpastas' : 'Cadernos'}
+                  {selectedFolder || isRootFolder ? 'Subpastas' : 'Cadernos'}
                 </h2>
                 <p className="text-sm text-ink-400">
-                  {selectedFolder ? 'Entre nas divisões deste caderno.' : 'Organize aulas e reunioes por tema, turma ou cliente.'}
+                  {selectedFolder || isRootFolder
+                    ? 'Entre nas divisoes deste caderno.'
+                    : 'Organize aulas e reunioes por tema, turma ou cliente.'}
                 </p>
               </div>
             </div>
 
-            {childFolders.length > 0 ? (
+            {!selectedFolder && !isRootFolder && rootSessions.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+                <NotebookCard
+                  name="/root"
+                  sessions={rootSessions}
+                  childCount={0}
+                  onOpen={() => navigate('/?folder=root')}
+                  onNewSession={() => openNewSession(null)}
+                />
+              </div>
+            )}
+
+            {!isRootFolder && childFolders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {childFolders.map((folder) => {
                   const folderSessions = sessionsInFolder(folder.id, sessionList, folderList)
@@ -327,7 +344,7 @@ export function DashboardPage() {
                   return (
                     <NotebookCard
                       key={folder.id}
-                      folder={folder}
+                      name={folder.name}
                       sessions={folderSessions}
                       childCount={childCount}
                       onOpen={() => navigate(`/?folder=${folder.id}`)}
@@ -336,10 +353,10 @@ export function DashboardPage() {
                   )
                 })}
               </div>
-            ) : (
+            ) : !selectedFolder && !isRootFolder && rootSessions.length > 0 ? null : (
               <div className="bg-white border border-ink-100 rounded-2xl p-8 text-center shadow-soft">
                 <Folder className="w-9 h-9 mx-auto text-ink-300" />
-                <p className="font-medium text-ink-700 mt-3">{selectedFolder ? 'Nenhuma subpasta' : 'Nenhum caderno ainda'}</p>
+                <p className="font-medium text-ink-700 mt-3">{selectedFolder || isRootFolder ? 'Nenhuma subpasta' : 'Nenhum caderno ainda'}</p>
                 <p className="text-sm text-ink-400 mt-1">Use a barra lateral para criar a estrutura dos seus estudos e reunioes.</p>
               </div>
             )}
@@ -348,13 +365,13 @@ export function DashboardPage() {
           <section>
             <div className="flex items-center justify-between gap-4 mb-3">
               <h2 className="font-display font-semibold text-lg text-ink-900">
-                {selectedFolder ? 'Sessoes deste caderno' : 'Sessoes sem caderno'}
+                {selectedFolder || isRootFolder ? 'Sessoes deste caderno' : 'Sessoes em /root'}
               </h2>
             </div>
 
-            {(selectedFolder ? selectedSessions : unfiledSessions).length > 0 ? (
+            {scopedSessions.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {(selectedFolder ? selectedSessions : unfiledSessions).map((session) => (
+                {scopedSessions.map((session) => (
                   <SessionCard key={session.id} session={session} />
                 ))}
               </div>
@@ -363,7 +380,7 @@ export function DashboardPage() {
                 <Mic className="w-9 h-9 mx-auto text-ink-300" />
                 <p className="font-medium text-ink-700 mt-3">Nenhuma sessao aqui</p>
                 <p className="text-sm text-ink-400 mt-1">Crie uma nova sessao ja conectada ao lugar certo.</p>
-                <Button variant="primary" className="mt-4" onClick={() => openNewSession(selectedFolderId)}>
+                <Button variant="primary" className="mt-4" onClick={() => openNewSession(selectedModalFolderId)}>
                   <Plus className="w-4 h-4" />
                   Nova sessao
                 </Button>

@@ -195,7 +195,7 @@ export function NewSessionModal({
               )}
             >
               <Folder className="w-4 h-4 shrink-0" />
-              <span className="truncate">Sem caderno</span>
+              <span className="truncate">/root</span>
             </button>
 
             <div className="max-h-64 overflow-y-auto pr-1">
