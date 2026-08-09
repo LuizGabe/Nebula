@@ -18,8 +18,10 @@ services:
     image: postgres:16-alpine
     container_name: dev-postgres
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -34,9 +36,9 @@ services:
     image: pgsty/minio:latest
     container_name: dev-minio
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-${MINIO_ACCESS_KEY}}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-${MINIO_SECRET_KEY}}
       MINIO_NOTIFY_WEBHOOK_ENABLE_API: "on"
       MINIO_NOTIFY_WEBHOOK_ENDPOINT_API: "http://host.docker.internal:3333/internal/minio-webhook"
       MINIO_NOTIFY_WEBHOOK_AUTH_TOKEN_API: "${MINIO_WEBHOOK_SECRET}"
@@ -47,7 +49,7 @@ services:
       - minio-data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9000'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -56,14 +58,20 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      target: production
     container_name: dev-api
     restart: unless-stopped
     env_file:
       - .env
     environment:
+      - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379
+      - GRPC_WORKER_HOST=${GRPC_WORKER_HOST:-host.docker.internal:50051}
       - MINIO_ENDPOINT=minio:9000
+      - MINIO_INTERNAL_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
+      - PROMPTS_DIR=/app/packages/prompts
     depends_on:
       - postgres
       - redis
@@ -73,7 +81,54 @@ services:
     volumes:
       - ./packages/prompts:/app/packages/prompts:ro
 
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: production
+      args:
+        VITE_API_BASE_URL: http://localhost:3333
+    container_name: dev-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+
+  groq_worker:
+    build:
+      context: apps/groq_worker/
+      dockerfile: Dockerfile
+      target: production
+    image: groq-worker:latest
+    container_name: groq-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_INTERNAL_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_ENDPOINT=http://localhost:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "9092:9091"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
   parakeet:
+    profiles:
+      - parakeet
     build:
       context: apps/parakeet_worker/
       dockerfile: Dockerfile
@@ -83,7 +138,16 @@ services:
       - /tmp:exec,mode=1777
     restart: unless-stopped
     env_file:
+      - .env
       - apps/parakeet_worker/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-transcriber}
+      MINIO_SECURE: ${MINIO_SECURE:-false}
     ports:
       - "50051:50051"   # gRPC
       - "9091:9090"     # Prometheus metrics

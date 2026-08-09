@@ -97,15 +97,6 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
 
-  apps/testes:
-    dependencies:
-      '@grpc/grpc-js':
-        specifier: ^1.14.4
-        version: 1.14.4
-      '@grpc/proto-loader':
-        specifier: ^0.8.1
-        version: 0.8.1
-
   apps/web:
     dependencies:
       '@milkdown/crepe':
@@ -193,8 +184,6 @@ importers:
       vite:
         specifier: ^5.4.11
         version: 5.4.21(@types/node@25.5.0)
-
-  packages/prompts: {}
 
 packages:
 
