@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, FileText, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
-import { prompts as promptsApi, sessions as sessionsApi, type Prompt, type Session } from '../api/client'
+import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Folder, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
+import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, type Folder as FolderItem, type Prompt, type Session } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
 import { PipelineStatus } from '../components/PipelineStatus'
 import { TranscriptViewer } from '../components/TranscriptViewer'
@@ -26,6 +26,7 @@ export function SessionPage() {
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [reprocessTrigger, setReprocessTrigger] = useState(0)
   const [promptList, setPromptList] = useState<Prompt[]>([])
+  const [folderList, setFolderList] = useState<FolderItem[]>([])
   const [promptDraftId, setPromptDraftId] = useState('')
   const [processingHint, setProcessingHint] = useState(false)
 
@@ -48,11 +49,12 @@ export function SessionPage() {
 
   useEffect(() => {
     if (!id) return
-    Promise.all([sessionsApi.get(id), promptsApi.list()])
-      .then(([data, promptRes]) => {
+    Promise.all([sessionsApi.get(id), promptsApi.list(), foldersApi.list()])
+      .then(([data, promptRes, folderRes]) => {
         const loaded = data.session
         setSession(loaded)
         setPromptList(promptRes.prompts ?? [])
+        setFolderList(folderRes.folders ?? [])
         setPromptDraftId(loaded.promptId ?? promptRes.prompts?.[0]?.id ?? '')
         if (loaded.status === 'ENDED' || loaded.status === 'IN_PROGRESS') setEnded(true)
         setLoading(false)
@@ -81,6 +83,23 @@ export function SessionPage() {
     setEnded(true)
     setSession((current) => current ? { ...current, status: 'IN_PROGRESS' } : current)
   }
+
+  const folderPath = useMemo(() => {
+    if (!session?.folderId) return []
+
+    const byId = new Map(folderList.map((folder) => [folder.id, folder]))
+    const path: FolderItem[] = []
+    const seen = new Set<string>()
+    let current: FolderItem | undefined = byId.get(session.folderId) ?? session.folder ?? undefined
+
+    while (current && !seen.has(current.id)) {
+      path.unshift(current)
+      seen.add(current.id)
+      current = current.parentId ? byId.get(current.parentId) : undefined
+    }
+
+    return path
+  }, [folderList, session])
 
   if (loading) {
     return (
@@ -175,9 +194,26 @@ export function SessionPage() {
           </p>
           <p className="text-sm text-ink-400 mt-1">Id: {session.id}</p>
 
-          {session.folder && (
-            <p className="text-sm text-ink-400 mt-1">Pasta: {session.folder.name}</p>
-          )}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-400">
+            <Folder className="w-3.5 h-3.5" />
+            <button
+              onClick={() => navigate('/?folder=root')}
+              className="rounded-md px-1.5 py-0.5 font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-900"
+            >
+              /root
+            </button>
+            {folderPath.map((folder) => (
+              <span key={folder.id} className="inline-flex items-center gap-1.5">
+                <ChevronRight className="w-3 h-3 text-ink-300" />
+                <button
+                  onClick={() => navigate(`/?folder=${folder.id}`)}
+                  className="rounded-md px-1.5 py-0.5 font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-900"
+                >
+                  {folder.name}
+                </button>
+              </span>
+            ))}
+          </div>
         </div>
 
         {isEnded && (
