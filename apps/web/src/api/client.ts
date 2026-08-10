@@ -306,9 +306,20 @@ export interface LLMModel {
   provider: string
 }
 
+export interface LLMModelStatus {
+  id: string
+  provider: string
+  available: boolean
+}
+
 
 export const llm = {
   models: () => request<{ models: LLMModel[] }>('/llm/models'),
+  status: () => {
+    return new EventSource(`${config.VITE_API_BASE_URL}/llm/status`, {
+      withCredentials: true,
+    })
+  },
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────

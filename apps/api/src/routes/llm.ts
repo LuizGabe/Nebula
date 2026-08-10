@@ -64,6 +64,12 @@ const llm: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: "Modelo inválido" });
     }
 
+    const adapter = createAdapter(defaultModel);
+    const available = await adapter.isAvailable();
+    if (!available) {
+      return reply.status(400).send({ error: "Modelo offline" });
+    }
+
     const userId = request.session.get("userId")!;
 
     const user = await prisma.user.update({

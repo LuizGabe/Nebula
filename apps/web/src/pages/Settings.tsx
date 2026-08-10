@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Loader2, Pencil, Plus, Save, Settings, SlidersHorizontal, Trash2, User, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
-import { llm, LLMModel, prompts, type Prompt, users } from '../api/client'
+import { llm, LLMModel, type LLMModelStatus, prompts, type Prompt, users } from '../api/client'
 import { useAuthStore } from '../store/auth'
 import { Button } from '../components/ui/Button'
 
@@ -18,6 +18,7 @@ export function SettingsPage() {
   const { user, setUser } = useAuthStore()
   const [section, setSection] = useState<Section>('prompts')
   const [models, setModels] = useState<LLMModel[]>([])
+  const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<string>('')
   const [loadingModels, setLoadingModels] = useState(true)
   const [savingModel, setSavingModel] = useState(false)
@@ -41,8 +42,11 @@ export function SettingsPage() {
   }
 
   useEffect(() => {
+    let closed = false
+
     llm.models()
       .then((res) => {
+        if (closed) return
         setModels(res.models ?? [])
         setSelected(user?.config?.defaultModel ?? '')
       })
@@ -50,7 +54,33 @@ export function SettingsPage() {
       .finally(() => setLoadingModels(false))
 
     loadPrompts().catch(() => setPromptList([]))
+
+    const source = llm.status()
+    source.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data) as { models?: LLMModelStatus[] }
+      const nextStatus = Object.fromEntries((data.models ?? []).map((model) => [model.id, model.available]))
+      setModelStatus(nextStatus)
+
+      setSelected((current) => {
+        if (current && nextStatus[current] === false) return ''
+        return current
+      })
+    })
+    source.addEventListener('error', () => {
+      if (source.readyState === EventSource.CLOSED) return
+      setModelStatus({})
+    })
+
+    return () => {
+      closed = true
+      source.close()
+    }
   }, [user])
+
+  const onlineModels = models.filter((model) => modelStatus[model.id] === true)
+  const selectedModel = onlineModels.find((model) => model.id === selected)
+  const savedDefaultModel = user?.config?.defaultModel
+  const savedModelIsOffline = Boolean(savedDefaultModel && modelStatus[savedDefaultModel] === false)
 
   const saveModel = async () => {
     if (!selected) return
@@ -155,41 +185,50 @@ export function SettingsPage() {
                   Carregando modelos...
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-1 max-w-sm">
-                    <button
-                      onClick={() => setShowDropdown(!showDropdown)}
-                      className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-ink-200 bg-white text-sm text-ink-900 hover:border-ink-300 transition-all"
-                    >
-                      <span className="font-mono truncate">
-                        {selected ? models.find((m) => m.id === selected)?.label ?? selected : 'Selecione um modelo'}
-                      </span>
-                      <ChevronDown className="w-4 h-4 text-ink-400 shrink-0" />
-                    </button>
+                <div className="flex flex-col gap-3">
+                  {savedModelIsOffline && (
+                    <p className="max-w-xl rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      O modelo salvo esta offline agora. Selecione um modelo online para atualizar.
+                    </p>
+                  )}
 
-                    {showDropdown && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
-                        <div className="absolute left-0 top-full mt-1 bg-white border border-ink-100 rounded-xl shadow-float z-20 w-full py-1 max-h-56 overflow-y-auto">
-                          {models.map((model) => (
-                            <button
-                              key={model.id}
-                              onClick={() => { setSelected(model.id); setShowDropdown(false) }}
-                              className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-ink-50 flex items-center justify-between gap-3 text-ink-700"
-                            >
-                              <span>{model.label}</span>
-                              <span className="text-ink-300 text-xs">{model.provider}</span>
-                              {selected === model.id && <Check className="w-3 h-3 text-jade-500 shrink-0" />}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1 max-w-sm">
+                      <button
+                        onClick={() => onlineModels.length > 0 && setShowDropdown(!showDropdown)}
+                        disabled={onlineModels.length === 0}
+                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-ink-200 bg-white text-sm text-ink-900 hover:border-ink-300 transition-all disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400"
+                      >
+                        <span className="font-mono truncate">
+                          {selectedModel?.label ?? (onlineModels.length > 0 ? 'Selecione um modelo online' : 'Nenhum modelo online')}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-ink-400 shrink-0" />
+                      </button>
+
+                      {showDropdown && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
+                          <div className="absolute left-0 top-full mt-1 bg-white border border-ink-100 rounded-xl shadow-float z-20 w-full py-1 max-h-56 overflow-y-auto">
+                            {onlineModels.map((model) => (
+                              <button
+                                key={model.id}
+                                onClick={() => { setSelected(model.id); setShowDropdown(false) }}
+                                className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-ink-50 flex items-center justify-between gap-3 text-ink-700"
+                              >
+                                <span>{model.label}</span>
+                                <span className="text-jade-600 text-xs">online</span>
+                                {selected === model.id && <Check className="w-3 h-3 text-jade-500 shrink-0" />}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <Button variant={savedModel ? 'ghost' : 'primary'} onClick={saveModel} loading={savingModel} disabled={!selected || !selectedModel || savingModel}>
+                      {savedModel ? <><Check className="w-4 h-4 text-jade-500" /> Salvo</> : 'Salvar'}
+                    </Button>
                   </div>
-
-                  <Button variant={savedModel ? 'ghost' : 'primary'} onClick={saveModel} loading={savingModel} disabled={!selected || savingModel}>
-                    {savedModel ? <><Check className="w-4 h-4 text-jade-500" /> Salvo</> : 'Salvar'}
-                  </Button>
                 </div>
               )}
             </div>
