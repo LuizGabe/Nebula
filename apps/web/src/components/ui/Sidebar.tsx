@@ -44,13 +44,11 @@ function TreeFolder({
   depth,
   onChanged,
   onMoveSession,
-  onNewSession,
 }: {
   node: FolderNode
   depth: number
   onChanged: () => Promise<void>
   onMoveSession: (sessionId: string, folderId: string) => Promise<void>
-  onNewSession?: (folderId?: string | null) => void
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
@@ -112,13 +110,6 @@ function TreeFolder({
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
-        <button
-          onClick={() => onNewSession?.(node.id)}
-          className="w-6 h-7 flex items-center justify-center rounded-md bg-jade-50 text-jade-700 hover:bg-jade-100 hover:text-jade-900 transition-colors"
-          title="Nova sessao nesta pasta"
-        >
-          <FilePlus2 className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {open && (
@@ -153,7 +144,6 @@ function TreeFolder({
               depth={depth + 1}
               onChanged={onChanged}
               onMoveSession={onMoveSession}
-              onNewSession={onNewSession}
             />
           ))}
           {node.sessions.map((session) => (
@@ -181,11 +171,9 @@ function TreeFolder({
 function RootFolder({
   sessions: looseSessions,
   onMoveSession,
-  onNewSession,
 }: {
   sessions: Session[]
   onMoveSession: (sessionId: string, folderId: string | null) => Promise<void>
-  onNewSession?: (folderId?: string | null) => void
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
@@ -227,13 +215,6 @@ function RootFolder({
         >
           <Folder className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">/root</span>
-        </button>
-        <button
-          onClick={() => onNewSession?.(null)}
-          className="w-6 h-7 flex items-center justify-center rounded-md bg-jade-50 text-jade-700 hover:bg-jade-100 hover:text-jade-900 transition-colors"
-          title="Nova sessao em /root"
-        >
-          <FilePlus2 className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -339,7 +320,7 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         </NavLink>
         <button
           onClick={() => onNewSession?.(null)}
-          className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium bg-jade-600 text-white hover:bg-jade-700 transition-all"
+          className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold bg-jade-700 text-white hover:bg-jade-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade-400 transition-all shadow-soft"
         >
           <FilePlus2 className="w-4 h-4" />
           Nova sessao
@@ -357,14 +338,6 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
             <FolderPlus className="w-4 h-4" />
           </button>
         </div>
-
-        <button
-          onClick={() => onNewSession?.(null)}
-          className="mb-3 w-full h-9 flex items-center justify-center gap-2 rounded-xl bg-jade-600 px-3 text-sm font-medium text-white hover:bg-jade-700 transition-colors"
-        >
-          <FilePlus2 className="w-4 h-4" />
-          Nova sessao
-        </button>
 
         {creating && (
           <div className="mb-3 flex items-center gap-1">
@@ -394,7 +367,6 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
           <RootFolder
             sessions={looseSessions}
             onMoveSession={moveSessionToFolder}
-            onNewSession={onNewSession}
           />
           {tree.map((node) => (
             <TreeFolder
@@ -403,7 +375,6 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
               depth={0}
               onChanged={loadTree}
               onMoveSession={moveSessionToFolder}
-              onNewSession={onNewSession}
             />
           ))}
         </div>
