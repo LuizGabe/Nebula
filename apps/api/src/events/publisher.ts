@@ -27,6 +27,12 @@ import { config } from "@/config";
 // ── tipos ─────────────────────────────────────────────────────────────────────
 
 export type EventType =
+  | "CHUNK_RECEIVED"
+  | "CHUNK_QUEUED"
+  | "CHUNK_TRANSCRIPTION_STARTED"
+  | "CHUNK_TRANSCRIPTION_PROGRESS"
+  | "CHUNK_TRANSCRIBED"
+  | "CHUNK_FAILED"
   | "UPLOAD_RECEIVED"
   | "UPLOAD_QUEUED"
   | "UPLOAD_TRANSCRIPTION_STARTED"

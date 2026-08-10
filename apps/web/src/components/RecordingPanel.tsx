@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react'
-import { Mic, Square, Pause, Play, Upload, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Mic, Square, Pause, Play, Upload, X, Radio } from 'lucide-react'
 import clsx from 'clsx'
 import { useRecorder, type RecorderState } from '../hooks/useRecorder'
-import { uploads } from '../api/client'
+import { type SelectedTranscriptionEngine, uploads } from '../api/client'
 import { Button } from './ui/Button'
+import { useBrowserSpeechTranscription } from '@/hooks/useBrowserSpeechTranscription'
+import { type LiveTranscription } from '@/hooks/useProcessingStatus'
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60)
@@ -13,13 +15,34 @@ function formatTime(s: number) {
 
 interface Props {
   sessionId: string
-  onEnd: () => void
+  transcriptionEngine: SelectedTranscriptionEngine | null
+  onEnd: () => void | Promise<void>
   onUploadStarted?: () => void
+  onBrowserLive?: (items: LiveTranscription[]) => void
+  onBrowserTranscriptSaved?: () => void
   disabled?: boolean
 }
 
-export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: Props) {
-  const { state, elapsed, start, pause, resume, stop } = useRecorder({ sessionId })
+export function RecordingPanel({
+  sessionId,
+  transcriptionEngine,
+  onEnd,
+  onUploadStarted,
+  onBrowserLive,
+  onBrowserTranscriptSaved,
+  disabled,
+}: Props) {
+  const [recordError, setRecordError] = useState('')
+  const useBrowserSpeech = transcriptionEngine?.mode === 'web_speech'
+  const browserSpeech = useBrowserSpeechTranscription({
+    sessionId,
+    enabled: useBrowserSpeech,
+    onError: (error) => setRecordError(error.message),
+  })
+  const { state, elapsed, start, pause, resume, stop } = useRecorder({
+    sessionId,
+    onError: (error) => setRecordError(error.message),
+  })
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState('')
@@ -29,10 +52,43 @@ export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: 
   const isPaused = state === 'paused'
   const isStopped = state === 'stopped'
   const isIdle = state === 'idle'
+  const liveEngineLabel = transcriptionEngine?.label ?? 'verificando motor'
+  const browserUnavailable = useBrowserSpeech && !browserSpeech.supported
 
-  const handleEnd = () => {
+  useEffect(() => {
+    if (!useBrowserSpeech) return
+    onBrowserLive?.(browserSpeech.liveItems)
+  }, [browserSpeech.liveItems, onBrowserLive, useBrowserSpeech])
+
+  const handleStart = async () => {
+    setRecordError('')
+    if (useBrowserSpeech) {
+      const started = browserSpeech.start()
+      if (!started) {
+        setRecordError('Web Speech API indisponivel neste navegador')
+        return
+      }
+    }
+    await start()
+  }
+
+  const handlePause = () => {
+    if (useBrowserSpeech) browserSpeech.pause()
+    pause()
+  }
+
+  const handleResume = () => {
+    if (useBrowserSpeech) browserSpeech.resume()
+    resume()
+  }
+
+  const handleEnd = async () => {
     stop()
-    onEnd()
+    if (useBrowserSpeech) {
+      await browserSpeech.stop()
+      onBrowserTranscriptSaved?.()
+    }
+    await onEnd()
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,9 +125,15 @@ export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: 
       <div className="flex gap-6">
         {/* ── Live recording side ── */}
         <div className="flex-1 flex flex-col gap-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Mic className="w-4 h-4 text-ink-500" />
-            <span className="text-sm font-medium text-ink-700">Gravar ao vivo</span>
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <div className="flex items-center gap-2">
+              <Mic className="w-4 h-4 text-ink-500" />
+              <span className="text-sm font-medium text-ink-700">Gravar ao vivo</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-xs font-medium text-ink-500">
+              <Radio className={clsx('w-3 h-3', useBrowserSpeech ? 'text-sky-500' : 'text-jade-500')} />
+              {liveEngineLabel}
+            </div>
           </div>
 
           {/* Timer */}
@@ -97,7 +159,7 @@ export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: 
           {/* Controls */}
           <div className="flex items-center gap-2">
             {isIdle && (
-              <Button variant="primary" onClick={start} disabled={disabled}>
+              <Button variant="primary" onClick={handleStart} disabled={disabled || !transcriptionEngine || browserUnavailable}>
                 <Mic className="w-4 h-4" />
                 Gravar
               </Button>
@@ -105,7 +167,7 @@ export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: 
 
             {isRecording && (
               <>
-                <Button variant="secondary" onClick={pause}>
+                <Button variant="secondary" onClick={handlePause}>
                   <Pause className="w-4 h-4" />
                   Pausar
                 </Button>
@@ -118,7 +180,7 @@ export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: 
 
             {isPaused && (
               <>
-                <Button variant="secondary" onClick={resume}>
+                <Button variant="secondary" onClick={handleResume}>
                   <Play className="w-4 h-4" />
                   Retomar
                 </Button>
@@ -133,6 +195,10 @@ export function RecordingPanel({ sessionId, onEnd, onUploadStarted, disabled }: 
               <span className="text-sm text-ink-400">Gravação encerrada</span>
             )}
           </div>
+          {recordError && <p className="text-xs text-rose-500">{recordError}</p>}
+          {browserUnavailable && (
+            <p className="text-xs text-rose-500">Web Speech API indisponivel neste navegador.</p>
+          )}
         </div>
 
         {/* Divider */}

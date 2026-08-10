@@ -118,6 +118,22 @@ export interface SystemStatus {
   connections: Array<{ from: string; to: string; label: string }>
 }
 
+export interface StreamingTranscriptionEngine {
+  id: string
+  name: string
+  provider: 'worker' | 'browser'
+  active: boolean
+  acceptingStreams: boolean
+  message: string
+}
+
+export interface SelectedTranscriptionEngine {
+  mode: 'worker' | 'web_speech'
+  label: string
+  activeWorkers: StreamingTranscriptionEngine[]
+  browserFallback: StreamingTranscriptionEngine
+}
+
 export const sessions = {
   list: () => request<{ sessions: Session[] }>('/sessions'),
 
@@ -164,6 +180,7 @@ export const sessions = {
 
 export const system = {
   status: () => request<SystemStatus>('/system/status'),
+  transcriptionEngine: () => request<SelectedTranscriptionEngine>('/system/transcription-engine'),
 }
 
 export const folders = {
@@ -297,6 +314,12 @@ export interface TranscriptBlock {
 export const transcripts = {
   list: (sessionId: string) =>
     request<{ transcripts: TranscriptBlock[] }>(`/sessions/${sessionId}/transcripts`),
+
+  createManual: (sessionId: string, data: { text: string; timestampStart: number; timestampEnd: number; chunkIndex?: number }) =>
+    request<{ transcript: TranscriptBlock }>(`/sessions/${sessionId}/transcripts/manual`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 // ── LLM ──────────────────────────────────────────────────────────────────────

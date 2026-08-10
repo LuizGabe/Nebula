@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Folder, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
-import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, type Folder as FolderItem, type Prompt, type Session } from '../api/client'
+import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, system as systemApi, type Folder as FolderItem, type Prompt, type SelectedTranscriptionEngine, type Session } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
 import { PipelineStatus } from '../components/PipelineStatus'
 import { TranscriptViewer } from '../components/TranscriptViewer'
@@ -12,7 +12,7 @@ import { Badge, Spinner } from '../components/ui/misc'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { safeDate } from '@/utils/SafeDate'
-import { useSessionEvents } from '@/hooks/useProcessingStatus'
+import { type LiveTranscription, useSessionEvents } from '@/hooks/useProcessingStatus'
 
 export function SessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -29,6 +29,9 @@ export function SessionPage() {
   const [folderList, setFolderList] = useState<FolderItem[]>([])
   const [promptDraftId, setPromptDraftId] = useState('')
   const [processingHint, setProcessingHint] = useState(false)
+  const [transcriptionEngine, setTranscriptionEngine] = useState<SelectedTranscriptionEngine | null>(null)
+  const [browserLiveText, setBrowserLiveText] = useState<LiveTranscription[]>([])
+  const [browserTranscriptVersion, setBrowserTranscriptVersion] = useState(0)
 
   const isEnded = session?.status === 'ENDED' || ended
   const { status, liveText, transcriptionProgress, transcriptVersion, documentVersion } = useSessionEvents(id || '', isEnded)
@@ -60,6 +63,22 @@ export function SessionPage() {
         setLoading(false)
       })
       .catch(() => navigate('/'))
+
+    systemApi.transcriptionEngine()
+      .then(setTranscriptionEngine)
+      .catch(() => setTranscriptionEngine({
+        mode: 'web_speech',
+        label: 'Google Speech-to-Text',
+        activeWorkers: [],
+        browserFallback: {
+          id: 'web-speech',
+          name: 'Google Speech-to-Text',
+          provider: 'browser',
+          active: true,
+          acceptingStreams: true,
+          message: 'Web Speech API do navegador',
+        },
+      }))
   }, [id, navigate])
 
   const handleEnd = async () => {
@@ -83,6 +102,8 @@ export function SessionPage() {
     setEnded(true)
     setSession((current) => current ? { ...current, status: 'IN_PROGRESS' } : current)
   }
+
+  const visibleLiveText = browserLiveText.length > 0 ? browserLiveText : liveText
 
   const folderPath = useMemo(() => {
     if (!session?.folderId) return []
@@ -230,7 +251,14 @@ export function SessionPage() {
       <div className="flex flex-col gap-4 items-center">
         {!isEnded && (
           <div className="fade-in w-full max-w-4xl">
-            <RecordingPanel sessionId={session.id} onEnd={handleEnd} onUploadStarted={handleUploadStarted} />
+            <RecordingPanel
+              sessionId={session.id}
+              transcriptionEngine={transcriptionEngine}
+              onEnd={handleEnd}
+              onUploadStarted={handleUploadStarted}
+              onBrowserLive={setBrowserLiveText}
+              onBrowserTranscriptSaved={() => setBrowserTranscriptVersion((value) => value + 1)}
+            />
           </div>
         )}
 
@@ -253,13 +281,13 @@ export function SessionPage() {
           </div>
         )}
 
-        {isEnded && (
+        {(isEnded || browserLiveText.length > 0) && (
           <div className="fade-in w-full max-w-4xl">
             <TranscriptViewer
               sessionId={session.id}
-              liveText={liveText}
+              liveText={visibleLiveText}
               transcriptionProgress={transcriptionProgress}
-              reloadToken={transcriptVersion}
+              reloadToken={transcriptVersion + browserTranscriptVersion}
             />
           </div>
         )}
