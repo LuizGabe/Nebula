@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom'
-import { Activity, AlertCircle, ArrowRight, Calendar, Clock, Folder, FolderOpen, Layers, Mic, Plus } from 'lucide-react'
+import { Activity, AlertCircle, ArrowRight, Calendar, Clock, FilePlus2, Folder, Layers, Mic, Plus } from 'lucide-react'
 import { folders as foldersApi, sessions as sessionsApi, type Folder as FolderItem, type Session } from '../api/client'
 import type { AppLayoutContext } from '../components/layout/AppLayout'
 import { Button } from '../components/ui/Button'
@@ -108,7 +108,7 @@ function SessionCard({ session }: { session: Session }) {
   )
 }
 
-function NotebookCard({
+function NotebookRow({
   name,
   sessions,
   childCount,
@@ -121,52 +121,41 @@ function NotebookCard({
   onOpen: () => void
   onNewSession: () => void
 }) {
-  const navigate = useNavigate()
   const latest = latestSession(sessions)
-  const recent = [...sessions].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 2)
 
   return (
-    <article className="bg-white rounded-2xl border border-ink-100 shadow-soft hover:shadow-card hover:border-ink-200 transition-all p-5">
-      <button onClick={onOpen} className="w-full text-left">
-        <div className="flex items-start justify-between gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-jade-50 text-jade-700 flex items-center justify-center shrink-0">
-            <FolderOpen className="w-5 h-5" />
-          </div>
-          <ArrowRight className="w-4 h-4 text-ink-300" />
+    <div className="group flex items-center gap-3 px-3 py-2.5 border-b border-ink-100 last:border-b-0 hover:bg-ink-50 transition-colors">
+      <button onClick={onOpen} className="min-w-0 flex-1 flex items-center gap-3 text-left">
+        <div className="w-8 h-8 rounded-lg bg-jade-50 text-jade-700 flex items-center justify-center shrink-0">
+          <Folder className="w-4 h-4" />
         </div>
-        <h3 className="font-display font-semibold text-lg text-ink-900 mt-4 truncate">{name}</h3>
-        <p className="text-sm text-ink-400 mt-1">
-          {sessions.length} sessao{sessions.length !== 1 ? 'es' : ''} - {childCount} subpasta{childCount !== 1 ? 's' : ''}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-ink-900 truncate">{name}</p>
+          <p className="text-xs text-ink-400 truncate">
+            {sessions.length} sessao{sessions.length !== 1 ? 'es' : ''} - {childCount} subpasta{childCount !== 1 ? 's' : ''}
+          </p>
+        </div>
       </button>
 
-      <div className="mt-4 min-h-[72px] flex flex-col gap-2">
-        {recent.length > 0 ? recent.map((session) => (
-          <button
-            key={session.id}
-            onClick={() => navigate(`/sessions/${session.id}`)}
-            className="h-8 px-2 rounded-lg bg-ink-50 hover:bg-ink-100 flex items-center justify-between gap-2 text-xs text-ink-500"
-          >
-            <span className="truncate">{session.title || session.prompt?.name || 'Sessao'}</span>
-            <span className="shrink-0">{formatSessionDate(session.createdAt)}</span>
-          </button>
-        )) : (
-          <div className="h-[72px] rounded-xl bg-ink-50 flex items-center px-3">
-            <p className="text-xs text-ink-400">Caderno pronto para receber aulas, reunioes ou audios soltos.</p>
-          </div>
-        )}
+      <div className="hidden md:block w-40 text-xs text-ink-400 truncate">
+        {latest ? `Ultima: ${formatSessionDate(latest.createdAt)}` : 'Sem atividade'}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-ink-100 flex items-center justify-between gap-3">
-        <p className="text-xs text-ink-400 truncate">
-          {latest ? `Ultima: ${formatSessionDate(latest.createdAt)}` : 'Sem atividade ainda'}
-        </p>
-        <Button variant="secondary" size="sm" onClick={onNewSession}>
-          <Plus className="w-3.5 h-3.5" />
-          Sessao
-        </Button>
-      </div>
-    </article>
+      <button
+        onClick={onNewSession}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-white border border-transparent hover:border-ink-200 transition-all"
+        title="Nova sessao neste caderno"
+      >
+        <FilePlus2 className="w-4 h-4" />
+      </button>
+      <button
+        onClick={onOpen}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-300 hover:text-ink-900 hover:bg-white border border-transparent hover:border-ink-200 transition-all"
+        title="Abrir caderno"
+      >
+        <ArrowRight className="w-4 h-4" />
+      </button>
+    </div>
   )
 }
 
@@ -324,25 +313,22 @@ export function DashboardPage() {
               </div>
             </div>
 
-            {!selectedFolder && !isRootFolder && rootSessions.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
-                <NotebookCard
-                  name="/root"
-                  sessions={rootSessions}
-                  childCount={0}
-                  onOpen={() => navigate('/?folder=root')}
-                  onNewSession={() => openNewSession(null)}
-                />
-              </div>
-            )}
-
-            {!isRootFolder && childFolders.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {(!isRootFolder && (childFolders.length > 0 || (!selectedFolder && rootSessions.length > 0))) ? (
+              <div className="bg-white border border-ink-100 rounded-2xl shadow-soft overflow-hidden">
+                {!selectedFolder && rootSessions.length > 0 && (
+                  <NotebookRow
+                    name="/root"
+                    sessions={rootSessions}
+                    childCount={0}
+                    onOpen={() => navigate('/?folder=root')}
+                    onNewSession={() => openNewSession(null)}
+                  />
+                )}
                 {childFolders.map((folder) => {
                   const folderSessions = sessionsInFolder(folder.id, sessionList, folderList)
                   const childCount = folderList.filter((item) => item.parentId === folder.id).length
                   return (
-                    <NotebookCard
+                    <NotebookRow
                       key={folder.id}
                       name={folder.name}
                       sessions={folderSessions}
@@ -353,7 +339,7 @@ export function DashboardPage() {
                   )
                 })}
               </div>
-            ) : !selectedFolder && !isRootFolder && rootSessions.length > 0 ? null : (
+            ) : (
               <div className="bg-white border border-ink-100 rounded-2xl p-8 text-center shadow-soft">
                 <Folder className="w-9 h-9 mx-auto text-ink-300" />
                 <p className="font-medium text-ink-700 mt-3">{selectedFolder || isRootFolder ? 'Nenhuma subpasta' : 'Nenhum caderno ainda'}</p>

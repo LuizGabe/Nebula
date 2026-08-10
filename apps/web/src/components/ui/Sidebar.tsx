@@ -114,7 +114,7 @@ function TreeFolder({
         </button>
         <button
           onClick={() => onNewSession?.(node.id)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50 transition-colors"
           title="Nova sessao nesta pasta"
         >
           <FilePlus2 className="w-3.5 h-3.5" />
@@ -230,7 +230,7 @@ function RootFolder({
         </button>
         <button
           onClick={() => onNewSession?.(null)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50 transition-colors"
           title="Nova sessao em /root"
         >
           <FilePlus2 className="w-3.5 h-3.5" />
