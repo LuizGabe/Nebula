@@ -358,6 +358,14 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
           </button>
         </div>
 
+        <button
+          onClick={() => onNewSession?.(null)}
+          className="mb-3 w-full h-9 flex items-center justify-center gap-2 rounded-xl bg-jade-600 px-3 text-sm font-medium text-white hover:bg-jade-700 transition-colors"
+        >
+          <FilePlus2 className="w-4 h-4" />
+          Nova sessao
+        </button>
+
         {creating && (
           <div className="mb-3 flex items-center gap-1">
             <input
