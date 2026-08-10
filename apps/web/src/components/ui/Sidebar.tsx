@@ -320,7 +320,7 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         </NavLink>
         <button
           onClick={() => onNewSession?.(null)}
-          className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold bg-jade-700 text-white hover:bg-jade-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade-400 transition-all shadow-soft"
+          className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-ink-600 hover:text-jade-900 hover:bg-jade-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade-400 transition-all"
         >
           <FilePlus2 className="w-4 h-4" />
           Nova sessao
