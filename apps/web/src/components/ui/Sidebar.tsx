@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
+import { Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
 import clsx from 'clsx'
 import { folders, sessions, type Folder as FolderItem, type Session } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
@@ -426,6 +426,18 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         >
           <Settings className="w-4 h-4" />
           Configuracoes
+        </NavLink>
+        <NavLink
+          to="/status"
+          className={({ isActive }) =>
+            clsx(
+              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+              isActive ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+            )
+          }
+        >
+          <Activity className="w-4 h-4" />
+          Status
         </NavLink>
         <button
           onClick={() => onNewSession?.(null)}

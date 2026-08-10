@@ -7,6 +7,7 @@ import websocket from '@fastify/websocket'
 
 import { config } from "@/config";
 import { ensureBucketExists } from "@/lib/storage";
+import { getReadinessStatus } from "@/lib/system/status";
 
 import { startWorkers } from "@/workers";
 
@@ -20,6 +21,7 @@ import documentsRoutes from "@/routes/documents.js";
 import transcriptsRoutes from "@/routes/transcripts.js";
 import promptsRoutes from "@/routes/prompts.js";
 import foldersRoutes from "@/routes/folders.js";
+import systemRoutes from "@/routes/system.js";
 import wsRoutes from '@/routes/ws'
 import transcriptionStreamRoutes from '@/routes/transcription-stream'
 
@@ -53,7 +55,10 @@ await app.register(cors, {
 
 await app.register(websocket)
 
-app.get("/health", async () => "OK");
+app.get("/health", async (_request, reply) => {
+  const status = await getReadinessStatus();
+  return reply.status(status.status === "healthy" ? 200 : 503).send(status);
+});
 
 await app.register(sessionPlugin);
 await app.register(FastifySSEPlugin);
@@ -67,6 +72,7 @@ await app.register(documentsRoutes);
 await app.register(transcriptsRoutes);
 await app.register(promptsRoutes);
 await app.register(foldersRoutes);
+await app.register(systemRoutes);
 await app.register(wsRoutes);
 await app.register(transcriptionStreamRoutes);
 

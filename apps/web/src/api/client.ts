@@ -80,6 +80,44 @@ export interface Session {
   endedAt: string | null
 }
 
+export type ServiceHealthStatus = 'healthy' | 'degraded' | 'down' | 'inactive'
+export type CircuitBreakerState = 'closed' | 'open' | 'half_open'
+
+export interface QueueHealth {
+  waiting: number
+  active: number
+  completed: number
+  failed: number
+}
+
+export interface ServiceHealth {
+  id: string
+  label: string
+  status: ServiceHealthStatus
+  latencyMs: number
+  checkedAt: string
+  message: string
+  breaker: {
+    state: CircuitBreakerState
+    failures: number
+    openedAt: string | null
+    nextRetryAt: string | null
+  }
+  details?: {
+    queues?: Record<string, QueueHealth>
+    models?: Array<{ id: string; provider: string; available: boolean }>
+    [key: string]: unknown
+  }
+}
+
+export interface SystemStatus {
+  status: 'healthy' | 'degraded' | 'down'
+  checkedAt: string
+  uptimeSec: number
+  services: ServiceHealth[]
+  connections: Array<{ from: string; to: string; label: string }>
+}
+
 export const sessions = {
   list: () => request<{ sessions: Session[] }>('/sessions'),
 
@@ -122,6 +160,10 @@ export const sessions = {
 
   delete: (id: string) =>
     request<void>(`/sessions/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
+}
+
+export const system = {
+  status: () => request<SystemStatus>('/system/status'),
 }
 
 export const folders = {

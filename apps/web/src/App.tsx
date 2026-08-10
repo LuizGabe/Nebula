@@ -5,6 +5,7 @@ import { LoginPage } from './pages/Login'
 import { DashboardPage } from './pages/Dashboard'
 import { SessionPage } from './pages/Session'
 import { SettingsPage } from './pages/Settings'
+import { StatusPage } from './pages/Status'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/sessions/:id" element={<SessionPage />} />
+            <Route path="/status" element={<StatusPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
