@@ -77,7 +77,7 @@ export function SettingsPage() {
     }
   }, [user])
 
-  const onlineModels = models.filter((model) => modelStatus[model.id] === true)
+  const onlineModels = models.filter((model) => modelStatus[model.id] === true || (model.provider === 'groq' && modelStatus[model.id] !== false))
   const selectedModel = onlineModels.find((model) => model.id === selected)
   const savedDefaultModel = user?.config?.defaultModel
   const savedModelIsOffline = Boolean(savedDefaultModel && modelStatus[savedDefaultModel] === false)

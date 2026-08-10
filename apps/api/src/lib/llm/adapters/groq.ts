@@ -71,11 +71,6 @@ export class GroqAdapter implements LLMAdapter {
   }
 
   async isAvailable(): Promise<boolean> {
-    try {
-      await this.client.models.list();
-      return true;
-    } catch {
-      return false;
-    }
+    return Boolean(config.GROQ_API_KEY);
   }
 }
