@@ -1,5 +1,6 @@
 import { Volume2 } from 'lucide-react'
-import type React from 'react'
+import React from 'react'
+import ReactMarkdown from 'react-markdown'
 
 const AUDIO_TAG_RE = /\[audio:(\d{1,2}:\d{2}(?::\d{2})?)\]/g
 
@@ -16,6 +17,46 @@ interface AudioLinkedTextProps {
 }
 
 export function AudioLinkedText({ content, onSeekTo }: AudioLinkedTextProps) {
+  const renderChildren = (children: React.ReactNode) => transformAudioTags(children, onSeekTo)
+
+  return (
+    <div className="text-sm leading-7 text-ink-700">
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p className="mb-3">{renderChildren(children)}</p>,
+          ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5">{children}</ol>,
+          li: ({ children }) => <li>{renderChildren(children)}</li>,
+          h1: ({ children }) => <h1 className="mb-4 mt-2 font-display text-2xl font-semibold text-ink-900">{renderChildren(children)}</h1>,
+          h2: ({ children }) => <h2 className="mb-3 mt-5 font-display text-xl font-semibold text-ink-900">{renderChildren(children)}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 mt-4 text-lg font-semibold text-ink-800">{renderChildren(children)}</h3>,
+          h4: ({ children }) => <h4 className="mb-2 mt-3 font-semibold text-ink-800">{renderChildren(children)}</h4>,
+          strong: ({ children }) => <strong className="font-semibold text-ink-900">{renderChildren(children)}</strong>,
+          em: ({ children }) => <em className="italic">{renderChildren(children)}</em>,
+          code: ({ children }) => <code className="rounded bg-ink-100 px-1.5 py-0.5 font-mono text-xs text-rose-500">{children}</code>,
+          blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-jade-400 pl-4 text-ink-600 italic">{renderChildren(children)}</blockquote>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
+function transformAudioTags(children: React.ReactNode, onSeekTo?: (seconds: number) => void): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (typeof child === 'string') return renderInlineAudioTags(child, onSeekTo)
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, {
+        ...child.props,
+        children: transformAudioTags(child.props.children, onSeekTo),
+      })
+    }
+    return child
+  })
+}
+
+function renderInlineAudioTags(content: string, onSeekTo?: (seconds: number) => void) {
   const nodes: React.ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -47,7 +88,7 @@ export function AudioLinkedText({ content, onSeekTo }: AudioLinkedTextProps) {
     nodes.push(renderText(content.slice(lastIndex), `text-${lastIndex}`))
   }
 
-  return <div className="whitespace-pre-wrap text-sm leading-7 text-ink-700">{nodes}</div>
+  return nodes
 }
 
 function renderText(text: string, key: string) {

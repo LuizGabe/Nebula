@@ -34,7 +34,7 @@ def test_prepare_audio_falls_back_to_mp3_when_wav_exceeds_limit(monkeypatch: pyt
         filename="audio.mp3",
         content_type="audio/mpeg",
         data=b"m" * 40,
-        duration_factor=pytest.approx(1 / 1.1),
+        duration_factor=pytest.approx(1.1),
     )
     assert calls == [("wav", None), ("mp3", None)]
 

@@ -90,7 +90,7 @@ def prepare_audio_for_groq(
         filename=f"audio.{out_ext}",
         content_type=content_type,
         data=prepared,
-        duration_factor=1 / speed if speed > 0 else 1.0,
+        duration_factor=speed if speed > 0 else 1.0,
     )
 
 
