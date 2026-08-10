@@ -17,9 +17,10 @@ interface TranscriptViewerProps {
   liveText?: LiveTranscription[] | null
   transcriptionProgress?: [total: number, current: number] | null
   reloadToken?: number
+  onSeekTo?: (seconds: number) => void
 }
 
-export function TranscriptViewer({ sessionId, liveText, transcriptionProgress, reloadToken = 0 }: TranscriptViewerProps) {
+export function TranscriptViewer({ sessionId, liveText, transcriptionProgress, reloadToken = 0, onSeekTo }: TranscriptViewerProps) {
   const [blocks, setBlocks] = useState<TranscriptBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [frozenLive, setFrozenLive] = useState<LiveTranscription[] | null>(null)
@@ -109,20 +110,38 @@ export function TranscriptViewer({ sessionId, liveText, transcriptionProgress, r
             {displayLive
               ? displayLive.map((item, index) => (
                   <div key={`live-${index}`} className="flex gap-3">
-                    <span className={`font-mono text-xs pt-0.5 shrink-0 w-13 text-right ${hasLive ? 'text-red-400' : 'text-ink-300'}`}>
+                    <button
+                      type="button"
+                      onClick={() => onSeekTo?.(item.timestamp_start_ms / 1000)}
+                      className={`font-mono text-xs pt-0.5 shrink-0 w-13 text-right hover:text-jade-600 ${hasLive ? 'text-red-400' : 'text-ink-300'}`}
+                      title="Tocar este trecho"
+                    >
                       {formatTimestamp(item.timestamp_start_ms)}
-                    </span>
-                    <p className={`text-sm leading-relaxed text-justify ${hasLive ? 'text-ink-700 italic' : 'text-ink-700'}`}>
+                    </button>
+                    <p
+                      onClick={() => onSeekTo?.(item.timestamp_start_ms / 1000)}
+                      className={`text-sm leading-relaxed text-justify ${onSeekTo ? 'cursor-pointer hover:text-ink-900' : ''} ${hasLive ? 'text-ink-700 italic' : 'text-ink-700'}`}
+                    >
                       {item.text}
                     </p>
                   </div>
                 ))
               : blocks.map((block) => (
                   <div key={block.chunkIndex} className="flex gap-3 group">
-                    <span className="font-mono text-xs text-ink-300 pt-0.5 shrink-0 w-13 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onSeekTo?.(block.timestampStart / 1000)}
+                      className="font-mono text-xs text-ink-300 pt-0.5 shrink-0 w-13 text-right hover:text-jade-600"
+                      title="Tocar este trecho"
+                    >
                       {formatTimestamp(block.timestampStart)}
-                    </span>
-                    <p className="text-sm text-ink-700 leading-relaxed text-justify">{block.text}</p>
+                    </button>
+                    <p
+                      onClick={() => onSeekTo?.(block.timestampStart / 1000)}
+                      className={`text-sm text-ink-700 leading-relaxed text-justify ${onSeekTo ? 'cursor-pointer hover:text-ink-900' : ''}`}
+                    >
+                      {block.text}
+                    </p>
                   </div>
                 ))
             }

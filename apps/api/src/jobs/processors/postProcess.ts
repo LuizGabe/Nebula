@@ -5,6 +5,7 @@ import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import type { PostProcessJobData } from "../queues";
 import type { UserConfig } from "@/config";
 import { DEFAULT_USER_PROMPT, getDefaultPrompt } from "@/lib/prompts";
+import { formatAudioTag } from "@/lib/audioTimestamps";
 
 import { createEventPublisher } from "@/events/publisher";
 import * as payloads from "@/events/payloads";
@@ -82,10 +83,7 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
 
   const context = blocks
     .map((b) => {
-      const mins = Math.floor(b.timestampStart / 60);
-      const secs = Math.floor(b.timestampStart % 60);
-      const stamp = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-      return `[${stamp}] ${b.text}`;
+      return `${formatAudioTag(b.timestampStart)} ${b.text}`;
     })
     .join("\n\n");
 

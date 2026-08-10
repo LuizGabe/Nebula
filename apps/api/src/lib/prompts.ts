@@ -1,7 +1,17 @@
 import { prisma } from "@/lib/prisma";
 
 export const DEFAULT_USER_PROMPT =
-  "Gere um documento completo baseado na transcricao abaixo.\n\nTRANSCRICAO:\n{{context}}";
+  [
+    "Gere um documento completo baseado na transcricao abaixo.",
+    "",
+    "A transcricao contem marcas de tempo no formato [audio:MM:SS] ou [audio:HH:MM:SS].",
+    "Preserve essa referencia temporal no documento gerado.",
+    "Inclua uma tag [audio:MM:SS] ou [audio:HH:MM:SS] ao final de cada frase relevante, fato, decisao, topico ou item importante.",
+    "Use somente tags de tempo que existam na transcricao.",
+    "",
+    "TRANSCRICAO:",
+    "{{context}}",
+  ].join("\n");
 
 const DEFAULT_PROMPTS = [
   {

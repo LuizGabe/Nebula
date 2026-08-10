@@ -3,6 +3,8 @@ import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import Redis from "ioredis";
 import { EventEmitter, on } from 'node:events'
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { prisma } from "@/lib/prisma.js";
 import { requireAuth } from "@/hooks/requireAuth";
@@ -10,6 +12,8 @@ import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import { config, type UserConfig } from "@/config";
 import { postProcessQueue } from "@/jobs/queues";
 import { getDefaultPrompt } from "@/lib/prompts";
+import { BUCKET, s3Public } from "@/lib/storage";
+import { formatAudioTag } from "@/lib/audioTimestamps";
 
 
 const createBody = z.object({
@@ -270,6 +274,53 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  fastify.get<{ Params: { id: string } }>(
+    "/sessions/:id/audio-media",
+    async (request, reply) => {
+      const ownerId = request.session.get("userId")!;
+
+      const session = await prisma.recordingSession.findFirst({
+        where: { id: request.params.id, ownerId, isDeleted: false },
+        select: { id: true },
+      });
+
+      if (!session) return reply.status(404).send({ error: "Nao encontrada" });
+
+      const medias = await prisma.audioMedia.findMany({
+        where: {
+          sessionId: session.id,
+          status: { in: ["PENDING_UPLOAD", "UPLOADED", "PROCESSING", "TRANSCRIBED"] },
+        },
+        orderBy: [{ source: "desc" }, { chunkIndex: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          source: true,
+          storageKey: true,
+          chunkIndex: true,
+          timestampStart: true,
+          timestampEnd: true,
+          createdAt: true,
+        },
+      });
+
+      const audioMedia = await Promise.all(medias.map(async (media) => ({
+        id: media.id,
+        source: media.source,
+        url: await getSignedUrl(
+          s3Public,
+          new GetObjectCommand({ Bucket: BUCKET, Key: media.storageKey }),
+          { expiresIn: 900 },
+        ),
+        chunkIndex: media.chunkIndex,
+        timestampStart: media.timestampStart != null ? Number(media.timestampStart) : null,
+        timestampEnd: media.timestampEnd != null ? Number(media.timestampEnd) : null,
+        createdAt: media.createdAt,
+      })));
+
+      return reply.send({ audioMedia });
+    }
+  );
+
   // ── PATCH /sessions/:id/end — encerra sessão e dispara pós-processamento ──────
   fastify.patch<{ Params: { id: string } }>(
     "/sessions/:id/end",
@@ -321,14 +372,14 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const transcripts = await prisma.transcript.findMany({
         where: { sessionId: session.id },
         orderBy: { chunkIndex: "asc" },
-        select: { text: true },
+        select: { text: true, timestampStart: true },
       });
 
       if (transcripts.length === 0) {
         return reply.status(400).send({ error: "Nenhuma transcrição disponível" });
       }
 
-      const context = transcripts.map((t) => t.text).join("\n");
+      const context = transcripts.map((t) => `${formatAudioTag(t.timestampStart)} ${t.text}`).join("\n");
 
       // Determina modelo
       const userConfig = (session.owner.config ?? {}) as UserConfig;

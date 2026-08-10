@@ -5,6 +5,7 @@ import {
 import { documents, type DocumentVersion, type DocumentContent } from '../api/client'
 import { Button } from './ui/Button'
 import { Spinner } from './ui/misc'
+import { AudioLinkedText } from './AudioLinkedText'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { getMarkdown } from '@milkdown/kit/utils'
 import { Crepe } from '@milkdown/crepe'
@@ -38,9 +39,10 @@ interface Props {
   sessionId: string
   reloadToken?: number
   onReprocessed?: () => void
+  onSeekTo?: (seconds: number) => void
 }
 
-export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed }: Props) {
+export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSeekTo }: Props) {
   const [versions, setVersions] = useState<DocumentVersion[]>([])
   const [current, setCurrent] = useState<DocumentContent | null>(null)
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
@@ -243,12 +245,24 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed }: Pr
             </Button>
           </div>
         ) : (
-          <MilkdownProvider key={current?.version ?? 'editor'}>
-            <EditorInner
-              content={current?.content ?? ''}
-              onReady={handleEditorReady}
-            />
-          </MilkdownProvider>
+          <div className="flex flex-col gap-4">
+            {current?.content?.includes('[audio:') && (
+              <div className="rounded-xl border border-ink-100 bg-ink-50/60 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-ink-400" />
+                  <span className="text-xs font-medium uppercase tracking-wide text-ink-400">Documento com audio</span>
+                </div>
+                <AudioLinkedText content={current.content} onSeekTo={onSeekTo} />
+              </div>
+            )}
+
+            <MilkdownProvider key={current?.version ?? 'editor'}>
+              <EditorInner
+                content={current?.content ?? ''}
+                onReady={handleEditorReady}
+              />
+            </MilkdownProvider>
+          </div>
         )}
       </div>
     </div>

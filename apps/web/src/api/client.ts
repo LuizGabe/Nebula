@@ -80,6 +80,16 @@ export interface Session {
   endedAt: string | null
 }
 
+export interface SessionAudioMedia {
+  id: string
+  source: 'STREAM' | 'UPLOAD'
+  url: string
+  chunkIndex: number | null
+  timestampStart: number | null
+  timestampEnd: number | null
+  createdAt: string
+}
+
 export type ServiceHealthStatus = 'healthy' | 'degraded' | 'down' | 'inactive'
 export type CircuitBreakerState = 'closed' | 'open' | 'half_open'
 
@@ -138,6 +148,8 @@ export const sessions = {
   list: () => request<{ sessions: Session[] }>('/sessions'),
 
   get: (id: string) => request<{ session: Session }>(`/sessions/${id}`),
+
+  audioMedia: (id: string) => request<{ audioMedia: SessionAudioMedia[] }>(`/sessions/${id}/audio-media`),
 
   create: (promptId: string, title?: string, folderId?: string | null) =>
     request<{ session: Session }>('/sessions', {

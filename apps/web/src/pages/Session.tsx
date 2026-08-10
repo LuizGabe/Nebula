@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Folder, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
-import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, system as systemApi, type Folder as FolderItem, type Prompt, type SelectedTranscriptionEngine, type Session } from '../api/client'
+import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, system as systemApi, type Folder as FolderItem, type Prompt, type SelectedTranscriptionEngine, type Session, type SessionAudioMedia } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
 import { PipelineStatus } from '../components/PipelineStatus'
 import { TranscriptViewer } from '../components/TranscriptViewer'
@@ -32,6 +32,11 @@ export function SessionPage() {
   const [transcriptionEngine, setTranscriptionEngine] = useState<SelectedTranscriptionEngine | null>(null)
   const [browserLiveText, setBrowserLiveText] = useState<LiveTranscription[]>([])
   const [browserTranscriptVersion, setBrowserTranscriptVersion] = useState(0)
+  const [audioMedia, setAudioMedia] = useState<SessionAudioMedia[]>([])
+  const [activeAudio, setActiveAudio] = useState<SessionAudioMedia | null>(null)
+  const [pendingSeek, setPendingSeek] = useState<number | null>(null)
+  const [audioError, setAudioError] = useState('')
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const isEnded = session?.status === 'ENDED' || ended
   const { status, liveText, transcriptionProgress, transcriptVersion, documentVersion } = useSessionEvents(id || '', isEnded)
@@ -81,6 +86,23 @@ export function SessionPage() {
       }))
   }, [id, navigate])
 
+  const loadAudioMedia = useCallback(async () => {
+    if (!id) return []
+    try {
+      const result = await sessionsApi.audioMedia(id)
+      const next = result.audioMedia ?? []
+      setAudioMedia(next)
+      return next
+    } catch {
+      setAudioMedia([])
+      return []
+    }
+  }, [id])
+
+  useEffect(() => {
+    loadAudioMedia()
+  }, [loadAudioMedia, transcriptVersion, browserTranscriptVersion])
+
   const handleEnd = async () => {
     if (!id) return
     try {
@@ -104,6 +126,53 @@ export function SessionPage() {
   }
 
   const visibleLiveText = browserLiveText.length > 0 ? browserLiveText : liveText
+
+  const seekAudio = useCallback(async (seconds: number) => {
+    setAudioError('')
+    const latestMedia = audioMedia.length > 0 ? audioMedia : await loadAudioMedia()
+    const targetMs = Math.max(0, Math.floor(seconds * 1000))
+    const fullUpload = latestMedia.find((media) => media.source === 'UPLOAD')
+    let cumulativeStart = 0
+    const streamTimeline = latestMedia
+      .filter((media) => media.source === 'STREAM')
+      .sort((left, right) => (left.chunkIndex ?? 0) - (right.chunkIndex ?? 0))
+      .map((media) => {
+        const duration = media.timestampStart != null && media.timestampEnd != null
+          ? Math.max(0, media.timestampEnd - media.timestampStart)
+          : 5000
+        const item = { media, start: cumulativeStart, end: cumulativeStart + duration }
+        cumulativeStart += duration
+        return item
+      })
+    const chunk = streamTimeline.find((item) => targetMs >= item.start && targetMs <= item.end)
+    const media = fullUpload ?? chunk?.media ?? latestMedia[0]
+
+    if (!media) {
+      setAudioError('Nenhum audio disponivel para esta sessao')
+      return
+    }
+
+    const relativeSeconds = media.source === 'STREAM' && chunk
+      ? Math.max(0, (targetMs - chunk.start) / 1000)
+      : seconds
+
+    const audio = audioRef.current
+    if (!audio || activeAudio?.id !== media.id) {
+      setPendingSeek(relativeSeconds)
+      setActiveAudio(media)
+      return
+    }
+
+    audio.currentTime = relativeSeconds
+    await audio.play().catch(() => setAudioError('Nao foi possivel iniciar o audio'))
+  }, [activeAudio?.id, audioMedia, loadAudioMedia])
+
+  const handleAudioReady = async () => {
+    if (pendingSeek == null || !audioRef.current) return
+    audioRef.current.currentTime = pendingSeek
+    setPendingSeek(null)
+    await audioRef.current.play().catch(() => setAudioError('Nao foi possivel iniciar o audio'))
+  }
 
   const folderPath = useMemo(() => {
     if (!session?.folderId) return []
@@ -135,7 +204,7 @@ export function SessionPage() {
   const promptName = session.prompt?.name ?? 'Documento'
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="max-w-7xl mx-auto px-6 pb-28 pt-8">
       <Link
         to="/"
         className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900 mb-6 transition-colors"
@@ -288,6 +357,7 @@ export function SessionPage() {
               liveText={visibleLiveText}
               transcriptionProgress={transcriptionProgress}
               reloadToken={transcriptVersion + browserTranscriptVersion}
+              onSeekTo={seekAudio}
             />
           </div>
         )}
@@ -298,10 +368,33 @@ export function SessionPage() {
               sessionId={session.id}
               reloadToken={documentVersion}
               onReprocessed={() => setReprocessTrigger((n) => n + 1)}
+              onSeekTo={seekAudio}
             />
           </div>
         )}
       </div>
+
+      {(activeAudio || audioMedia.length > 0) && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-100 bg-white/95 px-6 py-3 shadow-float backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium text-ink-500">
+                Player da sessao
+                {activeAudio?.source === 'STREAM' && activeAudio.chunkIndex != null ? ` - chunk ${activeAudio.chunkIndex}` : ''}
+                {activeAudio?.source === 'UPLOAD' ? ' - audio completo' : ''}
+              </p>
+              {audioError && <p className="text-xs text-rose-500">{audioError}</p>}
+            </div>
+            <audio
+              ref={audioRef}
+              src={activeAudio?.url ?? audioMedia[0]?.url}
+              controls
+              className="h-9 w-full max-w-xl"
+              onLoadedMetadata={handleAudioReady}
+            />
+          </div>
+        </div>
+      )}
 
       {showQA && (
         <QADrawer sessionId={session.id} onClose={() => setShowQA(false)} />
