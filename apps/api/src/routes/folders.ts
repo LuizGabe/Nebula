@@ -9,6 +9,10 @@ const folderBody = z.object({
   parentId: z.string().nullable().optional(),
 });
 
+const deleteFolderBody = z.object({
+  sessionAction: z.enum(["moveToRoot", "delete"]).default("moveToRoot"),
+});
+
 async function ensureParent(ownerId: string, parentId?: string | null) {
   if (!parentId) return null;
   return prisma.folder.findFirst({
@@ -96,13 +100,49 @@ const folders: FastifyPluginAsync = async (fastify) => {
 
   fastify.delete<{ Params: { id: string } }>("/folders/:id", async (request, reply) => {
     const ownerId = request.session.get("userId")!;
+    const parsed = deleteFolderBody.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Dados invalidos" });
+    }
+
     const folder = await prisma.folder.findFirst({
       where: { id: request.params.id, ownerId },
       select: { id: true },
     });
     if (!folder) return reply.status(404).send({ error: "Pasta nao encontrada" });
 
-    await prisma.folder.delete({ where: { id: folder.id } });
+    const allFolders = await prisma.folder.findMany({
+      where: { ownerId },
+      select: { id: true, parentId: true },
+    });
+    const folderIds = new Set([folder.id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const item of allFolders) {
+        if (item.parentId && folderIds.has(item.parentId) && !folderIds.has(item.id)) {
+          folderIds.add(item.id);
+          changed = true;
+        }
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (parsed.data.sessionAction === "delete") {
+        await tx.recordingSession.updateMany({
+          where: { ownerId, folderId: { in: [...folderIds] } },
+          data: { isDeleted: true },
+        });
+      } else {
+        await tx.recordingSession.updateMany({
+          where: { ownerId, folderId: { in: [...folderIds] } },
+          data: { folderId: null },
+        });
+      }
+
+      await tx.folder.delete({ where: { id: folder.id } });
+    });
+
     return reply.status(204).send();
   });
 };

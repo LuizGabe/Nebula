@@ -139,8 +139,8 @@ export const folders = {
       body: JSON.stringify(data),
     }),
 
-  delete: (id: string) =>
-    request<void>(`/folders/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
+  delete: (id: string, data?: { sessionAction?: 'moveToRoot' | 'delete' }) =>
+    request<void>(`/folders/${id}`, { method: 'DELETE', body: JSON.stringify(data ?? {}) }),
 }
 
 // â”€â”€ Prompts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Plus, Settings } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
 import clsx from 'clsx'
 import { folders, sessions, type Folder as FolderItem, type Session } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
 
 type FolderNode = FolderItem & { children: FolderNode[]; sessions: Session[] }
+type DeleteFolderTarget = { id: string; name: string; sessionCount: number; folderCount: number }
 
 function buildTree(folderList: FolderItem[], sessionList: Session[]) {
   const nodes = new Map<string, FolderNode>()
@@ -39,23 +40,44 @@ function buildTree(folderList: FolderItem[], sessionList: Session[]) {
   return roots
 }
 
+function countFolderContents(node: FolderNode): { folders: number; sessions: number } {
+  return node.children.reduce(
+    (totals, child) => {
+      const childTotals = countFolderContents(child)
+      return {
+        folders: totals.folders + 1 + childTotals.folders,
+        sessions: totals.sessions + child.sessions.length + childTotals.sessions,
+      }
+    },
+    { folders: 0, sessions: node.sessions.length }
+  )
+}
+
 function TreeFolder({
   node,
   depth,
   onChanged,
   onMoveSession,
+  onDeleteFolder,
 }: {
   node: FolderNode
   depth: number
   onChanged: () => Promise<void>
   onMoveSession: (sessionId: string, folderId: string) => Promise<void>
+  onDeleteFolder: (target: DeleteFolderTarget) => void
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
   const [creatingChild, setCreatingChild] = useState(false)
   const [childName, setChildName] = useState('')
   const [dropActive, setDropActive] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editName, setEditName] = useState(node.name)
   const hasChildren = node.children.length > 0 || node.sessions.length > 0
+
+  useEffect(() => {
+    setEditName(node.name)
+  }, [node.name])
 
   const createChild = async () => {
     if (!childName.trim()) return
@@ -64,6 +86,28 @@ function TreeFolder({
     setCreatingChild(false)
     setOpen(true)
     await onChanged()
+  }
+
+  const saveName = async () => {
+    const nextName = editName.trim()
+    if (!nextName || nextName === node.name) {
+      setEditName(node.name)
+      setEditing(false)
+      return
+    }
+    await folders.update(node.id, { name: nextName })
+    setEditing(false)
+    await onChanged()
+  }
+
+  const requestDelete = () => {
+    const totals = countFolderContents(node)
+    onDeleteFolder({
+      id: node.id,
+      name: node.name,
+      sessionCount: totals.sessions,
+      folderCount: totals.folders,
+    })
   }
 
   return (
@@ -96,19 +140,68 @@ function TreeFolder({
         >
           {hasChildren ? (open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />) : null}
         </button>
-        <button
-          onClick={() => navigate(`/?folder=${node.id}`)}
-          className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50"
-        >
-          <Folder className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">{node.name}</span>
-        </button>
+        {editing ? (
+          <div className="min-w-0 flex-1 h-7 flex items-center gap-1">
+            <input
+              autoFocus
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveName()
+                if (e.key === 'Escape') {
+                  setEditName(node.name)
+                  setEditing(false)
+                }
+              }}
+              className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-ink-200 text-xs outline-none focus:border-ink-400"
+            />
+            <button
+              onClick={saveName}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-jade-700 hover:bg-jade-50"
+              title="Salvar"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                setEditName(node.name)
+                setEditing(false)
+              }}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
+              title="Cancelar"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => navigate(`/?folder=${node.id}`)}
+            className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50"
+          >
+            <Folder className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{node.name}</span>
+          </button>
+        )}
         <button
           onClick={() => setCreatingChild(true)}
           className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
           title="Nova subpasta"
         >
           <Plus className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => setEditing(true)}
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          title="Editar pasta"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={requestDelete}
+          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          title="Excluir pasta"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -144,6 +237,7 @@ function TreeFolder({
               depth={depth + 1}
               onChanged={onChanged}
               onMoveSession={onMoveSession}
+              onDeleteFolder={onDeleteFolder}
             />
           ))}
           {node.sessions.map((session) => (
@@ -245,6 +339,8 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   const [sessionList, setSessionList] = useState<Session[]>([])
   const [creating, setCreating] = useState(false)
   const [folderName, setFolderName] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<DeleteFolderTarget | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const loadTree = async () => {
     const [folderRes, sessionRes] = await Promise.all([folders.list(), sessions.list()])
@@ -281,6 +377,19 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   const moveSessionToFolder = async (sessionId: string, folderId: string | null) => {
     await sessions.update(sessionId, { folderId })
     await loadTree()
+  }
+
+  const deleteFolder = async (sessionAction: 'moveToRoot' | 'delete') => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await folders.delete(deleteTarget.id, { sessionAction })
+      setDeleteTarget(null)
+      await loadTree()
+      window.dispatchEvent(new Event('nebula:sessions-changed'))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -375,10 +484,55 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
               depth={0}
               onChanged={loadTree}
               onMoveSession={moveSessionToFolder}
+              onDeleteFolder={setDeleteTarget}
             />
           ))}
         </div>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-float border border-ink-100">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-ink-900">Excluir pasta</h2>
+                <p className="mt-1 text-sm text-ink-500">
+                  Escolha o que fazer com as sessoes dentro de "{deleteTarget.name}".
+                </p>
+              </div>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50"
+                title="Fechar"
+                disabled={deleting}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-ink-50 px-3 py-2 text-sm text-ink-600">
+              {deleteTarget.sessionCount} sessoes e {deleteTarget.folderCount} subpastas serao afetadas.
+            </div>
+
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                onClick={() => deleteFolder('moveToRoot')}
+                disabled={deleting}
+                className="w-full rounded-xl border border-ink-200 px-4 py-3 text-left text-sm font-medium text-ink-700 hover:border-jade-300 hover:bg-jade-50 hover:text-jade-900 disabled:opacity-50"
+              >
+                Mover sessoes para /root
+              </button>
+              <button
+                onClick={() => deleteFolder('delete')}
+                disabled={deleting}
+                className="w-full rounded-xl border border-rose-100 px-4 py-3 text-left text-sm font-medium text-rose-700 hover:border-rose-300 hover:bg-rose-50 disabled:opacity-50"
+              >
+                Excluir pasta e sessoes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-3 pb-4 border-t border-ink-100 pt-3 flex flex-col gap-0.5">
         <div className="px-3 py-2 flex items-center gap-3">
