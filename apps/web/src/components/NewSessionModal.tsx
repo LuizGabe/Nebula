@@ -94,6 +94,7 @@ export function NewSessionModal({
   const [promptId, setPromptId] = useState('')
   const [folderId, setFolderId] = useState<string | null>(initialFolderId ?? null)
   const [title, setTitle] = useState('')
+  const [sessionContext, setSessionContext] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -119,7 +120,12 @@ export function NewSessionModal({
     if (!promptId) return
     setLoading(true)
     try {
-      const { session } = await sessionsApi.create(promptId, title.trim() || undefined, folderId)
+      const { session } = await sessionsApi.create({
+        promptId,
+        title: title.trim() || undefined,
+        folderId,
+        sessionContext: sessionContext.trim() || undefined,
+      })
       onCreate(session)
     } finally {
       setLoading(false)
@@ -131,7 +137,7 @@ export function NewSessionModal({
       className="fixed inset-0 bg-ink-900/30 backdrop-blur-sm flex items-center justify-center z-50 px-4"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-float border border-ink-100 p-6 w-full max-w-2xl fade-in">
+      <div className="bg-white rounded-2xl shadow-float border border-ink-100 p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto fade-in">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h2 className="font-display font-semibold text-xl text-ink-900">Nova sessao</h2>
@@ -182,6 +188,20 @@ export function NewSessionModal({
                 className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
               />
             </div>
+
+            <div>
+              <p className="text-sm font-medium text-ink-700 mb-2">
+                Contexto da sessao <span className="text-ink-400 font-normal">(opcional)</span>
+              </p>
+              <textarea
+                value={sessionContext}
+                onChange={(event) => setSessionContext(event.target.value)}
+                placeholder="ex: reuniao semanal do produto, turma, cliente ou objetivo"
+                rows={3}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y"
+              />
+            </div>
+
           </div>
 
           <div className="border border-ink-100 rounded-2xl p-3 bg-ink-50/60 min-h-[260px]">

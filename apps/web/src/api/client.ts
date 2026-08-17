@@ -23,7 +23,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+// Auth
 
 export const auth = {
   login: (username: string, password: string) =>
@@ -43,7 +43,7 @@ export const auth = {
   logout: () => request('/auth/logout', { method: 'POST' }),
 }
 
-// ── Sessions ──────────────────────────────────────────────────────────────────
+// Sessions
 
 export type SessionStatus = 'ACTIVE' | 'IN_PROGRESS' | 'ENDED'
 
@@ -59,10 +59,12 @@ export interface Folder {
 export interface Prompt {
   id: string
   name: string
-  content: string
+  userTemplate: string
+  includeAudioCitations: boolean
   isDefault: boolean
   isPublic: boolean
   createdAt: string
+  updatedAt?: string
   ownerId?: string | null
   owner?: { id: string; username: string } | null
 }
@@ -75,6 +77,9 @@ export interface Session {
   folder: Folder | null
   status: SessionStatus
   title: string | null
+  sessionContext: string | null
+  writingStyle: string | null
+  userInstructions: string | null
   createdAt: string
   updatedAt: string
   endedAt: string | null
@@ -151,10 +156,17 @@ export const sessions = {
 
   audioMedia: (id: string) => request<{ audioMedia: SessionAudioMedia[] }>(`/sessions/${id}/audio-media`),
 
-  create: (promptId: string, title?: string, folderId?: string | null) =>
+  create: (data: {
+    promptId: string
+    title?: string
+    folderId?: string | null
+    sessionContext?: string
+    writingStyle?: string
+    userInstructions?: string
+  }) =>
     request<{ session: Session }>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ promptId, title, folderId }),
+      body: JSON.stringify(data),
     }),
 
   end: (id: string) =>
@@ -180,7 +192,7 @@ export const sessions = {
       body: JSON.stringify({ title }),
     }),
 
-  update: (id: string, data: { title?: string; promptId?: string | null; folderId?: string | null }) =>
+  update: (id: string, data: { title?: string; promptId?: string | null; folderId?: string | null; sessionContext?: string | null; writingStyle?: string | null; userInstructions?: string | null }) =>
     request<{ session: Session }>(`/sessions/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -214,18 +226,18 @@ export const folders = {
     request<void>(`/folders/${id}`, { method: 'DELETE', body: JSON.stringify(data ?? {}) }),
 }
 
-// â”€â”€ Prompts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Prompts
 
 export const prompts = {
   list: () => request<{ prompts: Prompt[] }>('/prompts'),
 
-  create: (data: { name: string; content: string; isDefault?: boolean; isPublic?: boolean }) =>
+  create: (data: { name: string; userTemplate: string; includeAudioCitations?: boolean; isDefault?: boolean; isPublic?: boolean }) =>
     request<{ prompt: Prompt }>('/prompts', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: { name?: string; content?: string; isDefault?: boolean; isPublic?: boolean }) =>
+  update: (id: string, data: { name?: string; userTemplate?: string; includeAudioCitations?: boolean; isDefault?: boolean; isPublic?: boolean }) =>
     request<{ prompt: Prompt }>(`/prompts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -235,7 +247,7 @@ export const prompts = {
     request<void>(`/prompts/${id}`, { method: 'DELETE', body: JSON.stringify({}) }),
 }
 
-// ── Chunks ────────────────────────────────────────────────────────────────────
+// Chunks
 
 export const chunks = {
   presignedUrl: (
@@ -257,7 +269,7 @@ export const chunks = {
     }),
 }
 
-// ── Uploads ───────────────────────────────────────────────────────────────────
+// Uploads
 
 export const uploads = {
   presignedUrl: (sessionId: string, filename: string, contentType: string, sizeBytes: number) =>
@@ -274,7 +286,7 @@ export const uploads = {
     }),
 }
 
-// ── Documents ─────────────────────────────────────────────────────────────────
+// Documents
 
 export interface DocumentVersion {
   id: string
@@ -304,7 +316,7 @@ export const documents = {
     ),
 
   update: (sessionId: string, content: string) =>
-    request<DocumentContent>(`/sessions/${sessionId}/document`, {
+    request<{ document: DocumentContent }>(`/sessions/${sessionId}/document`, {
       method: 'PATCH',
       body: JSON.stringify({ content }),
     }),
@@ -313,7 +325,7 @@ export const documents = {
     request(`/sessions/${sessionId}/document/reprocess`, { method: 'POST', body: JSON.stringify({}) })
 }
 
-// ── Transcripts ───────────────────────────────────────────────────────────────
+// Transcripts
 
 export interface TranscriptBlock {
   id: string
@@ -334,7 +346,7 @@ export const transcripts = {
     }),
 }
 
-// ── LLM ──────────────────────────────────────────────────────────────────────
+// LLM
 export interface LLMModel {
   id: string
   label: string
@@ -357,7 +369,7 @@ export const llm = {
   },
 }
 
-// ── Users ─────────────────────────────────────────────────────────────────────
+// Users
 
 export const users = {
   updateConfig: (defaultModel: string) =>
@@ -367,7 +379,7 @@ export const users = {
     }),
 }
 
-// ── SSE helpers ───────────────────────────────────────────────────────────────
+// SSE helpers
 
 export function openQuestionSSE(
   sessionId: string,

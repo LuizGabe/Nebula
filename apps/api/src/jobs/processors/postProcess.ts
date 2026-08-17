@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import type { PostProcessJobData } from "../queues";
 import type { UserConfig } from "@/config";
-import { DEFAULT_USER_PROMPT, getDefaultPrompt } from "@/lib/prompts";
+import { buildSystemPrompt, ensurePromptSchema, renderPromptTemplate } from "@/lib/prompts";
 import { formatAudioTag } from "@/lib/audioTimestamps";
 
 import { createEventPublisher } from "@/events/publisher";
@@ -28,6 +28,8 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
   const publisher = createEventPublisher();
 
   log(`inicio | sessao=${sessionId} trigger=${triggeredBy}`);
+
+  await ensurePromptSchema();
 
   const session = await prisma.recordingSession.findUnique({
     where: { id: sessionId },
@@ -87,16 +89,40 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
     })
     .join("\n\n");
 
-  const prompt = session.prompt ?? await getDefaultPrompt();
-  if (!prompt) throw new Error("Nenhum prompt cadastrado para gerar o documento");
+  const prompt = session.prompt;
+  if (!prompt) {
+    const reason = "Sessao sem prompt associado para gerar o documento";
+    await publisher.emit(sessionId, "DOCUMENT_FAILED", payloads.documentFailed(reason, nextVersion));
+    throw new Error(reason);
+  }
 
-  const systemPrompt = prompt.content;
-  const userPrompt = DEFAULT_USER_PROMPT.replaceAll("{{context}}", context);
+  const userTemplate = prompt.userTemplate?.trim() ?? "";
+  if (!userTemplate) {
+    const reason = `Prompt ${prompt.name} esta incompleto: userTemplate e obrigatorio`;
+    await publisher.emit(sessionId, "DOCUMENT_FAILED", payloads.documentFailed(reason, nextVersion));
+    throw new Error(reason);
+  }
+
+  let userPrompt = "";
+  try {
+    userPrompt = renderPromptTemplate(userTemplate, {
+      transcricao: context,
+      contexto_sessao: session.sessionContext ?? "",
+      sessionTitle: session.title ?? "",
+      promptName: prompt.name,
+      createdAt: session.createdAt.toISOString(),
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await publisher.emit(sessionId, "DOCUMENT_FAILED", payloads.documentFailed(reason, nextVersion));
+    throw err;
+  }
 
   await job.updateProgress(20);
 
   const userConfig = (session.owner.config ?? {}) as UserConfig;
   const modelId = userConfig.defaultModel ?? DEFAULT_MODEL;
+  const systemPrompt = buildSystemPrompt(prompt.includeAudioCitations);
 
   log(`usando modelo=${modelId} | prompt=${prompt.name} | contexto=${context.length} chars`);
 

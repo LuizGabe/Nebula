@@ -3,18 +3,20 @@ import { z } from "zod";
 
 import { requireAuth } from "@/hooks/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { ensureDefaultPrompts } from "@/lib/prompts";
+import { ensureDefaultPrompts, ensurePromptSchema, getPromptVariableNames, validatePromptTemplate } from "@/lib/prompts";
 
 const createBody = z.object({
   name: z.string().trim().min(1).max(80),
-  content: z.string().trim().min(1),
+  userTemplate: z.string().trim().min(1),
+  includeAudioCitations: z.boolean().optional(),
   isDefault: z.boolean().optional(),
   isPublic: z.boolean().optional(),
 });
 
 const updateBody = z.object({
   name: z.string().trim().min(1).max(80).optional(),
-  content: z.string().trim().min(1).optional(),
+  userTemplate: z.string().trim().min(1).optional(),
+  includeAudioCitations: z.boolean().optional(),
   isDefault: z.boolean().optional(),
   isPublic: z.boolean().optional(),
 });
@@ -27,6 +29,19 @@ function visiblePromptWhere(ownerId: string) {
   return { OR: [{ isPublic: true }, { ownerId }] };
 }
 
+const promptSelect = {
+  id: true,
+  name: true,
+  userTemplate: true,
+  includeAudioCitations: true,
+  isDefault: true,
+  isPublic: true,
+  createdAt: true,
+  updatedAt: true,
+  ownerId: true,
+  owner: { select: { id: true, username: true } },
+} as const;
+
 const prompts: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
 
@@ -37,7 +52,7 @@ const prompts: FastifyPluginAsync = async (fastify) => {
     const prompts = await prisma.prompt.findMany({
       where: visiblePromptWhere(ownerId),
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-      include: { owner: { select: { id: true, username: true } } },
+      select: promptSelect,
     });
 
     return { prompts };
@@ -45,9 +60,16 @@ const prompts: FastifyPluginAsync = async (fastify) => {
 
   fastify.post("/prompts", async (request, reply) => {
     const ownerId = request.session.get("userId")!;
+    await ensurePromptSchema();
+
     const parsed = createBody.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+
+    const templateValidation = validatePromptTemplate(parsed.data.userTemplate);
+    if (!templateValidation.ok) {
+      return reply.status(400).send({ error: templateValidation.error, message: templateValidation.error });
     }
 
     const prompt = await prisma.$transaction(async (tx) => {
@@ -61,12 +83,15 @@ const prompts: FastifyPluginAsync = async (fastify) => {
       return tx.prompt.create({
         data: {
           name: parsed.data.name,
-          content: parsed.data.content,
+          systemPrompt: "",
+          userTemplate: parsed.data.userTemplate,
+          availableVariables: getPromptVariableNames(),
+          includeAudioCitations: parsed.data.includeAudioCitations ?? true,
           isDefault: parsed.data.isDefault ?? false,
           isPublic: parsed.data.isPublic ?? false,
           ownerId,
         },
-        include: { owner: { select: { id: true, username: true } } },
+        select: promptSelect,
       });
     });
 
@@ -75,6 +100,8 @@ const prompts: FastifyPluginAsync = async (fastify) => {
 
   fastify.put<{ Params: { id: string } }>("/prompts/:id", async (request, reply) => {
     const ownerId = request.session.get("userId")!;
+    await ensurePromptSchema();
+
     const params = paramsSchema.safeParse(request.params);
     const parsed = updateBody.safeParse(request.body);
     if (!params.success || !parsed.success) {
@@ -85,6 +112,15 @@ const prompts: FastifyPluginAsync = async (fastify) => {
     if (!existing) return reply.status(404).send({ error: "Prompt nao encontrado" });
     if (existing.ownerId && existing.ownerId !== ownerId) {
       return reply.status(403).send({ error: "Voce nao pode editar este prompt" });
+    }
+
+    const userTemplate = parsed.data.userTemplate ?? existing.userTemplate;
+    if (!userTemplate?.trim()) {
+      return reply.status(400).send({ error: "Template do prompt nao configurado", message: "Template do prompt nao configurado" });
+    }
+    const templateValidation = validatePromptTemplate(userTemplate);
+    if (!templateValidation.ok) {
+      return reply.status(400).send({ error: templateValidation.error, message: templateValidation.error });
     }
 
     const prompt = await prisma.$transaction(async (tx) => {
@@ -101,8 +137,15 @@ const prompts: FastifyPluginAsync = async (fastify) => {
 
       return tx.prompt.update({
         where: { id: params.data.id },
-        data: parsed.data,
-        include: { owner: { select: { id: true, username: true } } },
+        data: {
+          ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+          ...(parsed.data.userTemplate !== undefined ? { userTemplate: parsed.data.userTemplate } : {}),
+          ...(parsed.data.includeAudioCitations !== undefined ? { includeAudioCitations: parsed.data.includeAudioCitations } : {}),
+          ...(parsed.data.isDefault !== undefined ? { isDefault: parsed.data.isDefault } : {}),
+          ...(parsed.data.isPublic !== undefined ? { isPublic: parsed.data.isPublic } : {}),
+          availableVariables: getPromptVariableNames(),
+        },
+        select: promptSelect,
       });
     });
 

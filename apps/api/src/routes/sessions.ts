@@ -11,21 +11,27 @@ import { requireAuth } from "@/hooks/requireAuth";
 import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import { config, type UserConfig } from "@/config";
 import { postProcessQueue } from "@/jobs/queues";
-import { getDefaultPrompt } from "@/lib/prompts";
 import { BUCKET, s3Public } from "@/lib/storage";
 import { formatAudioTag } from "@/lib/audioTimestamps";
+import { buildSystemPrompt } from "@/lib/prompts";
 
 
 const createBody = z.object({
-  promptId: z.string().optional(),
+  promptId: z.string().min(1),
   folderId: z.string().nullable().optional(),
   title: z.string().max(120).optional(),
+  sessionContext: z.string().max(4000).optional(),
+  writingStyle: z.string().max(1000).optional(),
+  userInstructions: z.string().max(4000).optional(),
 });
 
 const updateBody = z.object({
   title: z.string().max(120).optional(),
   promptId: z.string().nullable().optional(),
   folderId: z.string().nullable().optional(),
+  sessionContext: z.string().max(4000).nullable().optional(),
+  writingStyle: z.string().max(1000).nullable().optional(),
+  userInstructions: z.string().max(4000).nullable().optional(),
 });
 
 const questionBody = z.object({
@@ -39,6 +45,18 @@ const statusStreamParams = z.object({
 const sessions: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
   const subscriber = new Redis(config.REDIS_URL);
+  const promptSelect = {
+    id: true,
+    name: true,
+    userTemplate: true,
+    includeAudioCitations: true,
+    isDefault: true,
+    isPublic: true,
+    createdAt: true,
+    updatedAt: true,
+    ownerId: true,
+    owner: { select: { id: true, username: true } },
+  } as const;
 
   async function getVisiblePrompt(promptId: string | null | undefined, ownerId: string) {
     if (!promptId) return null;
@@ -81,8 +99,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       data: { status: "ENDED", endedAt: new Date() },
     });
   }
-
-  // GET /sessions/:id/status/stream — SSE de status do pós-processamento
+  // GET /sessions/:id/status/stream - SSE de status do pos-processamento
   fastify.get("/sessions/:id/status/stream", async (request, reply) => {
     const ownerId = request.session.get("userId")!;
 
@@ -105,16 +122,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     })
 
     async function* eventStream() {
-      // Flush do histórico primeiro
+      // Flush do historico primeiro
       for (const row of [...history].reverse()) {
         let payloadTratado: any = {}
 
         if (typeof row.payload === 'string') {
           try {
-            // Se for um JSON stringificado válido (ex: '{"totalChunks":11}'), vira objeto
+            // Se for um JSON stringificado valido, vira objeto
             payloadTratado = JSON.parse(row.payload)
           } catch {
-            // Se for uma string pura (ex: "onde blocos são atualizados"), vira uma propriedade text
+            // Se for uma string pura, vira uma propriedade text
             payloadTratado = { text: row.payload }
           }
         } else {
@@ -175,26 +192,23 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     reply.sse(eventStream())
 
   });
-
-  // POST /sessions — cria nova sessão
+  // POST /sessions - cria nova sessao
   fastify.post("/sessions", async (request, reply) => {
     const parsed = createBody.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: "Dados inválidos" });
+      return reply.status(400).send({ error: "Dados invalidos" });
     }
 
     const ownerId = request.session.get("userId")!;
-    const prompt = parsed.data.promptId
-      ? await prisma.prompt.findFirst({
-          where: {
-            id: parsed.data.promptId,
-            OR: [{ isPublic: true }, { ownerId }],
-          },
-        })
-      : await getDefaultPrompt(ownerId);
+    const prompt = await prisma.prompt.findFirst({
+      where: {
+        id: parsed.data.promptId,
+        OR: [{ isPublic: true }, { ownerId }],
+      },
+    });
 
     if (!prompt) {
-      return reply.status(400).send({ error: "Cadastre um prompt antes de criar sessões" });
+      return reply.status(400).send({ error: "Selecione um prompt valido antes de criar sessoes" });
     }
 
     const folder = await getOwnedFolder(parsed.data.folderId, ownerId);
@@ -203,15 +217,26 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     }
 
     const session = await prisma.recordingSession.create({
-      data: { title: parsed.data.title, promptId: prompt.id, folderId: folder?.id ?? null, ownerId },
+      data: {
+        title: parsed.data.title,
+        promptId: prompt.id,
+        folderId: folder?.id ?? null,
+        sessionContext: parsed.data.sessionContext?.trim() || null,
+        writingStyle: parsed.data.writingStyle?.trim() || null,
+        userInstructions: parsed.data.userInstructions?.trim() || null,
+        ownerId,
+      },
       select: {
         id: true,
         promptId: true,
-        prompt: true,
+        prompt: { select: promptSelect },
         folderId: true,
         folder: true,
         status: true,
         title: true,
+        sessionContext: true,
+        writingStyle: true,
+        userInstructions: true,
         createdAt: true,
         updatedAt: true,
         endedAt: true,
@@ -221,11 +246,10 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
     return reply.status(201).send({ session });
   });
-
-  // GET /sessions — lista sessões do usuário
+  // GET /sessions - lista sessoes do usuario
   fastify.get("/sessions", async (request, reply) => {
-    // TODO: paginação, filtros, etc
-    // TODO: quando listar sessões, trazer também o número de transcrições, documentos, etc para evitar múltiplas queries na UI
+    // TODO: paginacao, filtros, etc
+    // TODO: quando listar sessoes, trazer tambem o numero de transcricoes, documentos, etc para evitar multiplas queries na UI
     const ownerId = request.session.get("userId")!;
 
     await reconcileCompletedSessions(ownerId);
@@ -236,11 +260,14 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       select: {
         id: true,
         promptId: true,
-        prompt: true,
+        prompt: { select: promptSelect },
         folderId: true,
         folder: true,
         status: true,
         title: true,
+        sessionContext: true,
+        writingStyle: true,
+        userInstructions: true,
         updatedAt: true,
         createdAt: true,
         endedAt: true,
@@ -249,8 +276,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({ sessions: list });
   });
-
-  // GET /sessions/:id — detalhes da sessão
+  // GET /sessions/:id - detalhes da sessao
   fastify.get<{ Params: { id: string } }>(
     "/sessions/:id",
     async (request, reply) => {
@@ -261,14 +287,14 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
         include: {
-          prompt: true,
+          prompt: { select: promptSelect },
           folder: true,
           documents: { orderBy: { version: "desc" }, take: 1 },
           _count: { select: { transcripts: true } },
         },
       });
 
-      if (!session) return reply.status(404).send({ error: "Não encontrada" });
+      if (!session) return reply.status(404).send({ error: "Nao encontrada" });
 
       return reply.send({ session });
     }
@@ -320,8 +346,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       return reply.send({ audioMedia });
     }
   );
-
-  // ── PATCH /sessions/:id/end — encerra sessão e dispara pós-processamento ──────
+  // PATCH /sessions/:id/end - encerra sessao e dispara pos-processamento
   fastify.patch<{ Params: { id: string } }>(
     "/sessions/:id/end",
     async (request, reply) => {
@@ -331,9 +356,8 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         where: { id: request.params.id, ownerId, isDeleted: false },
       });
 
-      if (!session) return reply.status(404).send({ error: "Não encontrada" });
-
-      // não deve finalizar sessão se não tiver chunks transcritos
+      if (!session) return reply.status(404).send({ error: "Nao encontrada" });
+      // Nao deve finalizar sessao se nao tiver chunks transcritos
 
       const updated = await prisma.recordingSession.update({
         where: { id: session.id },
@@ -350,25 +374,23 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       return reply.send({ session: updated });
     }
   );
-
-  // ── POST /sessions/:id/question — QA via SSE ──────
+  // POST /sessions/:id/question - QA via SSE
   fastify.post<{ Params: { id: string } }>(
     "/sessions/:id/question",
     async (request, reply) => {
       const ownerId = request.session.get("userId")!;
       const parsed = questionBody.safeParse(request.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: "Dados inválidos" });
+        return reply.status(400).send({ error: "Dados invalidos" });
       }
 
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
-        include: { owner: { select: { config: true } }, prompt: true },
+        include: { owner: { select: { config: true } }, prompt: { select: promptSelect } },
       });
 
-      if (!session) return reply.status(404).send({ error: "Não encontrada" });
-
-      // Busca transcrições ordenadas
+      if (!session) return reply.status(404).send({ error: "Nao encontrada" });
+      // Busca transcricoes ordenadas
       const transcripts = await prisma.transcript.findMany({
         where: { sessionId: session.id },
         orderBy: { chunkIndex: "asc" },
@@ -376,7 +398,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       });
 
       if (transcripts.length === 0) {
-        return reply.status(400).send({ error: "Nenhuma transcrição disponível" });
+        return reply.status(400).send({ error: "Nenhuma transcricao disponivel" });
       }
 
       const context = transcripts.map((t) => `${formatAudioTag(t.timestampStart)} ${t.text}`).join("\n");
@@ -385,13 +407,19 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const userConfig = (session.owner.config ?? {}) as UserConfig;
       const modelId = userConfig.defaultModel ?? DEFAULT_MODEL;
 
-      const promptTemplate =
-        "Use o contexto abaixo para responder a pergunta considerando o tipo de documento \"{{promptName}}\".\n\nCONTEXTO:\n{{context}}\n\nPERGUNTA: {{question}}";
+      if (!session.prompt) {
+        return reply.status(400).send({ error: "Sessao sem prompt configurado" });
+      }
 
-      const userPrompt = promptTemplate
-        .replaceAll("{{promptName}}", session.prompt?.name ?? "Documento")
-        .replaceAll("{{context}}", context)
-        .replaceAll("{{question}}", parsed.data.question);
+      const userPrompt = [
+        "<contexto>",
+        context,
+        "</contexto>",
+        "",
+        "<pergunta_usuario>",
+        parsed.data.question,
+        "</pergunta_usuario>",
+      ].join("\n");
 
       const adapter = createAdapter(modelId);
 
@@ -406,7 +434,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       try {
         for await (const token of adapter.stream(
           [
-            { role: "system", content: "Responda em português brasileiro, de forma direta e baseada no contexto fornecido." },
+            { role: "system", content: buildSystemPrompt(session.prompt.includeAudioCitations) },
             { role: "user", content: userPrompt },
           ],
           { temperature: 0.3 }
@@ -421,8 +449,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       reply.raw.end();
     }
   );
-
-  // ── GET /sessions/:id/job-status — status do job de pós-processamento ──────
+  // GET /sessions/:id/job-status - status do job de pos-processamento
   fastify.get<{ Params: { id: string } }>(
     "/sessions/:id/job-status",
     async (request, reply) => {
@@ -430,7 +457,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
       });
-      if (!session) return reply.status(404).send({ error: "Não encontrada" });
+      if (!session) return reply.status(404).send({ error: "Nao encontrada" });
 
       const job = await postProcessQueue.getJob(`session-${session.id}`);
       if (!job) return reply.send({ status: "not_found" });
@@ -443,8 +470,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       });
     }
   );
-
-  // PATCH /sessions/:id — renomear título
+  // PATCH /sessions/:id - renomear titulo
   fastify.patch<{ Params: { id: string } }>(
     '/sessions/:id',
     async (request, reply) => {
@@ -455,7 +481,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
       })
-      if (!session) return reply.status(404).send({ error: 'Não encontrada' })
+      if (!session) return reply.status(404).send({ error: 'Nao encontrada' })
 
       const prompt = await getVisiblePrompt(parsed.data.promptId, ownerId)
       if (parsed.data.promptId && !prompt) {
@@ -473,15 +499,21 @@ const sessions: FastifyPluginAsync = async (fastify) => {
           ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
           ...(parsed.data.promptId !== undefined ? { promptId: prompt?.id ?? null } : {}),
           ...(parsed.data.folderId !== undefined ? { folderId: folder?.id ?? null } : {}),
+          ...(parsed.data.sessionContext !== undefined ? { sessionContext: parsed.data.sessionContext?.trim() || null } : {}),
+          ...(parsed.data.writingStyle !== undefined ? { writingStyle: parsed.data.writingStyle?.trim() || null } : {}),
+          ...(parsed.data.userInstructions !== undefined ? { userInstructions: parsed.data.userInstructions?.trim() || null } : {}),
         },
         select: {
           id: true,
           title: true,
           promptId: true,
-          prompt: true,
+          prompt: { select: promptSelect },
           folderId: true,
           folder: true,
           status: true,
+          sessionContext: true,
+          writingStyle: true,
+          userInstructions: true,
           createdAt: true,
           updatedAt: true,
           endedAt: true,
@@ -491,8 +523,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       return reply.send({ session: updated })
     }
   )
-
-  // DELETE /sessions/:id — excluir sessão
+  // DELETE /sessions/:id - excluir sessao
   fastify.delete<{ Params: { id: string } }>(
     '/sessions/:id',
     async (request, reply) => {
@@ -501,7 +532,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId },
       })
-      if (!session) return reply.status(404).send({ error: 'Não encontrada' })
+      if (!session) return reply.status(404).send({ error: 'Nao encontrada' })
 
       await prisma.recordingSession.update({
         where: { id: session.id },

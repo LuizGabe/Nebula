@@ -40,8 +40,7 @@ enum SessionEventType {
   UPLOAD_TRANSCRIPTION_PROGRESS
   UPLOAD_TRANSCRIBED
   UPLOAD_FAILED
-
-  // Pós-processamento (LLM)
+  // Pos-processamento (LLM)
   DOCUMENT_QUEUED
   DOCUMENT_GENERATING
   DOCUMENT_READY
@@ -109,15 +108,19 @@ model Folder {
 }
 
 model Prompt {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  content   String
-  isDefault Boolean  @default(false)
-  isPublic  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  systemPrompt       String   @map("system_prompt")
+  userTemplate       String   @map("user_template")
+  availableVariables Json     @default("[]") @map("available_variables")
+  includeAudioCitations Boolean @default(true)
+  isDefault          Boolean  @default(false)
+  isPublic           Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  ownerId   String?
-  owner     User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   sessions  RecordingSession[]
   documents Document[]
@@ -134,6 +137,9 @@ model RecordingSession {
   updatedAt DateTime               @updatedAt
   endedAt   DateTime?
   isDeleted Boolean                @default(false)
+  sessionContext   String?
+  writingStyle     String?
+  userInstructions String?
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id])
@@ -187,14 +193,14 @@ model Transcript {
   @@map("transcripts")
 }
 
-// ── Pipeline de Eventos ───────────────────────────────────────────────────────
+// Pipeline de Eventos
 
-/// Trilha de auditoria imutável de cada etapa do pipeline.
-/// Alimenta o SSE de status e o histórico persistente.
+/// Trilha de auditoria imutavel de cada etapa do pipeline.
+/// Alimenta o SSE de status e o historico persistente.
 model SessionEvent {
   id        String           @id @default(cuid())
   type      SessionEventType
-  /// Dados extras: chunkIndex, erro, versão do documento, etc.
+  /// Dados extras: chunkIndex, erro, versao do documento, etc.
   payload   Json?
   createdAt DateTime         @default(now())
 

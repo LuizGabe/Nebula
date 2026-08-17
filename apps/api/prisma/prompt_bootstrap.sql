@@ -1,16 +1,57 @@
 CREATE TABLE IF NOT EXISTS "prompts" (
   "id" TEXT PRIMARY KEY,
   "name" TEXT NOT NULL UNIQUE,
-  "content" TEXT NOT NULL,
+  "system_prompt" TEXT,
+  "user_template" TEXT,
+  "available_variables" JSONB NOT NULL DEFAULT '[]'::jsonb,
+  "includeAudioCitations" BOOLEAN NOT NULL DEFAULT true,
   "isDefault" BOOLEAN NOT NULL DEFAULT false,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  "isPublic" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "ownerId" TEXT
 );
 
-ALTER TABLE "recording_sessions"
-  ADD COLUMN IF NOT EXISTS "promptId" TEXT;
+ALTER TABLE "prompts"
+  ADD COLUMN IF NOT EXISTS "system_prompt" TEXT,
+  ADD COLUMN IF NOT EXISTS "user_template" TEXT,
+  ADD COLUMN IF NOT EXISTS "available_variables" JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS "includeAudioCitations" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "isPublic" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "ownerId" TEXT,
+  ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
-ALTER TABLE "documents"
-  ADD COLUMN IF NOT EXISTS "promptId" TEXT;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content'
+  ) THEN
+    UPDATE "prompts" SET "system_prompt" = "content" WHERE "system_prompt" IS NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'template'
+  ) THEN
+    UPDATE "prompts" SET "user_template" = "template" WHERE "user_template" IS NULL;
+  END IF;
+END $$;
+
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content'
+  ) THEN
+    ALTER TABLE "prompts" ALTER COLUMN "content" DROP NOT NULL;
+  END IF;
+END $$;
+
+UPDATE "prompts"
+SET "available_variables" = '["transcricao", "contexto_sessao", "sessionTitle", "promptName", "createdAt"]'::jsonb
+WHERE "available_variables" = '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS "folders" (
   "id" TEXT PRIMARY KEY,
@@ -22,7 +63,14 @@ CREATE TABLE IF NOT EXISTS "folders" (
 );
 
 ALTER TABLE "recording_sessions"
-  ADD COLUMN IF NOT EXISTS "folderId" TEXT;
+  ADD COLUMN IF NOT EXISTS "promptId" TEXT,
+  ADD COLUMN IF NOT EXISTS "folderId" TEXT,
+  ADD COLUMN IF NOT EXISTS "sessionContext" TEXT,
+  ADD COLUMN IF NOT EXISTS "writingStyle" TEXT,
+  ADD COLUMN IF NOT EXISTS "userInstructions" TEXT;
+
+ALTER TABLE "documents"
+  ADD COLUMN IF NOT EXISTS "promptId" TEXT;
 
 DO $$
 BEGIN
@@ -35,10 +83,6 @@ BEGIN
     ALTER TYPE "SessionEventType" ADD VALUE IF NOT EXISTS 'UPLOAD_TRANSCRIPTION_PROGRESS';
   END IF;
 END $$;
-
-ALTER TABLE "prompts"
-  ADD COLUMN IF NOT EXISTS "isPublic" BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS "ownerId" TEXT;
 
 DO $$
 BEGIN

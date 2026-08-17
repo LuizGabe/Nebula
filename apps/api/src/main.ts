@@ -8,6 +8,7 @@ import websocket from '@fastify/websocket'
 import { config } from "@/config";
 import { ensureBucketExists } from "@/lib/storage";
 import { getReadinessStatus } from "@/lib/system/status";
+import { ensureDefaultPrompts } from "@/lib/prompts";
 
 import { startWorkers } from "@/workers";
 
@@ -77,19 +78,19 @@ await app.register(wsRoutes);
 await app.register(transcriptionStreamRoutes);
 
 try {
+  await ensureDefaultPrompts();
   await ensureBucketExists();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
   const { postProcessWorker } = startWorkers();
   console.log(`Servidor rodando em http://localhost:${config.PORT}`);
 
   const shutdown = async () => {
-    app.log.info("Graceful shutdown…");
+    app.log.info("Graceful shutdown...");
     await postProcessWorker.close();
     await app.close();
     process.exit(0);
   };
-
-  // ── Graceful shutdown ────────────────────────────────
+  // Graceful shutdown
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 

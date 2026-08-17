@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
-  FileText, RefreshCw, Download, Copy, ChevronDown, Check, Loader2
+  FileText, RefreshCw, Download, Copy, ChevronDown, Check, Loader2, Pencil, Eye
 } from 'lucide-react'
 import { documents, type DocumentVersion, type DocumentContent } from '../api/client'
 import { Button } from './ui/Button'
@@ -52,6 +52,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   const [reprocessing, setReprocessing] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   // Referência para o getter de markdown exposto pelo EditorInner
   const getMarkdownRef = useRef<() => string>(() => '')
@@ -74,6 +75,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
       const result = await documents.getContent(sessionId, version)
       setCurrent(result.document)
       setSelectedVersion(result.document.version)
+      setIsEditing(false)
       // replaceAll precisa do editor já montado — o conteúdo inicial
       // é passado via prop `content` para o EditorInner
       // Para troca de versão depois da montagem, precisamos forçar re-render
@@ -97,8 +99,10 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
     try {
       const md = getMarkdownRef.current()
       if (!md) return
-      await documents.update(sessionId, md)
+      const updated = await documents.update(sessionId, md)
+      setCurrent(updated.document)
       setSaved(true)
+      setIsEditing(false)
       setTimeout(() => setSaved(false), 2000)
       loadVersions()
     } finally {
@@ -124,7 +128,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   }
 
   const downloadMd = () => {
-    const md = getMarkdownRef.current()
+    const md = isEditing ? getMarkdownRef.current() : current?.content
     if (!md) return
     const blob = new Blob([md], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
@@ -136,7 +140,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   }
 
   const copyMd = () => {
-    const md = getMarkdownRef.current()
+    const md = isEditing ? getMarkdownRef.current() : current?.content
     if (!md) return
     navigator.clipboard.writeText(md)
     setCopied(true)
@@ -208,17 +212,32 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
             <RefreshCw className={`w-3.5 h-3.5 ${reprocessing ? 'animate-spin' : ''}`} />
           </Button>
 
-          <Button
-            size="sm"
-            variant={saved ? 'ghost' : 'primary'}
-            onClick={save}
-            loading={saving}
-            disabled={saving}
-          >
-            {saved ? (
-              <><Check className="w-3.5 h-3.5 text-jade-500" /> Salvo</>
-            ) : 'Salvar'}
-          </Button>
+          {versions.length > 0 && (
+            isEditing ? (
+              <>
+                <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} disabled={saving}>
+                  <Eye className="w-3.5 h-3.5" />
+                  Visualizar
+                </Button>
+                <Button
+                  size="sm"
+                  variant={saved ? 'ghost' : 'primary'}
+                  onClick={save}
+                  loading={saving}
+                  disabled={saving}
+                >
+                  {saved ? (
+                    <><Check className="w-3.5 h-3.5 text-jade-500" /> Salvo</>
+                  ) : 'Salvar'}
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setIsEditing(true)}>
+                <Pencil className="w-3.5 h-3.5" />
+                Editar
+              </Button>
+            )
+          )}
         </div>
       </div>
 
@@ -245,24 +264,18 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            {current?.content?.includes('[audio:') && (
-              <div className="rounded-xl border border-ink-100 bg-ink-50/60 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-ink-400" />
-                  <span className="text-xs font-medium uppercase tracking-wide text-ink-400">Documento com audio</span>
-                </div>
-                <AudioLinkedText content={current.content} onSeekTo={onSeekTo} />
-              </div>
-            )}
-
-            <MilkdownProvider key={current?.version ?? 'editor'}>
+          isEditing ? (
+            <MilkdownProvider key={`${current?.id ?? current?.version ?? 'editor'}-${isEditing ? 'edit' : 'view'}`}>
               <EditorInner
                 content={current?.content ?? ''}
                 onReady={handleEditorReady}
               />
             </MilkdownProvider>
-          </div>
+          ) : (
+            <div className="min-h-96 rounded-xl border border-ink-100 bg-white px-2 py-1">
+              <AudioLinkedText content={current?.content ?? ''} onSeekTo={onSeekTo} />
+            </div>
+          )
         )}
       </div>
     </div>
