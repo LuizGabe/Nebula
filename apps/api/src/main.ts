@@ -8,7 +8,7 @@ import websocket from '@fastify/websocket'
 import { config } from "@/config";
 import { ensureBucketExists } from "@/lib/storage";
 import { getReadinessStatus } from "@/lib/system/status";
-import { ensureDefaultPrompts } from "@/lib/prompts";
+import { ensureDefaultDocumentTemplates } from "@/lib/prompts";
 
 import { startWorkers } from "@/workers";
 
@@ -78,7 +78,7 @@ await app.register(wsRoutes);
 await app.register(transcriptionStreamRoutes);
 
 try {
-  await ensureDefaultPrompts();
+  await ensureDefaultDocumentTemplates();
   await ensureBucketExists();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
   const { postProcessWorker } = startWorkers();

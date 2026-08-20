@@ -1,10 +1,69 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react'
 import clsx from 'clsx'
-import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, type Folder as FolderItem, type Prompt, type Session } from '../api/client'
+import {
+  folders as foldersApi,
+  prompts as promptsApi,
+  sessions as sessionsApi,
+  type DocumentDetailLevel,
+  type DocumentFormality,
+  type DocumentTranscriptionMode,
+  type Folder as FolderItem,
+  type Prompt,
+  type Session,
+} from '../api/client'
 import { Button } from './ui/Button'
 
 type FolderNode = FolderItem & { children: FolderNode[] }
+
+const FORMALITY_OPTIONS: Array<{ value: DocumentFormality; label: string }> = [
+  { value: 'informal', label: 'Informal' },
+  { value: 'neutral', label: 'Neutra' },
+  { value: 'formal', label: 'Formal' },
+]
+
+const DETAIL_OPTIONS: Array<{ value: DocumentDetailLevel; label: string }> = [
+  { value: 'concise', label: 'Conciso' },
+  { value: 'balanced', label: 'Equilibrado' },
+  { value: 'detailed', label: 'Detalhado' },
+]
+
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T
+  options: Array<{ value: T; label: string }>
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-1 rounded-xl border border-ink-100 bg-ink-50 p-1">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          className={clsx(
+            'rounded-lg px-2 py-1.5 text-xs font-medium transition-all',
+            value === option.value ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500 hover:text-ink-900'
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function CheckboxRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (value: boolean) => void }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-sm text-ink-700">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300" />
+      {label}
+    </label>
+  )
+}
 
 function buildFolderTree(folderList: FolderItem[]) {
   const nodes = new Map<string, FolderNode>()
@@ -95,6 +154,16 @@ export function NewSessionModal({
   const [folderId, setFolderId] = useState<string | null>(initialFolderId ?? null)
   const [title, setTitle] = useState('')
   const [sessionContext, setSessionContext] = useState('')
+  const [instructionsOverride, setInstructionsOverride] = useState<string | null>(null)
+  const [formalityOverride, setFormalityOverride] = useState<DocumentFormality | null>(null)
+  const [detailLevelOverride, setDetailLevelOverride] = useState<DocumentDetailLevel | null>(null)
+  const [useTitleOverride, setUseTitleOverride] = useState<boolean | null>(null)
+  const [useHeadingsOverride, setUseHeadingsOverride] = useState<boolean | null>(null)
+  const [useSubheadingsOverride, setUseSubheadingsOverride] = useState<boolean | null>(null)
+  const [preferListsOverride, setPreferListsOverride] = useState<boolean | null>(null)
+  const [preferTablesOverride, setPreferTablesOverride] = useState<boolean | null>(null)
+  const [includeAudioCitationsOverride, setIncludeAudioCitationsOverride] = useState<boolean | null>(null)
+  const [transcriptionModeOverride, setTranscriptionModeOverride] = useState<DocumentTranscriptionMode | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -115,6 +184,29 @@ export function NewSessionModal({
   }, [])
 
   const folderTree = useMemo(() => buildFolderTree(folderList), [folderList])
+  const selectedTemplate = promptList.find((prompt) => prompt.id === promptId)
+  const effectiveFormality = formalityOverride ?? selectedTemplate?.formality ?? 'neutral'
+  const effectiveDetailLevel = detailLevelOverride ?? selectedTemplate?.detailLevel ?? 'balanced'
+  const effectiveUseTitle = useTitleOverride ?? selectedTemplate?.useTitle ?? true
+  const effectiveUseHeadings = useHeadingsOverride ?? selectedTemplate?.useHeadings ?? true
+  const effectiveUseSubheadings = useSubheadingsOverride ?? selectedTemplate?.useSubheadings ?? true
+  const effectivePreferLists = preferListsOverride ?? selectedTemplate?.preferLists ?? true
+  const effectivePreferTables = preferTablesOverride ?? selectedTemplate?.preferTables ?? false
+  const effectiveIncludeAudioCitations = includeAudioCitationsOverride ?? selectedTemplate?.includeAudioCitations ?? true
+  const effectiveTranscriptionMode = transcriptionModeOverride ?? selectedTemplate?.transcriptionMode ?? 'MEETING'
+
+  useEffect(() => {
+    setInstructionsOverride(null)
+    setFormalityOverride(null)
+    setDetailLevelOverride(null)
+    setUseTitleOverride(null)
+    setUseHeadingsOverride(null)
+    setUseSubheadingsOverride(null)
+    setPreferListsOverride(null)
+    setPreferTablesOverride(null)
+    setIncludeAudioCitationsOverride(null)
+    setTranscriptionModeOverride(null)
+  }, [promptId])
 
   const handleCreate = async () => {
     if (!promptId) return
@@ -125,6 +217,16 @@ export function NewSessionModal({
         title: title.trim() || undefined,
         folderId,
         sessionContext: sessionContext.trim() || undefined,
+        instructionsOverride: instructionsOverride?.trim() || null,
+        formalityOverride,
+        detailLevelOverride,
+        useTitleOverride,
+        useHeadingsOverride,
+        useSubheadingsOverride,
+        preferListsOverride,
+        preferTablesOverride,
+        includeAudioCitationsOverride,
+        transcriptionModeOverride,
       })
       onCreate(session)
     } finally {
@@ -201,6 +303,58 @@ export function NewSessionModal({
                 className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y"
               />
             </div>
+
+            {selectedTemplate && (
+              <div className="rounded-2xl border border-ink-100 bg-ink-50/60 p-4">
+                <div className="mb-3">
+                  <p className="text-sm font-medium text-ink-700">Ajustes desta sessao</p>
+                  <p className="text-xs text-ink-400">Alteracoes aqui nao modificam o template original.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-ink-500">Formalidade</p>
+                    <Segmented value={effectiveFormality} options={FORMALITY_OPTIONS} onChange={setFormalityOverride} />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-ink-500">Nivel de detalhe</p>
+                    <Segmented value={effectiveDetailLevel} options={DETAIL_OPTIONS} onChange={setDetailLevelOverride} />
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <CheckboxRow checked={effectiveUseTitle} label="Usar titulo principal" onChange={setUseTitleOverride} />
+                  <CheckboxRow checked={effectiveUseHeadings} label="Organizar em secoes" onChange={setUseHeadingsOverride} />
+                  <CheckboxRow checked={effectiveUseSubheadings} label="Usar subsecoes" onChange={setUseSubheadingsOverride} />
+                  <CheckboxRow checked={effectivePreferLists} label="Preferir listas" onChange={setPreferListsOverride} />
+                  <CheckboxRow checked={effectivePreferTables} label="Preferir tabelas" onChange={setPreferTablesOverride} />
+                  <CheckboxRow checked={effectiveIncludeAudioCitations} label="Referenciar momentos do audio" onChange={setIncludeAudioCitationsOverride} />
+                </div>
+
+                <div className="mt-3">
+                  <p className="mb-1.5 text-xs font-medium text-ink-500">Modo de transcricao</p>
+                  <select
+                    value={effectiveTranscriptionMode}
+                    onChange={(event) => setTranscriptionModeOverride(event.target.value as DocumentTranscriptionMode)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 transition-all"
+                  >
+                    <option value="MEETING">Reuniao</option>
+                    <option value="CLASS">Aula</option>
+                  </select>
+                </div>
+
+                <div className="mt-3">
+                  <p className="mb-1.5 text-xs font-medium text-ink-500">Instrucoes so para esta sessao</p>
+                  <textarea
+                    value={instructionsOverride ?? ''}
+                    onChange={(event) => setInstructionsOverride(event.target.value || null)}
+                    placeholder={selectedTemplate.instructions}
+                    rows={3}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-300 transition-all resize-y"
+                  />
+                </div>
+              </div>
+            )}
 
           </div>
 

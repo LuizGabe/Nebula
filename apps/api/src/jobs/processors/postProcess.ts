@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import type { PostProcessJobData } from "../queues";
 import type { UserConfig } from "@/config";
-import { buildSystemPrompt, ensurePromptSchema, renderPromptTemplate } from "@/lib/prompts";
+import { buildDocumentGenerationMessages, ensureDocumentTemplateSchema } from "@/lib/prompts";
 import { formatAudioTag } from "@/lib/audioTimestamps";
 
 import { createEventPublisher } from "@/events/publisher";
@@ -29,7 +29,7 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
 
   log(`inicio | sessao=${sessionId} trigger=${triggeredBy}`);
 
-  await ensurePromptSchema();
+  await ensureDocumentTemplateSchema();
 
   const session = await prisma.recordingSession.findUnique({
     where: { id: sessionId },
@@ -96,35 +96,25 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
     throw new Error(reason);
   }
 
-  const userTemplate = prompt.userTemplate?.trim() ?? "";
-  if (!userTemplate) {
-    const reason = `Prompt ${prompt.name} esta incompleto: userTemplate e obrigatorio`;
+  const instructions = prompt.instructions?.trim() ?? "";
+  if (!instructions) {
+    const reason = `Template ${prompt.name} esta incompleto: instructions e obrigatorio`;
     await publisher.emit(sessionId, "DOCUMENT_FAILED", payloads.documentFailed(reason, nextVersion));
     throw new Error(reason);
   }
 
-  let userPrompt = "";
-  try {
-    userPrompt = renderPromptTemplate(userTemplate, {
-      transcricao: context,
-      contexto_sessao: session.sessionContext ?? "",
-      sessionTitle: session.title ?? "",
-      promptName: prompt.name,
-      createdAt: session.createdAt.toISOString(),
-    });
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    await publisher.emit(sessionId, "DOCUMENT_FAILED", payloads.documentFailed(reason, nextVersion));
-    throw err;
-  }
+  const messages = buildDocumentGenerationMessages({
+    template: prompt,
+    session,
+    transcript: context,
+  });
 
   await job.updateProgress(20);
 
   const userConfig = (session.owner.config ?? {}) as UserConfig;
   const modelId = userConfig.defaultModel ?? DEFAULT_MODEL;
-  const systemPrompt = buildSystemPrompt(prompt.includeAudioCitations);
 
-  log(`usando modelo=${modelId} | prompt=${prompt.name} | contexto=${context.length} chars`);
+  log(`usando modelo=${modelId} | template=${prompt.name} | contexto=${context.length} chars`);
 
   log(`gerando documento v${nextVersion}...`);
   await job.updateProgress(30);
@@ -137,10 +127,7 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
 
   try {
     for await (const token of adapter.stream(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
+      messages,
       { temperature: 0.3 },
     )) {
       content += token;

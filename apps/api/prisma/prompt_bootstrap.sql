@@ -1,10 +1,17 @@
 CREATE TABLE IF NOT EXISTS "prompts" (
   "id" TEXT PRIMARY KEY,
   "name" TEXT NOT NULL UNIQUE,
-  "system_prompt" TEXT,
-  "user_template" TEXT,
-  "available_variables" JSONB NOT NULL DEFAULT '[]'::jsonb,
+  "description" TEXT,
+  "instructions" TEXT,
+  "formality" TEXT NOT NULL DEFAULT 'neutral',
+  "detailLevel" TEXT NOT NULL DEFAULT 'balanced',
+  "useTitle" BOOLEAN NOT NULL DEFAULT true,
+  "useHeadings" BOOLEAN NOT NULL DEFAULT true,
+  "useSubheadings" BOOLEAN NOT NULL DEFAULT true,
+  "preferLists" BOOLEAN NOT NULL DEFAULT true,
+  "preferTables" BOOLEAN NOT NULL DEFAULT false,
   "includeAudioCitations" BOOLEAN NOT NULL DEFAULT true,
+  "transcriptionMode" TEXT NOT NULL DEFAULT 'MEETING',
   "isDefault" BOOLEAN NOT NULL DEFAULT false,
   "isPublic" BOOLEAN NOT NULL DEFAULT true,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -13,45 +20,68 @@ CREATE TABLE IF NOT EXISTS "prompts" (
 );
 
 ALTER TABLE "prompts"
-  ADD COLUMN IF NOT EXISTS "system_prompt" TEXT,
-  ADD COLUMN IF NOT EXISTS "user_template" TEXT,
-  ADD COLUMN IF NOT EXISTS "available_variables" JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS "description" TEXT,
+  ADD COLUMN IF NOT EXISTS "instructions" TEXT,
+  ADD COLUMN IF NOT EXISTS "formality" TEXT NOT NULL DEFAULT 'neutral',
+  ADD COLUMN IF NOT EXISTS "detailLevel" TEXT NOT NULL DEFAULT 'balanced',
+  ADD COLUMN IF NOT EXISTS "useTitle" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "useHeadings" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "useSubheadings" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "preferLists" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "preferTables" BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS "includeAudioCitations" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "transcriptionMode" TEXT NOT NULL DEFAULT 'MEETING',
   ADD COLUMN IF NOT EXISTS "isPublic" BOOLEAN NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS "ownerId" TEXT,
   ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+-- Best-effort migration from the short-lived placeholder template model.
+-- We intentionally remove old placeholders and transcript/context blocks because
+-- the Nebula backend now injects transcript and session context automatically.
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content'
+    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'user_template'
   ) THEN
-    UPDATE "prompts" SET "system_prompt" = "content" WHERE "system_prompt" IS NULL;
+    UPDATE "prompts"
+    SET "instructions" = btrim(regexp_replace(
+      regexp_replace(
+        regexp_replace("user_template", '<dados_usuario_input[\s\S]*?</dados_usuario_input>', '', 'gi'),
+        '\{\{\s*(transcricao|contexto_sessao|sessionTitle|promptName|createdAt)\s*\}\}',
+        '',
+        'gi'
+      ),
+      '</?[^>]+>',
+      '',
+      'g'
+    ))
+    WHERE "instructions" IS NULL OR btrim("instructions") = '';
   END IF;
 
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'template'
-  ) THEN
-    UPDATE "prompts" SET "user_template" = "template" WHERE "user_template" IS NULL;
-  END IF;
-END $$;
-
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content'
   ) THEN
-    ALTER TABLE "prompts" ALTER COLUMN "content" DROP NOT NULL;
+    UPDATE "prompts"
+    SET "instructions" = "content"
+    WHERE ("instructions" IS NULL OR btrim("instructions") = '') AND "content" IS NOT NULL;
   END IF;
 END $$;
 
 UPDATE "prompts"
-SET "available_variables" = '["transcricao", "contexto_sessao", "sessionTitle", "promptName", "createdAt"]'::jsonb
-WHERE "available_variables" = '[]'::jsonb;
+SET "instructions" = 'Gere um documento claro, organizado e util em portugues brasileiro com base na transcricao da sessao.'
+WHERE "instructions" IS NULL OR btrim("instructions") = '';
+
+ALTER TABLE "prompts"
+  ALTER COLUMN "instructions" SET NOT NULL;
+
+ALTER TABLE "prompts"
+  DROP COLUMN IF EXISTS "system_prompt",
+  DROP COLUMN IF EXISTS "user_template",
+  DROP COLUMN IF EXISTS "available_variables",
+  DROP COLUMN IF EXISTS "content",
+  DROP COLUMN IF EXISTS "template";
 
 CREATE TABLE IF NOT EXISTS "folders" (
   "id" TEXT PRIMARY KEY,
@@ -66,8 +96,34 @@ ALTER TABLE "recording_sessions"
   ADD COLUMN IF NOT EXISTS "promptId" TEXT,
   ADD COLUMN IF NOT EXISTS "folderId" TEXT,
   ADD COLUMN IF NOT EXISTS "sessionContext" TEXT,
-  ADD COLUMN IF NOT EXISTS "writingStyle" TEXT,
-  ADD COLUMN IF NOT EXISTS "userInstructions" TEXT;
+  ADD COLUMN IF NOT EXISTS "formalityOverride" TEXT,
+  ADD COLUMN IF NOT EXISTS "detailLevelOverride" TEXT,
+  ADD COLUMN IF NOT EXISTS "useTitleOverride" BOOLEAN,
+  ADD COLUMN IF NOT EXISTS "useHeadingsOverride" BOOLEAN,
+  ADD COLUMN IF NOT EXISTS "useSubheadingsOverride" BOOLEAN,
+  ADD COLUMN IF NOT EXISTS "preferListsOverride" BOOLEAN,
+  ADD COLUMN IF NOT EXISTS "preferTablesOverride" BOOLEAN,
+  ADD COLUMN IF NOT EXISTS "includeAudioCitationsOverride" BOOLEAN,
+  ADD COLUMN IF NOT EXISTS "instructionsOverride" TEXT,
+  ADD COLUMN IF NOT EXISTS "transcriptionModeOverride" TEXT;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'userInstructions'
+  ) THEN
+    UPDATE "recording_sessions"
+    SET "instructionsOverride" = "userInstructions"
+    WHERE ("instructionsOverride" IS NULL OR btrim("instructionsOverride") = '')
+      AND "userInstructions" IS NOT NULL
+      AND btrim("userInstructions") <> '';
+  END IF;
+END $$;
+
+ALTER TABLE "recording_sessions"
+  DROP COLUMN IF EXISTS "writingStyle",
+  DROP COLUMN IF EXISTS "userInstructions";
 
 ALTER TABLE "documents"
   ADD COLUMN IF NOT EXISTS "promptId" TEXT;

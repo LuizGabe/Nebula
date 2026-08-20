@@ -2,7 +2,6 @@ import { FastifyPluginAsync } from 'fastify';
 import { createTranscriberClient, startTranscriptionStream } from '@/lib/grpc-client';
 import { prisma } from '@/lib/prisma';
 import { requireAuthWs } from '@/hooks/requireAuth';
-import { promptNameToTranscriptionMode } from '@/lib/prompts';
 
 const ws: FastifyPluginAsync = async (fastify) => {
   fastify.get('/ws/transcribe', { websocket: true }, (connection, req) => {
@@ -91,7 +90,7 @@ const ws: FastifyPluginAsync = async (fastify) => {
 
           const session = await prisma.recordingSession.findFirst({
             where: { id: sid, ownerId: userId },
-            include: { prompt: { select: { name: true } } },
+            include: { prompt: { select: { transcriptionMode: true } } },
           });
           if (!session) {
             fastify.log.warn(`Session ${sid} not found for user ${userId}`);
@@ -100,7 +99,7 @@ const ws: FastifyPluginAsync = async (fastify) => {
           }
 
           sessionId = sid;
-          sessionMode = promptNameToTranscriptionMode(session.prompt?.name) as 'MEETING' | 'CLASS';
+          sessionMode = (session.transcriptionModeOverride ?? session.prompt?.transcriptionMode ?? 'MEETING') as 'MEETING' | 'CLASS';
           sessionLanguage = language;
 
           await updateSessionStatus('IN_PROGRESS');

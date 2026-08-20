@@ -226,10 +226,10 @@ export function SessionPage() {
                 setShowPromptModal(true)
               }}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-ink-500 hover:text-ink-900 hover:bg-ink-50 transition-colors"
-              title="Editar tipo de prompt"
+              title="Editar template"
             >
               <Pencil className="w-3 h-3" />
-              Editar tipo
+              Editar template
             </button>
             {isEnded ? (
               <Badge variant="jade">
@@ -343,7 +343,7 @@ export function SessionPage() {
             <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 rounded font-mono text-xs text-yellow-900 max-h-40 overflow-y-auto">
               <div>Session ID: {session.id}</div>
               <div>Status: {session.status}</div>
-              <div>Prompt: {promptName}</div>
+              <div>Template: {promptName}</div>
               <div>Processing: {visibleStatus}</div>
               <div>Live Text: {liveText ? 'tem conteudo' : 'null'}</div>
             </div>
@@ -408,8 +408,8 @@ export function SessionPage() {
           <div className="w-full max-w-md rounded-2xl border border-ink-100 bg-white p-5 shadow-float">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="font-display text-lg font-semibold text-ink-900">Editar tipo</h2>
-                <p className="text-xs text-ink-400">Escolha o prompt usado para esta sessao.</p>
+                <h2 className="font-display text-lg font-semibold text-ink-900">Editar template</h2>
+                <p className="text-xs text-ink-400">Escolha o template usado para esta sessao.</p>
               </div>
               <button
                 onClick={() => setShowPromptModal(false)}

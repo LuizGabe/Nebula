@@ -96,6 +96,7 @@ const documents: FastifyPluginAsync = async (fastify) => {
         data: {
           sessionId: session.id,
           type:      latest.type,
+          promptId:  latest.promptId,
           content:   parsed.data.content,
           version:   latest.version + 1,
           modelUsed: "human",   // identifica edição manual

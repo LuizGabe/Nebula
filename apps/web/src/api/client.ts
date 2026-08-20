@@ -46,6 +46,9 @@ export const auth = {
 // Sessions
 
 export type SessionStatus = 'ACTIVE' | 'IN_PROGRESS' | 'ENDED'
+export type DocumentFormality = 'informal' | 'neutral' | 'formal'
+export type DocumentDetailLevel = 'concise' | 'balanced' | 'detailed'
+export type DocumentTranscriptionMode = 'MEETING' | 'CLASS'
 
 export interface Folder {
   id: string
@@ -59,8 +62,17 @@ export interface Folder {
 export interface Prompt {
   id: string
   name: string
-  userTemplate: string
+  description: string | null
+  instructions: string
+  formality: DocumentFormality
+  detailLevel: DocumentDetailLevel
+  useTitle: boolean
+  useHeadings: boolean
+  useSubheadings: boolean
+  preferLists: boolean
+  preferTables: boolean
   includeAudioCitations: boolean
+  transcriptionMode: DocumentTranscriptionMode
   isDefault: boolean
   isPublic: boolean
   createdAt: string
@@ -78,8 +90,16 @@ export interface Session {
   status: SessionStatus
   title: string | null
   sessionContext: string | null
-  writingStyle: string | null
-  userInstructions: string | null
+  instructionsOverride: string | null
+  formalityOverride: DocumentFormality | null
+  detailLevelOverride: DocumentDetailLevel | null
+  useTitleOverride: boolean | null
+  useHeadingsOverride: boolean | null
+  useSubheadingsOverride: boolean | null
+  preferListsOverride: boolean | null
+  preferTablesOverride: boolean | null
+  includeAudioCitationsOverride: boolean | null
+  transcriptionModeOverride: DocumentTranscriptionMode | null
   createdAt: string
   updatedAt: string
   endedAt: string | null
@@ -161,8 +181,16 @@ export const sessions = {
     title?: string
     folderId?: string | null
     sessionContext?: string
-    writingStyle?: string
-    userInstructions?: string
+    instructionsOverride?: string | null
+    formalityOverride?: DocumentFormality | null
+    detailLevelOverride?: DocumentDetailLevel | null
+    useTitleOverride?: boolean | null
+    useHeadingsOverride?: boolean | null
+    useSubheadingsOverride?: boolean | null
+    preferListsOverride?: boolean | null
+    preferTablesOverride?: boolean | null
+    includeAudioCitationsOverride?: boolean | null
+    transcriptionModeOverride?: DocumentTranscriptionMode | null
   }) =>
     request<{ session: Session }>('/sessions', {
       method: 'POST',
@@ -192,7 +220,22 @@ export const sessions = {
       body: JSON.stringify({ title }),
     }),
 
-  update: (id: string, data: { title?: string; promptId?: string | null; folderId?: string | null; sessionContext?: string | null; writingStyle?: string | null; userInstructions?: string | null }) =>
+  update: (id: string, data: {
+    title?: string
+    promptId?: string | null
+    folderId?: string | null
+    sessionContext?: string | null
+    instructionsOverride?: string | null
+    formalityOverride?: DocumentFormality | null
+    detailLevelOverride?: DocumentDetailLevel | null
+    useTitleOverride?: boolean | null
+    useHeadingsOverride?: boolean | null
+    useSubheadingsOverride?: boolean | null
+    preferListsOverride?: boolean | null
+    preferTablesOverride?: boolean | null
+    includeAudioCitationsOverride?: boolean | null
+    transcriptionModeOverride?: DocumentTranscriptionMode | null
+  }) =>
     request<{ session: Session }>(`/sessions/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -231,13 +274,43 @@ export const folders = {
 export const prompts = {
   list: () => request<{ prompts: Prompt[] }>('/prompts'),
 
-  create: (data: { name: string; userTemplate: string; includeAudioCitations?: boolean; isDefault?: boolean; isPublic?: boolean }) =>
+  create: (data: {
+    name: string
+    description?: string | null
+    instructions: string
+    formality?: DocumentFormality
+    detailLevel?: DocumentDetailLevel
+    useTitle?: boolean
+    useHeadings?: boolean
+    useSubheadings?: boolean
+    preferLists?: boolean
+    preferTables?: boolean
+    includeAudioCitations?: boolean
+    transcriptionMode?: DocumentTranscriptionMode
+    isDefault?: boolean
+    isPublic?: boolean
+  }) =>
     request<{ prompt: Prompt }>('/prompts', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: { name?: string; userTemplate?: string; includeAudioCitations?: boolean; isDefault?: boolean; isPublic?: boolean }) =>
+  update: (id: string, data: {
+    name?: string
+    description?: string | null
+    instructions?: string
+    formality?: DocumentFormality
+    detailLevel?: DocumentDetailLevel
+    useTitle?: boolean
+    useHeadings?: boolean
+    useSubheadings?: boolean
+    preferLists?: boolean
+    preferTables?: boolean
+    includeAudioCitations?: boolean
+    transcriptionMode?: DocumentTranscriptionMode
+    isDefault?: boolean
+    isPublic?: boolean
+  }) =>
     request<{ prompt: Prompt }>(`/prompts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

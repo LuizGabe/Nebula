@@ -2,72 +2,76 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import dotenv from "dotenv";
 
-
 dotenv.config({ path: "../../.env" });
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-const availableVariables = [
-  "transcricao",
-  "contexto_sessao",
-  "sessionTitle",
-  "promptName",
-  "createdAt",
-];
-
-const baseTemplate = [
-  "<contexto_sessao>",
-  "  Titulo: {{sessionTitle}}",
-  "  Tipo de documento: {{promptName}}",
-  "  Criado em: {{createdAt}}",
-  "  Contexto: {{contexto_sessao}}",
-  "</contexto_sessao>",
-  "",
-  "<dados_usuario_input source=\"transcricao\">",
-  "  {{transcricao}}",
-  "</dados_usuario_input>",
-].join("\n");
-
-function documentTemplate(instruction: string) {
-  return [
-    "<instrucao_documento>",
-    `  ${instruction}`,
-    "</instrucao_documento>",
-    "",
-    baseTemplate,
-  ].join("\n");
-}
-
-const prompts = [
+const templates = [
   {
-    name: "Reuniao",
-    systemPrompt: "",
-    userTemplate: documentTemplate(
-      "Transforme a transcricao de reuniao em uma ata clara, objetiva e acionavel em portugues brasileiro. Priorize decisoes, responsaveis, pendencias, riscos, proximos passos e pontos que precisam de acompanhamento.",
-    ),
-    availableVariables,
+    name: "Ata de reuniao",
+    description: "Template para transformar reunioes em atas objetivas e acionaveis.",
+    instructions: [
+      "Crie uma ata clara e organizada.",
+      "",
+      "Priorize:",
+      "- assuntos discutidos;",
+      "- decisoes tomadas;",
+      "- responsaveis;",
+      "- proximos passos;",
+      "- prazos mencionados.",
+      "",
+      "Evite repeticao e informacoes irrelevantes.",
+    ].join("\n"),
+    formality: "formal",
+    detailLevel: "balanced",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: false,
     includeAudioCitations: true,
+    transcriptionMode: "MEETING",
     isDefault: true,
   },
   {
-    name: "Aula",
-    systemPrompt: "",
-    userTemplate: documentTemplate(
-      "Transforme a transcricao de aula em notas de estudo organizadas, didaticas e detalhadas em portugues brasileiro. Explique conceitos, organize topicos, destaque definicoes, exemplos, duvidas, exercicios sugeridos e pontos para revisao.",
-    ),
-    availableVariables,
+    name: "Notas de aula",
+    description: "Template para converter aulas em material de estudo estruturado.",
+    instructions: [
+      "Crie notas de estudo didaticas a partir da aula.",
+      "",
+      "Organize conceitos, definicoes, exemplos, duvidas relevantes e pontos para revisao.",
+      "Quando houver exercicios, leituras ou tarefas sugeridas, destaque-os separadamente.",
+    ].join("\n"),
+    formality: "neutral",
+    detailLevel: "detailed",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: true,
     includeAudioCitations: true,
+    transcriptionMode: "CLASS",
     isDefault: false,
   },
   {
-    name: "Entrevista",
-    systemPrompt: "",
-    userTemplate: documentTemplate(
-      "Transforme a transcricao de entrevista em um documento estruturado em portugues brasileiro. Organize perguntas, respostas, principais temas, citacoes relevantes, sinais de decisao e pontos de acompanhamento.",
-    ),
-    availableVariables,
+    name: "Resumo de entrevista",
+    description: "Template para organizar entrevistas em temas, respostas e sinais importantes.",
+    instructions: [
+      "Crie um documento estruturado da entrevista.",
+      "",
+      "Organize os principais temas, perguntas e respostas quando forem identificaveis.",
+      "Destaque citacoes relevantes, sinais de decisao e pontos de acompanhamento.",
+    ].join("\n"),
+    formality: "neutral",
+    detailLevel: "balanced",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: false,
     includeAudioCitations: true,
+    transcriptionMode: "MEETING",
     isDefault: false,
   },
 ];
@@ -75,11 +79,33 @@ const prompts = [
 async function ensureSchema() {
   await prisma.$executeRawUnsafe(`
     ALTER TABLE "prompts"
-      ADD COLUMN IF NOT EXISTS "system_prompt" TEXT,
-      ADD COLUMN IF NOT EXISTS "user_template" TEXT,
-      ADD COLUMN IF NOT EXISTS "available_variables" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS "description" TEXT,
+      ADD COLUMN IF NOT EXISTS "instructions" TEXT,
+      ADD COLUMN IF NOT EXISTS "formality" TEXT NOT NULL DEFAULT 'neutral',
+      ADD COLUMN IF NOT EXISTS "detailLevel" TEXT NOT NULL DEFAULT 'balanced',
+      ADD COLUMN IF NOT EXISTS "useTitle" BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS "useHeadings" BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS "useSubheadings" BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS "preferLists" BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS "preferTables" BOOLEAN NOT NULL DEFAULT false,
       ADD COLUMN IF NOT EXISTS "includeAudioCitations" BOOLEAN NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS "transcriptionMode" TEXT NOT NULL DEFAULT 'MEETING',
       ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "recording_sessions"
+      ADD COLUMN IF NOT EXISTS "sessionContext" TEXT,
+      ADD COLUMN IF NOT EXISTS "formalityOverride" TEXT,
+      ADD COLUMN IF NOT EXISTS "detailLevelOverride" TEXT,
+      ADD COLUMN IF NOT EXISTS "useTitleOverride" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "useHeadingsOverride" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "useSubheadingsOverride" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "preferListsOverride" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "preferTablesOverride" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "includeAudioCitationsOverride" BOOLEAN,
+      ADD COLUMN IF NOT EXISTS "instructionsOverride" TEXT,
+      ADD COLUMN IF NOT EXISTS "transcriptionModeOverride" TEXT;
   `);
 
   await prisma.$executeRawUnsafe(`
@@ -87,50 +113,100 @@ async function ensureSchema() {
     BEGIN
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content'
+        WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'userInstructions'
       ) THEN
-        ALTER TABLE "prompts" ALTER COLUMN "content" DROP NOT NULL;
+        UPDATE "recording_sessions"
+        SET "instructionsOverride" = "userInstructions"
+        WHERE ("instructionsOverride" IS NULL OR btrim("instructionsOverride") = '')
+          AND "userInstructions" IS NOT NULL
+          AND btrim("userInstructions") <> '';
       END IF;
     END $$;
   `);
 
   await prisma.$executeRawUnsafe(`
     ALTER TABLE "recording_sessions"
-      ADD COLUMN IF NOT EXISTS "sessionContext" TEXT,
-      ADD COLUMN IF NOT EXISTS "writingStyle" TEXT,
-      ADD COLUMN IF NOT EXISTS "userInstructions" TEXT;
+      DROP COLUMN IF EXISTS "writingStyle",
+      DROP COLUMN IF EXISTS "userInstructions";
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'user_template'
+      ) THEN
+        UPDATE "prompts"
+        SET "instructions" = btrim(regexp_replace(
+          regexp_replace(
+            regexp_replace("user_template", '<dados_usuario_input[\\s\\S]*?</dados_usuario_input>', '', 'gi'),
+            '\\{\\{\\s*(transcricao|contexto_sessao|sessionTitle|promptName|createdAt)\\s*\\}\\}',
+            '',
+            'gi'
+          ),
+          '</?[^>]+>',
+          '',
+          'g'
+        ))
+        WHERE "instructions" IS NULL OR btrim("instructions") = '';
+      END IF;
+    END $$;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE "prompts"
+    SET "instructions" = 'Gere um documento claro, organizado e util em portugues brasileiro com base na transcricao da sessao.'
+    WHERE "instructions" IS NULL OR btrim("instructions") = '';
+  `);
+
+  await prisma.$executeRawUnsafe(`ALTER TABLE "prompts" ALTER COLUMN "instructions" SET NOT NULL;`);
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "prompts"
+      DROP COLUMN IF EXISTS "system_prompt",
+      DROP COLUMN IF EXISTS "user_template",
+      DROP COLUMN IF EXISTS "available_variables",
+      DROP COLUMN IF EXISTS "content",
+      DROP COLUMN IF EXISTS "template";
   `);
 }
 
-async function mergeLegacyPrompts() {
-  const [legacy, canonical] = await Promise.all([
-    prisma.prompt.findUnique({ where: { name: String.fromCharCode(82, 101, 117, 110, 105, 227, 111) }, select: { id: true } }),
-    prisma.prompt.findUnique({ where: { name: "Reuniao" }, select: { id: true } }),
-  ]);
+async function mergeLegacyTemplateNames() {
+  const mappings = [
+    ["Reuniao", "Ata de reuniao"],
+    [String.fromCharCode(82, 101, 117, 110, 105, 227, 111), "Ata de reuniao"],
+    ["Aula", "Notas de aula"],
+    ["Entrevista", "Resumo de entrevista"],
+  ] as const;
 
-  if (legacy && !canonical) {
-    await prisma.prompt.update({ where: { id: legacy.id }, data: { name: "Reuniao" } });
-    return;
-  }
+  for (const [legacyName, canonicalName] of mappings) {
+    const [legacy, canonical] = await Promise.all([
+      prisma.prompt.findUnique({ where: { name: legacyName }, select: { id: true } }),
+      prisma.prompt.findUnique({ where: { name: canonicalName }, select: { id: true } }),
+    ]);
 
-  if (legacy && canonical) {
-    await prisma.$transaction(async (tx) => {
-      await tx.recordingSession.updateMany({
-        where: { promptId: legacy.id },
-        data: { promptId: canonical.id },
+    if (legacy && !canonical) {
+      await prisma.prompt.update({ where: { id: legacy.id }, data: { name: canonicalName } });
+    } else if (legacy && canonical && legacy.id !== canonical.id) {
+      await prisma.$transaction(async (tx) => {
+        await tx.recordingSession.updateMany({
+          where: { promptId: legacy.id },
+          data: { promptId: canonical.id },
+        });
+        await tx.document.updateMany({
+          where: { promptId: legacy.id },
+          data: { promptId: canonical.id },
+        });
+        await tx.prompt.delete({ where: { id: legacy.id } });
       });
-      await tx.document.updateMany({
-        where: { promptId: legacy.id },
-        data: { promptId: canonical.id },
-      });
-      await tx.prompt.delete({ where: { id: legacy.id } });
-    });
+    }
   }
 }
 
 async function main() {
   await ensureSchema();
-  await mergeLegacyPrompts();
+  await mergeLegacyTemplateNames();
 
   const owner = await prisma.user.findUnique({
     where: { username: "luizgabe" },
@@ -138,20 +214,16 @@ async function main() {
   });
 
   await prisma.$transaction(async (tx) => {
-    for (const prompt of prompts) {
+    for (const template of templates) {
       await tx.prompt.upsert({
-        where: { name: prompt.name },
+        where: { name: template.name },
         update: {
-          systemPrompt: prompt.systemPrompt,
-          userTemplate: prompt.userTemplate,
-          availableVariables: prompt.availableVariables,
-          includeAudioCitations: prompt.includeAudioCitations,
-          isDefault: prompt.isDefault,
+          ...template,
           isPublic: true,
           ownerId: owner?.id ?? null,
         },
         create: {
-          ...prompt,
+          ...template,
           isPublic: true,
           ownerId: owner?.id ?? null,
         },
@@ -159,19 +231,19 @@ async function main() {
     }
 
     await tx.prompt.updateMany({
-      where: { name: { not: "Reuniao" }, isDefault: true },
+      where: { name: { not: "Ata de reuniao" }, isDefault: true },
       data: { isDefault: false },
     });
   });
 
-  const savedPrompts = await prisma.prompt.findMany({
+  const savedTemplates = await prisma.prompt.findMany({
     select: { name: true, isDefault: true },
     orderBy: { name: "asc" },
   });
 
   console.log(
-    `Prompts populados: ${savedPrompts
-      .map((prompt) => `${prompt.name}${prompt.isDefault ? " (padrao)" : ""}`)
+    `Templates populados: ${savedTemplates
+      .map((template) => `${template.name}${template.isDefault ? " (padrao)" : ""}`)
       .join(", ")}`,
   );
 }

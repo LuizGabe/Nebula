@@ -1,39 +1,116 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookOpen, Check, ChevronDown, Loader2, Pencil, Plus, Save, Settings, SlidersHorizontal, Trash2, User, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
-import { llm, LLMModel, type LLMModelStatus, prompts, type Prompt, users } from '../api/client'
+import {
+  llm,
+  LLMModel,
+  type DocumentDetailLevel,
+  type DocumentFormality,
+  type DocumentTranscriptionMode,
+  type LLMModelStatus,
+  prompts,
+  type Prompt,
+  users,
+} from '../api/client'
 import { useAuthStore } from '../store/auth'
 import { Button } from '../components/ui/Button'
 
-const VARIABLE_OPTIONS = [
-  { name: 'transcricao', label: 'Transcricao', description: 'Texto transcrito com timestamps' },
-  { name: 'contexto_sessao', label: 'Contexto', description: 'Contexto informado na sessao' },
-  { name: 'sessionTitle', label: 'Sessao', description: 'Titulo da sessao' },
-  { name: 'promptName', label: 'Prompt', description: 'Nome do prompt selecionado' },
-  { name: 'createdAt', label: 'Data', description: 'Data de criacao da sessao' },
-]
+type Section = 'templates' | 'model' | 'docs' | 'account'
 
-const VARIABLE_NAMES = VARIABLE_OPTIONS.map((variable) => variable.name)
+type TemplateDraft = {
+  name: string
+  description: string
+  instructions: string
+  formality: DocumentFormality
+  detailLevel: DocumentDetailLevel
+  useTitle: boolean
+  useHeadings: boolean
+  useSubheadings: boolean
+  preferLists: boolean
+  preferTables: boolean
+  includeAudioCitations: boolean
+  transcriptionMode: DocumentTranscriptionMode
+  isDefault: boolean
+  isPublic: boolean
+}
 
-const EMPTY_PROMPT = {
+const EMPTY_TEMPLATE: TemplateDraft = {
   name: '',
-  userTemplate: '',
+  description: '',
+  instructions: '',
+  formality: 'neutral',
+  detailLevel: 'balanced',
+  useTitle: true,
+  useHeadings: true,
+  useSubheadings: true,
+  preferLists: true,
+  preferTables: false,
   includeAudioCitations: true,
+  transcriptionMode: 'MEETING',
   isDefault: false,
   isPublic: false,
 }
 
-const VARIABLE_RE = /\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g
+const FORMALITY_OPTIONS: Array<{ value: DocumentFormality; label: string }> = [
+  { value: 'informal', label: 'Informal' },
+  { value: 'neutral', label: 'Neutra' },
+  { value: 'formal', label: 'Formal' },
+]
 
-function extractVariables(template: string) {
-  return Array.from(new Set(Array.from(template.matchAll(VARIABLE_RE), (match) => match[1])))
+const DETAIL_OPTIONS: Array<{ value: DocumentDetailLevel; label: string }> = [
+  { value: 'concise', label: 'Conciso' },
+  { value: 'balanced', label: 'Equilibrado' },
+  { value: 'detailed', label: 'Detalhado' },
+]
+
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T
+  options: Array<{ value: T; label: string }>
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-1 rounded-xl border border-ink-100 bg-ink-50 p-1">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          className={clsx(
+            'rounded-lg px-2 py-2 text-xs font-medium transition-all',
+            value === option.value ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500 hover:text-ink-900'
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
-type Section = 'prompts' | 'model' | 'docs' | 'account'
+function CheckboxRow({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  label: string
+  onChange: (value: boolean) => void
+}) {
+  return (
+    <label className="inline-flex items-center gap-2 text-sm text-ink-700">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300" />
+      {label}
+    </label>
+  )
+}
 
 export function SettingsPage() {
   const { user, setUser } = useAuthStore()
-  const [section, setSection] = useState<Section>('prompts')
+  const [section, setSection] = useState<Section>('templates')
   const [models, setModels] = useState<LLMModel[]>([])
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<string>('')
@@ -42,21 +119,20 @@ export function SettingsPage() {
   const [savedModel, setSavedModel] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
 
-  const [promptList, setPromptList] = useState<Prompt[]>([])
-  const [loadingPrompts, setLoadingPrompts] = useState(true)
-  const [savingPrompt, setSavingPrompt] = useState(false)
+  const [templateList, setTemplateList] = useState<Prompt[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(true)
+  const [savingTemplate, setSavingTemplate] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState(EMPTY_PROMPT)
-  const [promptError, setPromptError] = useState<string | null>(null)
-  const templateRef = useRef<HTMLTextAreaElement | null>(null)
+  const [draft, setDraft] = useState<TemplateDraft>(EMPTY_TEMPLATE)
+  const [templateError, setTemplateError] = useState<string | null>(null)
 
-  const loadPrompts = async () => {
-    setLoadingPrompts(true)
+  const loadTemplates = async () => {
+    setLoadingTemplates(true)
     try {
       const res = await prompts.list()
-      setPromptList(res.prompts ?? [])
+      setTemplateList(res.prompts ?? [])
     } finally {
-      setLoadingPrompts(false)
+      setLoadingTemplates(false)
     }
   }
 
@@ -72,7 +148,7 @@ export function SettingsPage() {
       .catch(() => { })
       .finally(() => setLoadingModels(false))
 
-    loadPrompts().catch(() => setPromptList([]))
+    loadTemplates().catch(() => setTemplateList([]))
 
     const source = llm.status()
     source.addEventListener('message', (event) => {
@@ -110,80 +186,67 @@ export function SettingsPage() {
     }
   }
 
-  const startEdit = (prompt: Prompt) => {
-    setEditingId(prompt.id)
+  const startEdit = (template: Prompt) => {
+    setEditingId(template.id)
     setDraft({
-      name: prompt.name,
-      userTemplate: prompt.userTemplate ?? '',
-      includeAudioCitations: prompt.includeAudioCitations ?? true,
-      isDefault: prompt.isDefault,
-      isPublic: prompt.isPublic,
+      name: template.name,
+      description: template.description ?? '',
+      instructions: template.instructions ?? '',
+      formality: template.formality ?? 'neutral',
+      detailLevel: template.detailLevel ?? 'balanced',
+      useTitle: template.useTitle ?? true,
+      useHeadings: template.useHeadings ?? true,
+      useSubheadings: template.useSubheadings ?? true,
+      preferLists: template.preferLists ?? true,
+      preferTables: template.preferTables ?? false,
+      includeAudioCitations: template.includeAudioCitations ?? true,
+      transcriptionMode: template.transcriptionMode ?? 'MEETING',
+      isDefault: template.isDefault,
+      isPublic: template.isPublic,
     })
-    setPromptError(null)
+    setTemplateError(null)
   }
 
-  const resetPromptForm = () => {
+  const resetTemplateForm = () => {
     setEditingId(null)
-    setDraft(EMPTY_PROMPT)
-    setPromptError(null)
+    setDraft(EMPTY_TEMPLATE)
+    setTemplateError(null)
   }
 
-  const usedVariables = extractVariables(draft.userTemplate ?? '')
-  const unknownVariables = usedVariables.filter((variable) => !VARIABLE_NAMES.includes(variable))
+  const saveTemplate = async () => {
+    if (!draft.name.trim() || !draft.instructions.trim()) return
 
-  const insertVariable = (token: string) => {
-    const textarea = templateRef.current
-    if (!textarea) {
-      setDraft((current) => ({ ...current, userTemplate: `${current.userTemplate}${token}` }))
-      return
-    }
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    setDraft((current) => ({
-      ...current,
-      userTemplate: `${current.userTemplate.slice(0, start)}${token}${current.userTemplate.slice(end)}`,
-    }))
-    requestAnimationFrame(() => {
-      textarea.focus()
-      textarea.selectionStart = start + token.length
-      textarea.selectionEnd = start + token.length
-    })
-  }
-
-  const savePrompt = async () => {
-    if (!draft.name.trim() || !draft.userTemplate.trim()) return
-    if (unknownVariables.length > 0) {
-      setPromptError(`Variaveis indisponiveis neste prompt: ${unknownVariables.join(', ')}`)
-      return
-    }
-
-    setSavingPrompt(true)
-    setPromptError(null)
+    setSavingTemplate(true)
+    setTemplateError(null)
     try {
-      if (editingId) {
-        await prompts.update(editingId, draft)
-      } else {
-        await prompts.create(draft)
+      const payload = {
+        ...draft,
+        description: draft.description.trim() || null,
+        instructions: draft.instructions.trim(),
       }
-      resetPromptForm()
-      await loadPrompts()
+      if (editingId) {
+        await prompts.update(editingId, payload)
+      } else {
+        await prompts.create(payload)
+      }
+      resetTemplateForm()
+      await loadTemplates()
     } catch (error) {
-      setPromptError(error instanceof Error ? error.message : 'Nao foi possivel salvar o prompt.')
+      setTemplateError(error instanceof Error ? error.message : 'Nao foi possivel salvar o template.')
     } finally {
-      setSavingPrompt(false)
+      setSavingTemplate(false)
     }
   }
 
-  const deletePrompt = async (prompt: Prompt) => {
-    if (!confirm(`Remover o prompt "${prompt.name}"?`)) return
-    await prompts.delete(prompt.id)
-    if (editingId === prompt.id) resetPromptForm()
-    await loadPrompts()
+  const deleteTemplate = async (template: Prompt) => {
+    if (!confirm(`Remover o template "${template.name}"?`)) return
+    await prompts.delete(template.id)
+    if (editingId === template.id) resetTemplateForm()
+    await loadTemplates()
   }
 
   const sections = [
-    { id: 'prompts' as const, label: 'Prompts', icon: Wand2 },
+    { id: 'templates' as const, label: 'Templates', icon: Wand2 },
     { id: 'model' as const, label: 'Modelo', icon: SlidersHorizontal },
     { id: 'docs' as const, label: 'Docs', icon: BookOpen },
     { id: 'account' as const, label: 'Usuario', icon: User },
@@ -197,7 +260,7 @@ export function SettingsPage() {
         </div>
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">Configuracoes</h1>
-          <p className="text-sm text-ink-400">Ajustes de prompts, modelo e conta</p>
+          <p className="text-sm text-ink-400">Templates, modelo e conta</p>
         </div>
       </div>
 
@@ -282,41 +345,41 @@ export function SettingsPage() {
             </div>
           )}
 
-          {section === 'prompts' && (
+          {section === 'templates' && (
             <div className="px-6 py-5">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="font-medium text-ink-800 text-sm mb-0.5">Prompts de documento</h2>
-                  <p className="text-xs text-ink-400">Tipos disponiveis para sessoes novas e existentes.</p>
+                  <h2 className="font-medium text-ink-800 text-sm mb-0.5">Templates de documento</h2>
+                  <p className="text-xs text-ink-400">Configure como o documento final deve ser escrito.</p>
                 </div>
-                <Button size="sm" variant="secondary" onClick={resetPromptForm}>
+                <Button size="sm" variant="secondary" onClick={resetTemplateForm}>
                   <Plus className="w-4 h-4" />
                   Novo
                 </Button>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-[300px,1fr] gap-5">
-                <div className="border border-ink-100 rounded-xl overflow-hidden">
-                  {loadingPrompts ? (
+                <div className="border border-ink-100 rounded-xl overflow-hidden h-max">
+                  {loadingTemplates ? (
                     <div className="p-4 flex items-center gap-2 text-sm text-ink-400">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Carregando...
                     </div>
-                  ) : promptList.length === 0 ? (
-                    <p className="p-4 text-sm text-ink-400">Nenhum prompt cadastrado.</p>
+                  ) : templateList.length === 0 ? (
+                    <p className="p-4 text-sm text-ink-400">Nenhum template cadastrado.</p>
                   ) : (
-                    promptList.map((prompt) => (
-                      <div key={prompt.id} className="p-3 border-b border-ink-50 last:border-b-0 flex items-center gap-2">
-                        <button className="flex-1 text-left min-w-0" onClick={() => startEdit(prompt)}>
-                          <p className="text-sm font-medium text-ink-800 truncate">{prompt.name}</p>
+                    templateList.map((template) => (
+                      <div key={template.id} className="p-3 border-b border-ink-50 last:border-b-0 flex items-center gap-2">
+                        <button className="flex-1 text-left min-w-0" onClick={() => startEdit(template)}>
+                          <p className="text-sm font-medium text-ink-800 truncate">{template.name}</p>
                           <p className="text-xs text-ink-400">
-                            {prompt.isDefault ? 'Padrao' : 'Personalizado'} / {prompt.isPublic ? 'Publico' : 'Privado'}
+                            {template.isDefault ? 'Padrao' : 'Personalizado'} / {template.isPublic ? 'Publico' : 'Privado'}
                           </p>
                         </button>
-                        <button className="p-1.5 rounded-lg text-ink-400 hover:text-ink-800 hover:bg-ink-50" onClick={() => startEdit(prompt)} title="Editar">
+                        <button className="p-1.5 rounded-lg text-ink-400 hover:text-ink-800 hover:bg-ink-50" onClick={() => startEdit(template)} title="Editar">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50" onClick={() => deletePrompt(prompt)} title="Remover">
+                        <button className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50" onClick={() => deleteTemplate(template)} title="Remover">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -324,68 +387,77 @@ export function SettingsPage() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <input
-                    value={draft.name}
-                    onChange={(e) => setDraft((current) => ({ ...current, name: e.target.value }))}
-                    placeholder="Nome do prompt"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
-                  />
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-ink-500">Instrucao do documento</label>
-                    <textarea
-                      ref={templateRef}
-                      value={draft.userTemplate}
-                      onChange={(e) => setDraft((current) => ({ ...current, userTemplate: e.target.value }))}
-                      placeholder="Monte a instrucao com tags semanticas e variaveis como {{transcricao}}"
-                      rows={15}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y font-mono leading-6"
+                <div className="flex flex-col gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input
+                      value={draft.name}
+                      onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Nome do template"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
                     />
-                    {unknownVariables.length > 0 && (
-                      <p className="mt-1.5 text-xs text-amber-700">Variaveis indisponiveis: {unknownVariables.join(', ')}</p>
-                    )}
+                    <select
+                      value={draft.transcriptionMode}
+                      onChange={(event) => setDraft((current) => ({ ...current, transcriptionMode: event.target.value as DocumentTranscriptionMode }))}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 transition-all"
+                    >
+                      <option value="MEETING">Transcricao: reuniao</option>
+                      <option value="CLASS">Transcricao: aula</option>
+                    </select>
                   </div>
 
-                  <div className="rounded-xl border border-ink-100 bg-ink-50/60 p-3">
-                    <p className="mb-2 text-xs font-medium text-ink-500">Inserir variavel</p>
-                    <div className="flex flex-wrap gap-2">
-                      {VARIABLE_OPTIONS.map((variable) => (
-                        <button
-                          key={variable.name}
-                          type="button"
-                          onClick={() => insertVariable(`{{${variable.name}}}`)}
-                          title={variable.description}
-                          className="rounded-lg border border-ink-200 bg-white px-2 py-1 font-mono text-xs text-ink-700 hover:border-ink-300 hover:bg-ink-100"
-                        >
-                          {`{{${variable.name}}}`}
-                        </button>
-                      ))}
+                  <textarea
+                    value={draft.description}
+                    onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
+                    placeholder="Descricao curta do uso deste template"
+                    rows={2}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y"
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-ink-500">Formalidade</p>
+                      <Segmented value={draft.formality} options={FORMALITY_OPTIONS} onChange={(value) => setDraft((current) => ({ ...current, formality: value }))} />
+                    </div>
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-ink-500">Nivel de detalhe</p>
+                      <Segmented value={draft.detailLevel} options={DETAIL_OPTIONS} onChange={(value) => setDraft((current) => ({ ...current, detailLevel: value }))} />
                     </div>
                   </div>
 
-                  <label className="inline-flex items-center gap-2 text-sm text-ink-700">
-                    <input type="checkbox" checked={draft.includeAudioCitations} onChange={(e) => setDraft((current) => ({ ...current, includeAudioCitations: e.target.checked }))} className="h-4 w-4 rounded border-ink-300" />
-                    Citar trechos do audio
-                  </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-ink-700">
-                    <input type="checkbox" checked={draft.isDefault} onChange={(e) => setDraft((current) => ({ ...current, isDefault: e.target.checked }))} className="h-4 w-4 rounded border-ink-300" />
-                    Usar como padrao para novas sessoes
-                  </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-ink-700">
-                    <input type="checkbox" checked={draft.isPublic} onChange={(e) => setDraft((current) => ({ ...current, isPublic: e.target.checked }))} className="h-4 w-4 rounded border-ink-300" />
-                    Tornar publico para outros usuarios
-                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-ink-100 bg-ink-50/60 p-3">
+                    <CheckboxRow checked={draft.useTitle} label="Usar titulo principal" onChange={(value) => setDraft((current) => ({ ...current, useTitle: value }))} />
+                    <CheckboxRow checked={draft.useHeadings} label="Organizar em secoes" onChange={(value) => setDraft((current) => ({ ...current, useHeadings: value }))} />
+                    <CheckboxRow checked={draft.useSubheadings} label="Usar subsecoes quando apropriado" onChange={(value) => setDraft((current) => ({ ...current, useSubheadings: value }))} />
+                    <CheckboxRow checked={draft.preferLists} label="Preferir listas quando apropriado" onChange={(value) => setDraft((current) => ({ ...current, preferLists: value }))} />
+                    <CheckboxRow checked={draft.preferTables} label="Preferir tabelas quando ajudarem" onChange={(value) => setDraft((current) => ({ ...current, preferTables: value }))} />
+                    <CheckboxRow checked={draft.includeAudioCitations} label="Referenciar momentos do audio" onChange={(value) => setDraft((current) => ({ ...current, includeAudioCitations: value }))} />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-ink-500">Instrucoes adicionais</label>
+                    <textarea
+                      value={draft.instructions}
+                      onChange={(event) => setDraft((current) => ({ ...current, instructions: event.target.value }))}
+                      placeholder="Descreva o foco, organizacao e criterios do documento final"
+                      rows={9}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y leading-6"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <CheckboxRow checked={draft.isDefault} label="Padrao para novas sessoes" onChange={(value) => setDraft((current) => ({ ...current, isDefault: value }))} />
+                    <CheckboxRow checked={draft.isPublic} label="Publico" onChange={(value) => setDraft((current) => ({ ...current, isPublic: value }))} />
+                  </div>
 
                   <div className="flex items-center gap-2">
-                    <Button variant="primary" onClick={savePrompt} loading={savingPrompt} disabled={!draft.name.trim() || !draft.userTemplate.trim()}>
+                    <Button variant="primary" onClick={saveTemplate} loading={savingTemplate} disabled={!draft.name.trim() || !draft.instructions.trim()}>
                       <Save className="w-4 h-4" />
-                      {editingId ? 'Salvar prompt' : 'Criar prompt'}
+                      {editingId ? 'Salvar template' : 'Criar template'}
                     </Button>
-                    {editingId && <Button variant="secondary" onClick={resetPromptForm}>Cancelar</Button>}
+                    {editingId && <Button variant="secondary" onClick={resetTemplateForm}>Cancelar</Button>}
                   </div>
-                  {promptError && (
-                    <p className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">{promptError}</p>
+                  {templateError && (
+                    <p className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">{templateError}</p>
                   )}
                 </div>
               </div>
@@ -395,29 +467,20 @@ export function SettingsPage() {
           {section === 'docs' && (
             <div className="px-6 py-5">
               <h2 className="font-medium text-ink-800 text-sm mb-0.5">Docs</h2>
-              <p className="text-xs text-ink-400 mb-5">Referencia para escrever instrucoes de documento.</p>
+              <p className="text-xs text-ink-400 mb-5">Templates definem a estrutura e o estilo do documento. O Nebula injeta automaticamente transcricao, contexto e regras internas.</p>
 
-              <div className="space-y-5 text-sm text-ink-700">
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Variaveis disponiveis</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {VARIABLE_OPTIONS.map((variable) => (
-                      <div key={variable.name} className="rounded-xl border border-ink-100 bg-ink-50/60 px-3 py-2">
-                        <code className="font-mono text-xs text-ink-900">{`{{${variable.name}}}`}</code>
-                        <p className="mt-1 text-xs text-ink-500">{variable.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
+              <div className="space-y-4 text-sm text-ink-700">
                 <div className="rounded-xl border border-ink-100 px-3 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Tags semanticas</h3>
-                  <p className="text-xs leading-5 text-ink-500">Tags como &lt;contexto&gt;, &lt;objetivo&gt; ou &lt;formato_saida&gt; podem ser usadas livremente para organizar a instrucao. O sistema nao interpreta essas tags; elas sao apenas texto enviado ao modelo.</p>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Markdown</h3>
+                  <p className="text-xs leading-5 text-ink-500">Todo documento gerado e Markdown. Essa regra pertence a plataforma e nao pode ser desativada por template.</p>
                 </div>
-
                 <div className="rounded-xl border border-ink-100 px-3 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Citacoes de audio</h3>
-                  <p className="text-xs leading-5 text-ink-500">As citacoes com tags [audio:MM:SS] sao controladas pelo toggle do prompt. Escrever ou remover essa regra na instrucao do usuario nao altera a politica interna.</p>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Contexto vs instrucoes</h3>
+                  <p className="text-xs leading-5 text-ink-500">Contexto descreve a sessao. Instrucoes descrevem como transformar a transcricao em documento.</p>
+                </div>
+                <div className="rounded-xl border border-ink-100 px-3 py-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Referencias de audio</h3>
+                  <p className="text-xs leading-5 text-ink-500">O switch de audio controla internamente se o modelo pode usar marcadores como [audio:00:12]. Nao e necessario escrever esses detalhes nas instrucoes.</p>
                 </div>
               </div>
             </div>

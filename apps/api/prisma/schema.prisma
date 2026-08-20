@@ -110,10 +110,17 @@ model Folder {
 model Prompt {
   id                 String   @id @default(cuid())
   name               String   @unique
-  systemPrompt       String   @map("system_prompt")
-  userTemplate       String   @map("user_template")
-  availableVariables Json     @default("[]") @map("available_variables")
+  description        String?
+  instructions       String
+  formality          String   @default("neutral")
+  detailLevel        String   @default("balanced")
+  useTitle           Boolean @default(true)
+  useHeadings        Boolean @default(true)
+  useSubheadings     Boolean @default(true)
+  preferLists        Boolean @default(true)
+  preferTables       Boolean @default(false)
   includeAudioCitations Boolean @default(true)
+  transcriptionMode  String   @default("MEETING")
   isDefault          Boolean  @default(false)
   isPublic           Boolean  @default(false)
   createdAt          DateTime @default(now())
@@ -138,8 +145,16 @@ model RecordingSession {
   endedAt   DateTime?
   isDeleted Boolean                @default(false)
   sessionContext   String?
-  writingStyle     String?
-  userInstructions String?
+  formalityOverride          String?
+  detailLevelOverride        String?
+  useTitleOverride           Boolean?
+  useHeadingsOverride        Boolean?
+  useSubheadingsOverride     Boolean?
+  preferListsOverride        Boolean?
+  preferTablesOverride       Boolean?
+  includeAudioCitationsOverride Boolean?
+  instructionsOverride       String?
+  transcriptionModeOverride  String?
 
   ownerId String
   owner   User   @relation(fields: [ownerId], references: [id])

@@ -13,7 +13,12 @@ import { config, type UserConfig } from "@/config";
 import { postProcessQueue } from "@/jobs/queues";
 import { BUCKET, s3Public } from "@/lib/storage";
 import { formatAudioTag } from "@/lib/audioTimestamps";
-import { buildSystemPrompt } from "@/lib/prompts";
+import {
+  DETAIL_LEVEL_VALUES,
+  FORMALITY_VALUES,
+  TRANSCRIPTION_MODE_VALUES,
+  buildTranscriptQuestionMessages,
+} from "@/lib/prompts";
 
 
 const createBody = z.object({
@@ -21,8 +26,16 @@ const createBody = z.object({
   folderId: z.string().nullable().optional(),
   title: z.string().max(120).optional(),
   sessionContext: z.string().max(4000).optional(),
-  writingStyle: z.string().max(1000).optional(),
-  userInstructions: z.string().max(4000).optional(),
+  instructionsOverride: z.string().max(8000).nullable().optional(),
+  formalityOverride: z.enum(FORMALITY_VALUES).nullable().optional(),
+  detailLevelOverride: z.enum(DETAIL_LEVEL_VALUES).nullable().optional(),
+  useTitleOverride: z.boolean().nullable().optional(),
+  useHeadingsOverride: z.boolean().nullable().optional(),
+  useSubheadingsOverride: z.boolean().nullable().optional(),
+  preferListsOverride: z.boolean().nullable().optional(),
+  preferTablesOverride: z.boolean().nullable().optional(),
+  includeAudioCitationsOverride: z.boolean().nullable().optional(),
+  transcriptionModeOverride: z.enum(TRANSCRIPTION_MODE_VALUES).nullable().optional(),
 });
 
 const updateBody = z.object({
@@ -30,8 +43,16 @@ const updateBody = z.object({
   promptId: z.string().nullable().optional(),
   folderId: z.string().nullable().optional(),
   sessionContext: z.string().max(4000).nullable().optional(),
-  writingStyle: z.string().max(1000).nullable().optional(),
-  userInstructions: z.string().max(4000).nullable().optional(),
+  instructionsOverride: z.string().max(8000).nullable().optional(),
+  formalityOverride: z.enum(FORMALITY_VALUES).nullable().optional(),
+  detailLevelOverride: z.enum(DETAIL_LEVEL_VALUES).nullable().optional(),
+  useTitleOverride: z.boolean().nullable().optional(),
+  useHeadingsOverride: z.boolean().nullable().optional(),
+  useSubheadingsOverride: z.boolean().nullable().optional(),
+  preferListsOverride: z.boolean().nullable().optional(),
+  preferTablesOverride: z.boolean().nullable().optional(),
+  includeAudioCitationsOverride: z.boolean().nullable().optional(),
+  transcriptionModeOverride: z.enum(TRANSCRIPTION_MODE_VALUES).nullable().optional(),
 });
 
 const questionBody = z.object({
@@ -48,8 +69,17 @@ const sessions: FastifyPluginAsync = async (fastify) => {
   const promptSelect = {
     id: true,
     name: true,
-    userTemplate: true,
+    description: true,
+    instructions: true,
+    formality: true,
+    detailLevel: true,
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: true,
     includeAudioCitations: true,
+    transcriptionMode: true,
     isDefault: true,
     isPublic: true,
     createdAt: true,
@@ -222,8 +252,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         promptId: prompt.id,
         folderId: folder?.id ?? null,
         sessionContext: parsed.data.sessionContext?.trim() || null,
-        writingStyle: parsed.data.writingStyle?.trim() || null,
-        userInstructions: parsed.data.userInstructions?.trim() || null,
+        instructionsOverride: parsed.data.instructionsOverride?.trim() || null,
+        formalityOverride: parsed.data.formalityOverride ?? null,
+        detailLevelOverride: parsed.data.detailLevelOverride ?? null,
+        useTitleOverride: parsed.data.useTitleOverride ?? null,
+        useHeadingsOverride: parsed.data.useHeadingsOverride ?? null,
+        useSubheadingsOverride: parsed.data.useSubheadingsOverride ?? null,
+        preferListsOverride: parsed.data.preferListsOverride ?? null,
+        preferTablesOverride: parsed.data.preferTablesOverride ?? null,
+        includeAudioCitationsOverride: parsed.data.includeAudioCitationsOverride ?? null,
+        transcriptionModeOverride: parsed.data.transcriptionModeOverride ?? null,
         ownerId,
       },
       select: {
@@ -235,8 +273,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         status: true,
         title: true,
         sessionContext: true,
-        writingStyle: true,
-        userInstructions: true,
+        instructionsOverride: true,
+        formalityOverride: true,
+        detailLevelOverride: true,
+        useTitleOverride: true,
+        useHeadingsOverride: true,
+        useSubheadingsOverride: true,
+        preferListsOverride: true,
+        preferTablesOverride: true,
+        includeAudioCitationsOverride: true,
+        transcriptionModeOverride: true,
         createdAt: true,
         updatedAt: true,
         endedAt: true,
@@ -266,8 +312,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         status: true,
         title: true,
         sessionContext: true,
-        writingStyle: true,
-        userInstructions: true,
+        instructionsOverride: true,
+        formalityOverride: true,
+        detailLevelOverride: true,
+        useTitleOverride: true,
+        useHeadingsOverride: true,
+        useSubheadingsOverride: true,
+        preferListsOverride: true,
+        preferTablesOverride: true,
+        includeAudioCitationsOverride: true,
+        transcriptionModeOverride: true,
         updatedAt: true,
         createdAt: true,
         endedAt: true,
@@ -411,17 +465,12 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: "Sessao sem prompt configurado" });
       }
 
-      const userPrompt = [
-        "<contexto>",
-        context,
-        "</contexto>",
-        "",
-        "<pergunta_usuario>",
-        parsed.data.question,
-        "</pergunta_usuario>",
-      ].join("\n");
-
       const adapter = createAdapter(modelId);
+      const messages = buildTranscriptQuestionMessages({
+        includeAudioCitations: session.prompt.includeAudioCitations,
+        transcript: context,
+        question: parsed.data.question,
+      });
 
       // SSE headers
       reply.raw.writeHead(200, {
@@ -433,10 +482,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
       try {
         for await (const token of adapter.stream(
-          [
-            { role: "system", content: buildSystemPrompt(session.prompt.includeAudioCitations) },
-            { role: "user", content: userPrompt },
-          ],
+          messages,
           { temperature: 0.3 }
         )) {
           reply.raw.write(`data: ${JSON.stringify({ token })}\n\n`);
@@ -500,8 +546,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
           ...(parsed.data.promptId !== undefined ? { promptId: prompt?.id ?? null } : {}),
           ...(parsed.data.folderId !== undefined ? { folderId: folder?.id ?? null } : {}),
           ...(parsed.data.sessionContext !== undefined ? { sessionContext: parsed.data.sessionContext?.trim() || null } : {}),
-          ...(parsed.data.writingStyle !== undefined ? { writingStyle: parsed.data.writingStyle?.trim() || null } : {}),
-          ...(parsed.data.userInstructions !== undefined ? { userInstructions: parsed.data.userInstructions?.trim() || null } : {}),
+          ...(parsed.data.instructionsOverride !== undefined ? { instructionsOverride: parsed.data.instructionsOverride?.trim() || null } : {}),
+          ...(parsed.data.formalityOverride !== undefined ? { formalityOverride: parsed.data.formalityOverride } : {}),
+          ...(parsed.data.detailLevelOverride !== undefined ? { detailLevelOverride: parsed.data.detailLevelOverride } : {}),
+          ...(parsed.data.useTitleOverride !== undefined ? { useTitleOverride: parsed.data.useTitleOverride } : {}),
+          ...(parsed.data.useHeadingsOverride !== undefined ? { useHeadingsOverride: parsed.data.useHeadingsOverride } : {}),
+          ...(parsed.data.useSubheadingsOverride !== undefined ? { useSubheadingsOverride: parsed.data.useSubheadingsOverride } : {}),
+          ...(parsed.data.preferListsOverride !== undefined ? { preferListsOverride: parsed.data.preferListsOverride } : {}),
+          ...(parsed.data.preferTablesOverride !== undefined ? { preferTablesOverride: parsed.data.preferTablesOverride } : {}),
+          ...(parsed.data.includeAudioCitationsOverride !== undefined ? { includeAudioCitationsOverride: parsed.data.includeAudioCitationsOverride } : {}),
+          ...(parsed.data.transcriptionModeOverride !== undefined ? { transcriptionModeOverride: parsed.data.transcriptionModeOverride } : {}),
         },
         select: {
           id: true,
@@ -512,8 +566,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
           folder: true,
           status: true,
           sessionContext: true,
-          writingStyle: true,
-          userInstructions: true,
+          instructionsOverride: true,
+          formalityOverride: true,
+          detailLevelOverride: true,
+          useTitleOverride: true,
+          useHeadingsOverride: true,
+          useSubheadingsOverride: true,
+          preferListsOverride: true,
+          preferTablesOverride: true,
+          includeAudioCitationsOverride: true,
+          transcriptionModeOverride: true,
           createdAt: true,
           updatedAt: true,
           endedAt: true,
