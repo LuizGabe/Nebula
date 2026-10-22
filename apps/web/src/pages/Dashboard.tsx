@@ -4,7 +4,8 @@ import { Activity, AlertCircle, ArrowRight, Calendar, Clock, FilePlus2, Folder, 
 import { folders as foldersApi, sessions as sessionsApi, type Folder as FolderItem, type Session } from '../api/client'
 import type { AppLayoutContext } from '../components/layout/AppLayout'
 import { Button } from '../components/ui/Button'
-import { Badge, Spinner } from '../components/ui/misc'
+import { Badge } from '../components/ui/misc'
+import { Skeleton } from '../components/ui/Skeleton'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { safeDate } from '@/utils/SafeDate'
@@ -269,8 +270,8 @@ export function DashboardPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Spinner className="w-8 h-8" />
+        <div role="status" aria-label="Carregando sessões" className="grid gap-4 py-6 md:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-40" />)}
         </div>
       ) : (
         <div className="flex flex-col gap-8">

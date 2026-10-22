@@ -113,6 +113,7 @@ class WhisperInferenceEngine:
         self._device       = device
         self._compute_type = compute_type
         self._ready        = True
+        self.model_name = "unknown"
 
     # ── factory ───────────────────────────────────────────────────────────────
 
@@ -148,7 +149,9 @@ class WhisperInferenceEngine:
         elapsed = time.perf_counter() - t0
         log.info("WhisperModel pronto em %.2fs", elapsed)
 
-        return cls(model=model, device=device, compute_type=compute_type)
+        engine = cls(model=model, device=device, compute_type=compute_type)
+        engine.model_name = model_path
+        return engine
 
     # ── inferência de stream (PCM float32 em memória) ─────────────────────────
 
@@ -233,6 +236,7 @@ class WhisperInferenceEngine:
                     "text":     text,
                     "start_ms": audio_offset_ms + int(seg.start * 1000),
                     "end_ms":   audio_offset_ms + int(seg.end   * 1000),
+                    "words": extract_words(seg, audio_offset_ms),
                 })
 
             if not all_text:
@@ -325,6 +329,7 @@ class WhisperInferenceEngine:
                     "text":     text,
                     "start_ms": int(seg.start * 1000),
                     "end_ms":   int(seg.end   * 1000),
+                    "words": extract_words(seg),
                 })
 
             if not all_text:
@@ -356,3 +361,9 @@ class _RawResult:
 
 # Alias mantido para compatibilidade com worker.py e health.py
 GPUInferenceEngine = WhisperInferenceEngine
+
+def extract_words(segment, offset_ms: int = 0) -> list[dict]:
+    return [{"text": w.word, "start_ms": offset_ms + round(w.start * 1000),
+             "end_ms": offset_ms + round(w.end * 1000),
+             "confidence": float(w.probability), "speaker_id": ""}
+            for w in (getattr(segment, "words", None) or [])]

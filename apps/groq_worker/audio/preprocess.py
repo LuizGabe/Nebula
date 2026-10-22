@@ -6,7 +6,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-ALLOWED_EXTENSIONS = {"flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "ogg", "wav", "webm"}
+ALLOWED_EXTENSIONS = {"flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "aac", "ogg", "wav", "webm"}
 MAX_FILE_BYTES = int(19.5 * 1024 * 1024)
 
 _OUTPUT_FORMATS = {
@@ -48,6 +48,7 @@ def prepare_audio_for_groq(
     duration_sec: float | None = None,
 ) -> PreparedAudio:
     ext = validate_input_audio(filename, raw_bytes)
+    speed = max(0.5, min(speed, 2.0)) if speed > 0 else 1.0
     target = target_format.lower()
     if target not in _OUTPUT_FORMATS:
         raise ValueError(f"Formato alvo nao suportado: {target}")

@@ -7,6 +7,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../hooks/requireAuth.js";
 import { s3Public, BUCKET } from "../lib/storage.js";
 import { createEventPublisher } from "@/events/publisher";
+import { randomUUID } from 'node:crypto';
 
 const ALLOWED_TYPES = new Set([
   "audio/mpeg",       // .mp3
@@ -19,6 +20,7 @@ const ALLOWED_TYPES = new Set([
   "audio/mp4",
   "audio/m4a",
   "audio/x-m4a",
+  "audio/aac",
 ]);
 
 const uploadBody = z.object({
@@ -27,6 +29,7 @@ const uploadBody = z.object({
   contentType: z.string(),
   sizeBytes:   z.number().int().positive().max(1000 * 1024 * 1024), // 1GB max (ajustar conforme necessário)
   transcribe: z.boolean().default(true),
+  uploadId: z.string().regex(/^[a-zA-Z0-9-]{1,100}$/).optional(),
 });
 
 const uploads: FastifyPluginAsync = async (fastify) => {
@@ -40,7 +43,8 @@ const uploads: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid request body' });
     }
 
-    const { sessionId, filename, contentType, sizeBytes, transcribe } = parsed.data;
+    const { sessionId, filename, sizeBytes, transcribe, uploadId } = parsed.data;
+    const contentType = parsed.data.contentType.split(';')[0].trim().toLowerCase();
     void sizeBytes; // TODO: validar o tamanho do upload depois que o arquivo for enviado para S3
     const ownerId = request.session.get("userId")!;
 
@@ -56,8 +60,14 @@ const uploads: FastifyPluginAsync = async (fastify) => {
     }
 
     // extensão original preservada na chave
-    const ext = filename.split(".").pop()?.toLowerCase() ?? "audio";
-    const key = `sessions/${sessionId}/${transcribe ? 'uploads' : 'recordings'}/${Date.now()}.${ext}`;
+    const ext = (filename.split('.').pop()?.toLowerCase() ?? 'audio').replace(/[^a-z0-9]/g, '');
+    const key = `sessions/${sessionId}/${transcribe ? 'uploads' : 'recordings'}/${uploadId ?? Date.now()}.${ext}`;
+    const mediaId = uploadId ? `recording-${sessionId}-${uploadId}` : undefined;
+    if (mediaId) {
+      const existing = await prisma.audioMedia.findUnique({ where: { id: mediaId } });
+      if (existing && existing.storageKey !== key) return reply.status(409).send({ error: 'Identificador de upload já utilizado' });
+      if (existing && existing.status !== 'PENDING_UPLOAD') return reply.send({ alreadyUploaded: true, key, url: '', expiresIn: 0 });
+    }
     // TODO: pensar em alguma forma de rastreabilidade, pois atualmente o /chunks simplesmente adiciona um chunk
     // porem o upload não pode fazer isso, pq um upload vai gerar varios AudioChunk
 
@@ -70,8 +80,11 @@ const uploads: FastifyPluginAsync = async (fastify) => {
     const url = await getSignedUrl(s3Public, command, { expiresIn: 900 }); // 15min para arquivos grandes
 
     await prisma.$transaction([
-      prisma.audioMedia.create({
-        data: {
+      prisma.audioMedia.upsert({
+        where: { id: mediaId ?? `upload-${randomUUID()}` },
+        update: {},
+        create: {
+          ...(mediaId ? { id: mediaId } : {}),
           sessionId,
           storageKey: key,
           source: "UPLOAD",

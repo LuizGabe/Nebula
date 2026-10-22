@@ -3,9 +3,9 @@
 import grpc
 import warnings
 
-from proto import transcriber_pb2 as transcriber__pb2
+from proto import transcriber_pb2 as proto_dot_transcriber__pb2
 
-GRPC_GENERATED_VERSION = '1.80.0'
+GRPC_GENERATED_VERSION = '1.81.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -18,14 +18,14 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in transcriber_pb2_grpc.py depends on'
+        + ' but the generated code in proto/transcriber_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class TranscriberStub(object):
+class TranscriberStub:
     """── serviço principal ─────────────────────────────────────────────────────────
 
     """
@@ -38,22 +38,22 @@ class TranscriberStub(object):
         """
         self.TranscribeStream = channel.stream_stream(
                 '/transcriber.Transcriber/TranscribeStream',
-                request_serializer=transcriber__pb2.AudioChunk.SerializeToString,
-                response_deserializer=transcriber__pb2.TranscriptResult.FromString,
+                request_serializer=proto_dot_transcriber__pb2.AudioChunk.SerializeToString,
+                response_deserializer=proto_dot_transcriber__pb2.TranscriptResult.FromString,
                 _registered_method=True)
         self.SubmitBatch = channel.unary_unary(
                 '/transcriber.Transcriber/SubmitBatch',
-                request_serializer=transcriber__pb2.BatchRequest.SerializeToString,
-                response_deserializer=transcriber__pb2.BatchAck.FromString,
+                request_serializer=proto_dot_transcriber__pb2.BatchRequest.SerializeToString,
+                response_deserializer=proto_dot_transcriber__pb2.BatchAck.FromString,
                 _registered_method=True)
         self.GetWorkerStatus = channel.unary_unary(
                 '/transcriber.Transcriber/GetWorkerStatus',
-                request_serializer=transcriber__pb2.WorkerStatusRequest.SerializeToString,
-                response_deserializer=transcriber__pb2.WorkerStatusResponse.FromString,
+                request_serializer=proto_dot_transcriber__pb2.WorkerStatusRequest.SerializeToString,
+                response_deserializer=proto_dot_transcriber__pb2.WorkerStatusResponse.FromString,
                 _registered_method=True)
 
 
-class TranscriberServicer(object):
+class TranscriberServicer:
     """── serviço principal ─────────────────────────────────────────────────────────
 
     """
@@ -88,18 +88,18 @@ def add_TranscriberServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'TranscribeStream': grpc.stream_stream_rpc_method_handler(
                     servicer.TranscribeStream,
-                    request_deserializer=transcriber__pb2.AudioChunk.FromString,
-                    response_serializer=transcriber__pb2.TranscriptResult.SerializeToString,
+                    request_deserializer=proto_dot_transcriber__pb2.AudioChunk.FromString,
+                    response_serializer=proto_dot_transcriber__pb2.TranscriptResult.SerializeToString,
             ),
             'SubmitBatch': grpc.unary_unary_rpc_method_handler(
                     servicer.SubmitBatch,
-                    request_deserializer=transcriber__pb2.BatchRequest.FromString,
-                    response_serializer=transcriber__pb2.BatchAck.SerializeToString,
+                    request_deserializer=proto_dot_transcriber__pb2.BatchRequest.FromString,
+                    response_serializer=proto_dot_transcriber__pb2.BatchAck.SerializeToString,
             ),
             'GetWorkerStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.GetWorkerStatus,
-                    request_deserializer=transcriber__pb2.WorkerStatusRequest.FromString,
-                    response_serializer=transcriber__pb2.WorkerStatusResponse.SerializeToString,
+                    request_deserializer=proto_dot_transcriber__pb2.WorkerStatusRequest.FromString,
+                    response_serializer=proto_dot_transcriber__pb2.WorkerStatusResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -109,7 +109,7 @@ def add_TranscriberServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class Transcriber(object):
+class Transcriber:
     """── serviço principal ─────────────────────────────────────────────────────────
 
     """
@@ -129,8 +129,8 @@ class Transcriber(object):
             request_iterator,
             target,
             '/transcriber.Transcriber/TranscribeStream',
-            transcriber__pb2.AudioChunk.SerializeToString,
-            transcriber__pb2.TranscriptResult.FromString,
+            proto_dot_transcriber__pb2.AudioChunk.SerializeToString,
+            proto_dot_transcriber__pb2.TranscriptResult.FromString,
             options,
             channel_credentials,
             insecure,
@@ -156,8 +156,8 @@ class Transcriber(object):
             request,
             target,
             '/transcriber.Transcriber/SubmitBatch',
-            transcriber__pb2.BatchRequest.SerializeToString,
-            transcriber__pb2.BatchAck.FromString,
+            proto_dot_transcriber__pb2.BatchRequest.SerializeToString,
+            proto_dot_transcriber__pb2.BatchAck.FromString,
             options,
             channel_credentials,
             insecure,
@@ -183,8 +183,8 @@ class Transcriber(object):
             request,
             target,
             '/transcriber.Transcriber/GetWorkerStatus',
-            transcriber__pb2.WorkerStatusRequest.SerializeToString,
-            transcriber__pb2.WorkerStatusResponse.FromString,
+            proto_dot_transcriber__pb2.WorkerStatusRequest.SerializeToString,
+            proto_dot_transcriber__pb2.WorkerStatusResponse.FromString,
             options,
             channel_credentials,
             insecure,

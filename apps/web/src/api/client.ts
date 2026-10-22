@@ -1,6 +1,9 @@
 import { config } from '@/config'
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message) }
+}
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(path: string, options?: RequestInit, responseType: 'json' | 'blob' = 'json'): Promise<T> {
   const res = await fetch(`${config.VITE_API_BASE_URL}${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -11,15 +14,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     if (window.location.pathname !== '/login') {
       window.location.href = '/login'
     }
-    throw new Error('Unauthorized')
+    throw new ApiError('Sessão expirada. Entre novamente.', 401)
   }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.error ?? body?.message ?? `HTTP ${res.status}`)
+    throw new ApiError(typeof body?.error === 'string' ? body.error : body?.message ?? `HTTP ${res.status}`, res.status)
   }
 
   if (res.status === 204) return undefined as T
+  if (responseType === 'blob') return res.blob() as Promise<T>
   return res.json()
 }
 
@@ -108,6 +112,7 @@ export interface Session {
 
 export interface SessionAudioMedia {
   id: string
+  status: 'PENDING_UPLOAD' | 'UPLOADED' | 'PROCESSING' | 'TRANSCRIBED' | 'FAILED'
   source: 'STREAM' | 'UPLOAD'
   url: string
   chunkIndex: number | null
@@ -176,6 +181,7 @@ export const sessions = {
   get: (id: string) => request<{ session: Session }>(`/sessions/${id}`),
 
   audioMedia: (id: string) => request<{ audioMedia: SessionAudioMedia[] }>(`/sessions/${id}/audio-media`),
+  peaks: (id: string, mediaId: string) => request<{ peaks: number[][] | null; durationMs: number | null }>(`/sessions/${id}/audio-media/${mediaId}/peaks`),
 
   create: (data: {
     youtubeUrl?: string
@@ -347,17 +353,17 @@ export const chunks = {
 // Uploads
 
 export const uploads = {
-  presignedUrl: (sessionId: string, filename: string, contentType: string, sizeBytes: number, transcribe = true) =>
-    request<{ url: string; key: string }>('/uploads/audio/presigned-url', {
+  presignedUrl: (sessionId: string, filename: string, contentType: string, sizeBytes: number, transcribe = true, uploadId?: string) =>
+    request<{ url: string; key: string; alreadyUploaded?: boolean }>('/uploads/audio/presigned-url', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, filename, contentType, sizeBytes, transcribe }),
+      body: JSON.stringify({ sessionId, filename, contentType, sizeBytes, transcribe, uploadId }),
     }),
 
   uploadToMinio: (presignedUrl: string, file: Blob) =>
     fetch(presignedUrl, {
       method: 'PUT',
       body: file,
-      headers: { 'Content-Type': file.type },
+      headers: { 'Content-Type': file.type.split(';')[0] },
     }).then((response) => {
       if (!response.ok) throw new Error(`Falha ao enviar audio (HTTP ${response.status})`)
     }),
@@ -415,22 +421,38 @@ export const documents = {
 
 // Transcripts
 
+export interface TranscriptWord {
+  text: string
+  start_ms: number
+  end_ms: number
+  confidence?: number | null
+  speaker_id?: string
+}
 export interface TranscriptBlock {
   id: string
   chunkIndex: number
   text: string
   timestampStart: number
   timestampEnd: number
+  words?: TranscriptWord[] | null
+  speakerId?: string | null
+  edited?: boolean
+  revision: number
 }
 
 export const transcripts = {
+  export: (sessionId: string, format: string) => request<Blob>(`/sessions/${sessionId}/export?format=${encodeURIComponent(format)}`, undefined, 'blob'),
+  edit: (sessionId: string, edits: { id: string; text: string; revision: number }[]) =>
+    request<{ updated: number }>(`/sessions/${sessionId}/transcripts`, { method: 'PATCH', body: JSON.stringify({ edits }) }),
+  renameSpeaker: (sessionId: string, speakerId: string, name: string) =>
+    request(`/sessions/${sessionId}/transcripts/speaker`, { method: 'PATCH', body: JSON.stringify({ speakerId, name }) }),
   browserStatus: (sessionId: string, stage: string, errorCode?: string) =>
     request<void>(`/sessions/${sessionId}/transcripts/browser-status`, {
       method: 'POST',
       body: JSON.stringify({ stage, errorCode }),
     }),
   list: (sessionId: string) =>
-    request<{ transcripts: TranscriptBlock[] }>(`/sessions/${sessionId}/transcripts`),
+    request<{ transcripts: TranscriptBlock[]; speakerNames: Record<string, string> }>(`/sessions/${sessionId}/transcripts`),
 
   createManual: (sessionId: string, data: { text: string; timestampStart: number; timestampEnd: number; chunkIndex?: number }) =>
     request<{ transcript: TranscriptBlock }>(`/sessions/${sessionId}/transcripts/manual`, {
@@ -440,6 +462,16 @@ export const transcripts = {
 }
 
 // LLM
+export interface Insights {
+  summary: string[]
+  actionItems: { text: string; owner: string | null; dueDate: string | null; transcriptReferenceId: string }[]
+  tags: string[]
+  sentiment: 'positive' | 'negative' | 'neutral' | 'mixed' | 'unknown'
+}
+export const insights = {
+  get: (id: string) => request<{ insights: Insights | null; status: string; error: string | null }>(`/sessions/${id}/insights`),
+  generate: (id: string) => request(`/sessions/${id}/insights`, { method: 'POST', body: '{}' }),
+}
 export interface LLMModel {
   id: string
   label: string

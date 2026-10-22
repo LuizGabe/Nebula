@@ -407,6 +407,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
           id: true,
           source: true,
           storageKey: true,
+          status: true,
           chunkIndex: true,
           timestampStart: true,
           timestampEnd: true,
@@ -417,6 +418,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const audioMedia = await Promise.all(medias.map(async (media) => ({
         id: media.id,
         source: media.source,
+        status: media.status,
         url: await getSignedUrl(
           s3Public,
           new GetObjectCommand({ Bucket: BUCKET, Key: media.storageKey }),

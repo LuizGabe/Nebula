@@ -3,13 +3,16 @@ import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Folder, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
 import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, system as systemApi, type Folder as FolderItem, type Prompt, type SelectedTranscriptionEngine, type Session, type SessionAudioMedia } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
+import { TranscriptProductivity } from '../components/TranscriptProductivity'
+import { RecordingMilestones } from '../components/RecordingMilestones'
 import { SessionAudioPlayer, type SessionAudioPlayerHandle } from '../components/SessionAudioPlayer'
 import { PipelineStatus } from '../components/PipelineStatus'
 import { TranscriptViewer } from '../components/TranscriptViewer'
 import { DocumentEditor } from '../components/DocumentEditor'
 import { QADrawer } from '../components/QADrawer'
 import { Button } from '../components/ui/Button'
-import { Badge, Spinner } from '../components/ui/misc'
+import { Badge } from '../components/ui/misc'
+import { SessionSkeleton } from '../components/ui/Skeleton'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { safeDate } from '@/utils/SafeDate'
@@ -139,8 +142,9 @@ export function SessionPage() {
         const duration = media.timestampStart != null && media.timestampEnd != null
           ? Math.max(0, media.timestampEnd - media.timestampStart)
           : 5000
-        const item = { media, start: cumulativeStart, end: cumulativeStart + duration }
-        cumulativeStart += duration
+        const start = media.timestampStart ?? cumulativeStart
+        const item = { media, start, end: media.timestampEnd ?? start + duration }
+        cumulativeStart = item.end
         return item
       })
     const chunk = streamTimeline.find((item) => targetMs >= item.start && targetMs <= item.end)
@@ -184,9 +188,7 @@ export function SessionPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner className="w-8 h-8" />
-      </div>
+      <SessionSkeleton />
     )
   }
 
@@ -309,6 +311,7 @@ export function SessionPage() {
       </div>
 
       <div className="flex flex-col gap-4 items-center">
+        {isEnded && <div className="w-full max-w-4xl"><RecordingMilestones sessionId={session.id} media={audioMedia} complete={session.status === 'ENDED' || status === 'done' || status.endsWith(':document')} /></div>}
         {!isEnded && (
           <div className="fade-in w-full max-w-4xl">
             <RecordingPanel
@@ -346,6 +349,7 @@ export function SessionPage() {
               sessionId={session.id}
               liveText={visibleLiveText}
               transcriptionProgress={transcriptionProgress}
+              transcriptionComplete={session.status === 'ENDED' || status === 'done' || status.endsWith(':document')}
               reloadToken={transcriptVersion}
               onSeekTo={seekAudio}
             />
@@ -360,6 +364,7 @@ export function SessionPage() {
               onReprocessed={() => setReprocessTrigger((n) => n + 1)}
               onSeekTo={seekAudio}
             />
+            <div className="mt-4"><TranscriptProductivity sessionId={session.id} reloadToken={documentVersion + transcriptVersion} onSeekTo={seekAudio} /></div>
           </div>
         )}
       </div>
@@ -379,6 +384,9 @@ export function SessionPage() {
               key={`${playerAudio.id}:${playerAudio.url}`}
               ref={audioRef}
               src={playerAudio.url}
+              sessionId={session.id}
+              mediaId={playerAudio.id}
+              offsetMs={playerAudio.source === 'STREAM' ? (playerAudio.timestampStart ?? 0) : 0}
               pendingSeek={pendingSeek}
               onSeekHandled={() => setPendingSeek(null)}
               onError={setAudioError}

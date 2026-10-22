@@ -10,6 +10,7 @@ import os
 import subprocess
 import tempfile
 import time
+from audio.waveform import waveform_from_audio
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -17,6 +18,7 @@ from core.config import Config
 from core.logging import session_logger
 from emit.result_emitter import BatchResultEmitter
 from inference.dispatcher import GPUDispatcher
+from inference.diarization import DiarizationService
 from inference.engine import WhisperInferenceEngine
 from observability.metrics import BATCH_QUEUE_SIZE, ERRORS_TOTAL
 from events.service import EventService, EventType
@@ -57,7 +59,9 @@ class BatchHandler:
     ) -> None:
         self._config     = config
         self._engine     = engine
+        self._diarization = DiarizationService()
         self._dispatcher = dispatcher
+        self._database = database
         self._emitter    = BatchResultEmitter(database, bullmq, redis_client=redis_conn)
         self._minio      = minio
         self._queue: asyncio.Queue[Optional[BatchJob]] = asyncio.Queue()
@@ -142,6 +146,11 @@ class BatchHandler:
             
             # 1. Download do MinIO
             raw_bytes = await self._download(job.storage_key)
+            try:
+                peaks, duration_ms = await asyncio.to_thread(waveform_from_audio, raw_bytes, job.filename)
+                await self._database.save_waveform(job.storage_key, peaks, duration_ms)
+            except Exception:
+                slog.warning('Forma de onda indisponível; transcrição continuará.', exc_info=True)
             slog.info("download ok size=%d bytes", len(raw_bytes))
 
             # 2. Conversão inteligente híbrida (Memória / Arquivo Temporário para M4A)
@@ -161,73 +170,19 @@ class BatchHandler:
             )
 
             if result:
-                # Inicializa as variáveis de controle do buffer
-                current_text_parts = []
-                start_ms = None
-                end_ms = None
-                chunk_idx = 0  # Índice do novo bloco agrupado
-
-                for seg in result.segments:
-                    # Se for o início de um novo bloco agrupado, define o timestamp inicial
-                    if start_ms is None:
-                        start_ms = seg["start_ms"]
-                    
-                    # Atualiza sempre o fim com o bloco atual
-                    end_ms = seg["end_ms"]
-                    current_text_parts.append(seg["text"])
-                    
-                    # Calcula a duração total acumulada neste bloco atual
-                    duration_ms = end_ms - start_ms
-                    
-                    # Se atingiu ou passou de 15 segundos (15000 ms), emite o registro
-                    if duration_ms >= 15000:
-                        await self._emitter.emit_segment(
-                            session_id=job.session_id,
-                            chunk_index=chunk_idx,
-                            text=" ".join(current_text_parts), # Concatena o texto com um espaço
-                            timestamp_start=start_ms,
-                            timestamp_end=end_ms,
-                        )
-                        await self._event_service.emit(
-                            job.session_id,
-                            EventType.UPLOAD_TRANSCRIPTION_PROGRESS,
-                            {
-                                "chunkIndex": chunk_idx,
-                                "current": chunk_idx + 1,
-                                "totalChunks": len(result.segments),
-                                "text": " ".join(current_text_parts),
-                                "timestampStartMs": start_ms,
-                                "timestampEndMs": end_ms,
-                            },
-                        )
-                        
-                        # Incrementa o índice para o próximo grupo e limpa o buffer
-                        chunk_idx += 1
-                        current_text_parts = []
-                        start_ms = None
-                        end_ms = None
-
-                # Garante que qualquer resíduo menor que 15s no final do áudio seja enviado
-                if current_text_parts:
+                result.segments = await asyncio.to_thread(self._diarization.process, pcm_bytes, result.segments)
+                for chunk_idx, seg in enumerate(result.segments):
                     await self._emitter.emit_segment(
-                        session_id=job.session_id,
-                        chunk_index=chunk_idx,
-                        text=" ".join(current_text_parts),
-                        timestamp_start=start_ms,
-                        timestamp_end=end_ms,
+                        session_id=job.session_id, chunk_index=chunk_idx,
+                        text=seg["text"], timestamp_start=seg["start_ms"],
+                        timestamp_end=seg["end_ms"], words=seg.get("words"),
+                        speaker_id=seg.get("speaker_id"),
                     )
-                    await self._event_service.emit(
-                        job.session_id,
-                        EventType.UPLOAD_TRANSCRIPTION_PROGRESS,
-                        {
-                            "chunkIndex": chunk_idx,
-                            "current": chunk_idx + 1,
-                            "totalChunks": len(result.segments),
-                            "text": " ".join(current_text_parts),
-                            "timestampStartMs": start_ms,
-                            "timestampEndMs": end_ms,
-                        },
-                    )
+                    await self._event_service.emit(job.session_id, EventType.UPLOAD_TRANSCRIPTION_PROGRESS, {
+                        "chunkIndex": chunk_idx, "current": chunk_idx + 1,
+                        "totalChunks": len(result.segments), "text": seg["text"],
+                        "timestampStartMs": seg["start_ms"], "timestampEndMs": seg["end_ms"],
+                    })
 
             total_sec = time.monotonic() - t0
             

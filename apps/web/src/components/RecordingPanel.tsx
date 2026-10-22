@@ -1,3 +1,4 @@
+import { LiveWaveform } from './LiveWaveform'
 import { useEffect, useRef, useState } from 'react'
 import { Mic, Square, Pause, Play, Upload, X, Radio } from 'lucide-react'
 import clsx from 'clsx'
@@ -39,7 +40,7 @@ export function RecordingPanel({
     enabled: useBrowserSpeech,
     onError: (error) => setRecordError(error.message),
   })
-  const { state, elapsed, audioLevel, start, pause, resume, stop, getAudioTrack } = useRecorder({
+  const { state, elapsed, analyser, saved, uploaded, start, pause, resume, stop, getAudioTrack } = useRecorder({
     sessionId,
     transcribe: !useBrowserSpeech,
     deviceId,
@@ -51,10 +52,10 @@ export function RecordingPanel({
   const fileRef = useRef<HTMLInputElement>(null)
 
   const isRecording = state === 'recording'
-  const isPaused = state === 'paused'
-  const isStopped = state === 'stopped'
-  const isSaving = state === 'saving'
-  const isIdle = state === 'idle'
+  const isPaused = state === 'paused' || state === 'interrupted'
+  const isStopped = uploaded
+  const isSaving = (state === 'finalizing' || state === 'uploading' || state === 'requestingPermission')
+  const isIdle = state === 'idle' && !uploaded
   const liveEngineLabel = transcriptionEngine?.label ?? 'verificando motor'
   const browserUnavailable = useBrowserSpeech && !browserSpeech.supported
 
@@ -95,7 +96,7 @@ export function RecordingPanel({
   const handleResume = async () => {
     if (useBrowserSpeech && !await browserSpeech.resume()) return
     setRecordError('')
-    resume()
+    await resume()
   }
 
   const handleEnd = async () => {
@@ -105,7 +106,7 @@ export function RecordingPanel({
         await browserSpeech.stop()
       }
       await stop()
-      if (useBrowserSpeech) await sessions.end(sessionId)
+
       onUploadStarted?.()
     } catch (error) {
       setRecordError(error instanceof Error ? error.message : String(error))
@@ -172,14 +173,11 @@ export function RecordingPanel({
               ))}
             </select>
           </label>
-          {isRecording && (
-            <div className="flex flex-col gap-1">
-              <div role="meter" aria-label="Volume do microfone" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(audioLevel)} className="h-2 overflow-hidden rounded-full bg-ink-100">
-                <div className="h-full bg-jade-500 transition-[width]" style={{ width: `${audioLevel}%` }} />
-              </div>
-              <p className="text-xs text-ink-500">{audioLevel < 1 ? 'Microfone sem sinal de voz. Verifique o dispositivo e o botao de mute.' : 'Microfone recebendo audio.'}</p>
-            </div>
-          )}
+          <LiveWaveform analyser={analyser} active={isRecording} />
+          <div className="flex gap-3 text-xs" role="status">
+            <span className={saved ? 'text-jade-700' : 'text-ink-400'}>{saved ? '✓ ' : '○ '}Salvo no Dispositivo</span>
+            <span className={uploaded ? 'text-jade-700' : 'text-ink-400'}>{uploaded ? '✓ ' : '○ '}Enviado para Nuvem</span>
+          </div>
           <div className="flex items-center gap-3">
             {(isRecording || isPaused || isSaving || isStopped) && (
               <div className="flex items-center gap-2">
@@ -234,11 +232,11 @@ export function RecordingPanel({
               </>
             )}
 
-            {isSaving && <span className="text-sm text-ink-400">Salvando audio...</span>}
-            {isStopped && recordError && (
+            {isSaving && <span role="status" className="text-sm text-ink-500">{state === 'requestingPermission' ? 'Aguardando permissão do microfone…' : state === 'uploading' ? 'Enviando áudio para a nuvem…' : 'Finalizando e salvando áudio…'}</span>}
+            {(state === 'recoverable' || state === 'failed') && (
               <>
                 <Button variant="primary" onClick={handleEnd}>Tentar finalizar novamente</Button>
-                <Button variant="secondary" onClick={handleStart}>Gravar novamente</Button>
+                {!saved && <Button variant="secondary" onClick={handleStart}>Tentar gravar</Button>}
               </>
             )}
             {isStopped && !recordError && (

@@ -3,17 +3,19 @@ import { Job } from "bullmq";
 import { prisma } from "@/lib/prisma";
 import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import type { PostProcessJobData } from "../queues";
+import { postProcessQueue } from '../queues';
 import type { UserConfig } from "@/config";
 import { ensureDocumentTemplateSchema } from "@/lib/prompts";
 import { generateDocument } from "@/lib/documentGeneration";
 import { formatAudioTag } from "@/lib/audioTimestamps";
+import { generateInsights } from '@/lib/insights';
 
 import { createEventPublisher } from "@/events/publisher";
 import * as payloads from "@/events/payloads";
 
 export async function postProcessHandler(job: Job<PostProcessJobData>) {
   const { sessionId, triggeredBy } = job.data;
-  const validTriggers = new Set(["session_end", "user_reprocess", "batch_transcription_done"]);
+  const validTriggers = new Set(["session_end", "user_reprocess", "batch_transcription_done", "insights_only"]);
 
   const log = (msg: string) => {
     const line = `[post-process] ${msg}`;
@@ -66,6 +68,16 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
   }
 
   log(`${blocks.length} bloco(s) carregados`);
+  if (triggeredBy === 'insights_only') {
+    const userConfig = (session.owner.config ?? {}) as UserConfig;
+    const insights = await generateInsights(createAdapter(userConfig.defaultModel ?? DEFAULT_MODEL), blocks);
+    await prisma.$transaction(async tx => {
+      const current = await tx.transcript.findMany({ where: { sessionId }, select: { id: true, revision: true } });
+      if (current.length !== blocks.length || current.some(b => blocks.find(old => old.id === b.id)?.revision !== b.revision)) throw new Error('A transcrição mudou durante a geração. Gere os insights novamente.');
+      await tx.recordingSession.updateMany({ where: { id: sessionId, isDeleted: false }, data: { insights } });
+    }, { isolationLevel: 'Serializable' });
+    return { insights: true };
+  }
   await job.updateProgress(10);
 
   const latest = await prisma.document.findFirst({
@@ -152,6 +164,9 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
   });
 
   await job.updateProgress(100);
+  if (!session.insights) {
+    await postProcessQueue.add('generate-insights', { sessionId, triggeredBy: 'insights_only' }, { jobId: `insights-${sessionId}` });
+  }
   log(`documento v${nextVersion} salvo com sucesso`);
 
   await publisher.emit(

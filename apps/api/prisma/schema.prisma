@@ -146,6 +146,8 @@ model RecordingSession {
   endedAt   DateTime?
   isDeleted Boolean                @default(false)
   sessionContext   String?
+  speakerNames     Json?
+  insights         Json?
   formalityOverride          String?
   detailLevelOverride        String?
   useTitleOverride           Boolean?
@@ -177,6 +179,8 @@ model RecordingSession {
 model AudioMedia {
   id         String           @id @default(cuid())
   storageKey String
+  peaks      Json?
+  durationMs Int?
   source     AudioMediaSource
   status     AudioMediaStatus @default(PENDING_UPLOAD)
 
@@ -201,6 +205,11 @@ model Transcript {
   timestampStart Float
   timestampEnd   Float
   createdAt      DateTime @default(now())
+  words          Json?
+  speakerId      String?
+  edited         Boolean  @default(false)
+  revision       Int      @default(0)
+  originalText   String?
 
   sessionId String
   session   RecordingSession @relation(fields: [sessionId], references: [id])

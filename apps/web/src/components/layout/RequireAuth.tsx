@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
-import { Spinner } from '../ui/misc'
+import { SessionSkeleton, Skeleton } from '../ui/Skeleton'
 
 export function RequireAuth() {
   const { user, loading, fetchMe } = useAuthStore()
@@ -22,8 +22,9 @@ export function RequireAuth() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner className="w-8 h-8" />
+      <div className="flex min-h-screen bg-ink-50">
+        <Skeleton className="hidden min-h-screen w-64 shrink-0 rounded-none lg:block" />
+        <div className="flex-1"><SessionSkeleton /></div>
       </div>
     )
   }

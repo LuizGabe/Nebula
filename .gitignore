@@ -7,6 +7,8 @@ samples/
 **/models/
 **/migrations/
 **/generated/
+!apps/api/src/proto/generated/
+!apps/api/src/proto/generated/**
 *.wav
 result.txt
 

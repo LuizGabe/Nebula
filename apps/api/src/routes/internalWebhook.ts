@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { transcriptionJobsQueue } from "@/jobs/queues";
 import { createEventPublisher } from "@/events/publisher";
+import { createHash } from 'node:crypto';
 
 // shape mínimo do evento MinIO
 const minioEventSchema = z.object({
@@ -77,8 +78,12 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
         continue;
       }
 
-      const session = await prisma.recordingSession.findUnique({
-        where: { id: sessionId },
+      const jobId = `upload-${createHash('sha256').update(key).digest('hex')}`;
+      if (await transcriptionJobsQueue.getJob(jobId)) continue;
+      const registeredMedia = await prisma.audioMedia.findFirst({ where: { sessionId, storageKey: key } });
+      if (!registeredMedia || registeredMedia.status === 'TRANSCRIBED') continue;
+      const session = await prisma.recordingSession.findFirst({
+        where: { id: sessionId, isDeleted: false },
         select: {
           transcriptionModeOverride: true,
           prompt: { select: { transcriptionMode: true } },
@@ -109,6 +114,7 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
           language: 'pt'
         }, {
           attempts: 3,
+          jobId,
           backoff: { type: "exponential", delay: 5000 },
         });
 

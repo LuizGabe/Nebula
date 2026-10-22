@@ -115,6 +115,8 @@ services:
       context: apps/groq_worker/
       dockerfile: Dockerfile
       target: dev
+      args:
+        ENABLE_DIARIZATION: ${DIARIZATION_ENABLED:-false}
     image: groq-worker:latest
     container_name: groq-worker
     restart: unless-stopped

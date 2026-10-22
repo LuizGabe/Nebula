@@ -57,7 +57,9 @@ class Database:
         chunk_index:        int,
         full_text:          str,
         timestamp_start_ms: int,
-        timestamp_end_ms:   int
+        timestamp_end_ms: int,
+        words: list[dict] | None = None,
+        speaker_id: str | None = None,
     ) -> None:
         """
         Persiste um segmento de transcrição.
@@ -66,7 +68,7 @@ class Database:
         do faster-whisper vira uma linha separada na tabela transcripts, o que
         permite ao frontend exibir timestamps individuais por trecho.
 
-        timestamps: convertidos de ms (int) para segundos (float) conforme
+        timestamps: inteiros em milissegundos, sem conversão para segundos; compatível com
         o tipo Float do schema Prisma (timestampStart, timestampEnd).
         """
         generated_id    = str(uuid.uuid4())
@@ -75,21 +77,23 @@ class Database:
             await conn.execute(
                 """
                 INSERT INTO public.transcripts
-                    (id, "chunkIndex", text, "timestampStart", "timestampEnd",
-                     "sessionId")
-                VALUES ($1, $2, $3, $4, $5, $6)
+                    (id, "chunkIndex", text, "timestampStart", "timestampEnd", "sessionId", words, "speakerId")
+                VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
                 ON CONFLICT ("sessionId", "chunkIndex") DO UPDATE
                     SET text             = EXCLUDED.text,
                         "timestampStart" = EXCLUDED."timestampStart",
-                        "timestampEnd"   = EXCLUDED."timestampEnd"
+                        "timestampEnd" = EXCLUDED."timestampEnd",
+                        words = EXCLUDED.words, "speakerId" = EXCLUDED."speakerId"
+                    WHERE NOT transcripts.edited
                 """,
                 generated_id,
                 chunk_index,
                 full_text,
-                timestamp_start_ms,
-                timestamp_end_ms,
-                session_id
-            )
+                int(round(timestamp_start_ms)),
+                int(round(timestamp_end_ms)),
+                session_id,
+                json.dumps(words) if words is not None else None,
+                speaker_id,)
 
     async def save_event(self, session_id: str, event_type: str, payload: dict):
         """Insere um evento na tabela session_events (append-only)."""
@@ -113,3 +117,8 @@ class Database:
         except Exception as exc:
             log.warning("database healthcheck falhou: %s", exc)
             return False
+
+    async def save_waveform(self, storage_key: str, peaks: list[list[float]], duration_ms: int) -> None:
+        async with self._pool.acquire() as conn:
+            await conn.execute('''UPDATE audio_chunks SET peaks = $2::jsonb, "durationMs" = $3
+                                  WHERE "storageKey" = $1''', storage_key, json.dumps(peaks), duration_ms)

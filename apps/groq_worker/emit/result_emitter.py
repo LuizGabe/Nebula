@@ -19,6 +19,8 @@ class BatchResultEmitter:
         text: str,
         timestamp_start: int,
         timestamp_end: int,
+        words: list[dict] | None = None,
+        speaker_id: str | None = None,
     ) -> None:
         if not text.strip():
             return
@@ -29,13 +31,15 @@ class BatchResultEmitter:
             full_text=text,
             timestamp_start_ms=timestamp_start,
             timestamp_end_ms=timestamp_end,
+            words=words,
+            speaker_id=speaker_id,
         )
         await self._redis.publish(
             channel=f"session:transcription:{session_id}",
             message=json.dumps(
                 {
                     "text": text,
-                    "segment": {"start_ms": timestamp_start, "end_ms": timestamp_end},
+                    "segment": {"start_ms": timestamp_start, "end_ms": timestamp_end, "words": words, "speaker_id": speaker_id},
                     "is_final": False,
                     "chunk_index": chunk_index,
                 }

@@ -1,4 +1,3 @@
-import * as grpc from "@grpc/grpc-js";
 
 import { config } from "@/config";
 import { createTranscriberClient } from "@/lib/grpc-client";
@@ -57,7 +56,7 @@ async function getParakeetWorkerEngine(): Promise<StreamingTranscriptionEngine> 
   if (config.GRPC_WORKER_HOST.includes("host.docker.internal")) {
     return {
       id: "parakeet_worker",
-      name: "Parakeet worker",
+      name: "faster-whisper",
       provider: "worker",
       active: false,
       acceptingStreams: false,
@@ -72,7 +71,7 @@ async function getParakeetWorkerEngine(): Promise<StreamingTranscriptionEngine> 
 
     return {
       id: "parakeet_worker",
-      name: "Parakeet worker",
+      name: [status.engine || "faster-whisper", status.model].filter(Boolean).join(" / "),
       provider: "worker",
       active: modelReady,
       acceptingStreams,
@@ -81,7 +80,7 @@ async function getParakeetWorkerEngine(): Promise<StreamingTranscriptionEngine> 
   } catch (error) {
     return {
       id: "parakeet_worker",
-      name: "Parakeet worker",
+      name: "faster-whisper",
       provider: "worker",
       active: false,
       acceptingStreams: false,
@@ -94,13 +93,13 @@ function getParakeetStatus(): Promise<Record<string, unknown> & { model_ready?: 
   return new Promise((resolve, reject) => {
     const client = createTranscriberClient();
     const deadline = new Date(Date.now() + 1_500);
-    client.GetWorkerStatus({}, { deadline }, (error: grpc.ServiceError | null, response: Record<string, unknown>) => {
+    client.GetWorkerStatus({}, { deadline }, (error, response) => {
       if (typeof client.close === "function") client.close();
       if (error) {
         reject(error);
         return;
       }
-      resolve(response);
+      resolve({ ...response });
     });
   });
 }

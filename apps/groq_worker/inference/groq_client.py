@@ -46,6 +46,7 @@ class GroqTranscriptionClient:
             "model": self._model,
             "response_format": "verbose_json",
             "temperature": "0",
+            "timestamp_granularities[]": ["word", "segment"],
         }
         if language:
             data["language"] = language
@@ -83,7 +84,15 @@ class GroqTranscriptionClient:
             if end < start:
                 end = start
             texts.append(text)
-            segments.append({"text": text, "start_ms": start, "end_ms": end, "index": index})
+            words = []
+            for word in (segment.get("words") or payload.get("words") or []):
+                ws = _scaled_ms(word.get("start", 0), duration_factor)
+                we = _scaled_ms(word.get("end", 0), duration_factor)
+                if start <= ws < end:
+                    words.append({"text": str(word.get("word") or word.get("text") or ""),
+                                  "start_ms": ws, "end_ms": max(ws, we),
+                                  "confidence": word.get("probability"), "speaker_id": ""})
+            segments.append({"text": text, "start_ms": start, "end_ms": end, "index": index, **({"words": words} if words else {})})
 
         if not texts:
             text = str(payload.get("text") or "").strip()

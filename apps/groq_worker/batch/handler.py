@@ -4,6 +4,7 @@ import asyncio
 import logging
 import math
 import time
+from audio.waveform import waveform_from_audio
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Optional
@@ -15,6 +16,7 @@ from emit.result_emitter import BatchResultEmitter
 from events.enums import EventType
 from events.service import EventService
 from inference.groq_client import GroqTranscriptionClient
+from inference.diarization import DiarizationService
 from observability.metrics import BATCH_QUEUE_SIZE, ERRORS_TOTAL
 
 log = logging.getLogger("batch.handler")
@@ -46,6 +48,8 @@ class BatchHandler:
     ) -> None:
         self._config = config
         self._groq = groq
+        self._database = database
+        self._diarization = DiarizationService()
         self._emitter = BatchResultEmitter(database, bullmq, redis_client=redis_conn)
         self._minio = minio
         self._queue: asyncio.Queue[Optional[BatchJob]] = asyncio.Queue()
@@ -127,6 +131,11 @@ class BatchHandler:
             )
 
             raw_bytes = await self._download(job.storage_key)
+            try:
+                peaks, duration_ms = await asyncio.to_thread(waveform_from_audio, raw_bytes, job.filename)
+                await self._database.save_waveform(job.storage_key, peaks, duration_ms)
+            except Exception:
+                slog.warning('Forma de onda indisponível; transcrição continuará.', exc_info=True)
             # Bound each Groq request for long videos while keeping the original player timeline.
             part_count = max(1, math.ceil(job.duration_seconds / 600)) if job.duration_seconds else 1
 
@@ -155,12 +164,14 @@ class BatchHandler:
                         **segment,
                         "start_ms": int(segment.get("start_ms") or 0) + offset_sec * 1000,
                         "end_ms": int(segment.get("end_ms") or 0) + offset_sec * 1000,
+                        "words": [{**w, "start_ms": int(w["start_ms"] + offset_sec * 1000), "end_ms": int(w["end_ms"] + offset_sec * 1000)} for w in segment.get("words", [])],
                     })
                 if part_count > 1:
                     await self._event_service.emit(job.session_id, EventType.UPLOAD_TRANSCRIPTION_PROGRESS, {
                         "current": part + 1, "totalChunks": part_count,
                     })
 
+            segments = await asyncio.to_thread(self._diarization.process_file, raw_bytes, job.filename, segments)
             saved_chunks = await self._emit_segments(job.session_id, segments)
             if not saved_chunks:
                 raise ValueError("Nenhuma fala foi encontrada no audio.")
@@ -229,6 +240,8 @@ class BatchHandler:
                 text=text,
                 timestamp_start=int(segment.get("start_ms") or 0),
                 timestamp_end=int(segment.get("end_ms") or 0),
+                words=segment.get("words"),
+                speaker_id=segment.get("speaker_id"),
             )
             saved += 1
             await self._event_service.emit(

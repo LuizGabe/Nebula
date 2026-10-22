@@ -306,6 +306,7 @@ class TranscriberServicer(pb2_grpc.TranscriberServicer):
                     text=result.text,
                     start_ms=start_ms,
                     end_ms=end_ms,
+                    words=[w for seg in result.segments for w in seg.get("words", [])],
                 )
                 
             if is_final:
@@ -375,6 +376,8 @@ class TranscriberServicer(pb2_grpc.TranscriberServicer):
 
         return pb2.WorkerStatusResponse(
             model_ready=self._engine.is_ready,
+            engine="faster-whisper",
+            model=self._engine.model_name,
             active_sessions=active,
             batch_queue_size=self._dispatch.batch_queue_size(),
             accepting_streams=(active < self._config.max_sessions),

@@ -29,3 +29,13 @@ def test_to_inference_result_falls_back_to_plain_text() -> None:
 
     assert result.text == "sem segmentos"
     assert result.segments == [{"text": "sem segmentos", "start_ms": 0, "end_ms": 0, "index": 0}]
+
+
+def test_word_timestamps_restore_original_speed_and_do_not_duplicate_boundaries():
+    payload = {"segments": [{"text": "Olá", "start": 0, "end": 1}, {"text": "mundo", "start": 1, "end": 2}],
+               "words": [{"word": "Olá", "start": 0.2, "end": 0.7}, {"word": "mundo", "start": 1, "end": 1.8}]}
+    result = GroqTranscriptionClient._to_inference_result(payload, 10, 1.5)
+    assert result.segments[0]['words'][0]['start_ms'] == 300
+    assert result.segments[0]['words'][0]['end_ms'] == 1050
+    assert result.segments[1]['words'][0]['start_ms'] == 1500
+    assert sum(len(segment['words']) for segment in result.segments) == 2

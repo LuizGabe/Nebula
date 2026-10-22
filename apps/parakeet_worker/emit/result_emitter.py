@@ -44,19 +44,21 @@ class StreamResultEmitter:
         is_final: bool = False,
     ) -> None:
         try:
-            from proto.transcriber_pb2 import TranscriptResult, Segment, ResultType
+            from proto.transcriber_pb2 import TranscriptResult, Segment, Word, ResultType
 
             segments = [
                 Segment(
                     text=s["text"],
                     start_ms=s["start_ms"],
                     end_ms=s["end_ms"],
+                    words=[Word(**w) for w in s.get("words", [])],
+                    speaker_id=s.get("speaker_id", ""),
                 )
                 for s in result.segments
             ]
             
             segments_jsonable = [
-                {"text": s["text"], "start_ms": s["start_ms"], "end_ms": s["end_ms"]}
+                s
                 for s in result.segments
             ]
 
@@ -104,6 +106,7 @@ class StreamResultEmitter:
         text: str,
         start_ms: int,
         end_ms: int,
+        words: list[dict] | None = None,
     ) -> None:
         """
         Salva um bloco consolidado (flush) no banco de dados.
@@ -117,6 +120,7 @@ class StreamResultEmitter:
                 full_text=text,
                 timestamp_start_ms=start_ms,
                 timestamp_end_ms=end_ms,
+                words=words,
             )
             log.debug("Flush persistido session=%s chunk=%d", session_id, chunk_index)
         except Exception as exc:
@@ -144,7 +148,9 @@ class BatchResultEmitter:
         chunk_index:     int,
         text:            str,
         timestamp_start: int,
-        timestamp_end:   int,
+        timestamp_end: int,
+        words: list[dict] | None = None,
+        speaker_id: str | None = None,
     ) -> None:
         """Persiste um chunk de resultado de batch."""
         if not text.strip():
@@ -156,6 +162,8 @@ class BatchResultEmitter:
                 full_text=text,
                 timestamp_start_ms=timestamp_start,
                 timestamp_end_ms=timestamp_end,
+            words=words,
+            speaker_id=speaker_id,
             )
             
             channel = f"session:transcription:{session_id}"
@@ -163,7 +171,7 @@ class BatchResultEmitter:
                 channel=channel,
                 message=json.dumps({
                     "text": text,
-                    "segment": {"start_ms": timestamp_start, "end_ms": timestamp_end},
+                    "segment": {"start_ms": timestamp_start, "end_ms": timestamp_end, "words": words, "speaker_id": speaker_id},
                     "is_final": False,
                     "chunk_index": chunk_index,
                 })

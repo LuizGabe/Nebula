@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { documents, type DocumentVersion, type DocumentContent } from '../api/client'
 import { Button } from './ui/Button'
-import { Spinner } from './ui/misc'
+import { DocumentSkeleton } from './ui/Skeleton'
 import { AudioLinkedText } from './AudioLinkedText'
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react'
 import { getMarkdown } from '@milkdown/kit/utils'
@@ -202,9 +202,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
 
   if (loading && versions.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-ink-100 shadow-soft p-8 flex items-center justify-center">
-        <Spinner className="w-6 h-6" />
-      </div>
+      <DocumentSkeleton />
 
     )
   }

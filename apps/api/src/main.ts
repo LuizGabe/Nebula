@@ -10,6 +10,7 @@ import { ensureBucketExists } from "@/lib/storage";
 import { getReadinessStatus } from "@/lib/system/status";
 import { ensureDefaultDocumentTemplates } from "@/lib/prompts";
 import { ensureSessionStatusSchema } from "@/lib/sessionSchema";
+import { ensureTranscriptSchema } from '@/lib/transcriptSchema';
 
 import { startWorkers } from "@/workers";
 
@@ -26,6 +27,9 @@ import foldersRoutes from "@/routes/folders.js";
 import systemRoutes from "@/routes/system.js";
 import wsRoutes from '@/routes/ws'
 import transcriptionStreamRoutes from '@/routes/transcription-stream'
+import mediaRoutes from '@/routes/media';
+import insightsRoutes from '@/routes/insights';
+import exportRoutes from '@/routes/exports';
 
 const app = Fastify({
   logger: {
@@ -77,9 +81,13 @@ await app.register(foldersRoutes);
 await app.register(systemRoutes);
 await app.register(wsRoutes);
 await app.register(transcriptionStreamRoutes);
+await app.register(mediaRoutes);
+await app.register(insightsRoutes);
+await app.register(exportRoutes);
 
 try {
   await ensureSessionStatusSchema();
+  await ensureTranscriptSchema();
   await ensureDefaultDocumentTemplates();
   await ensureBucketExists();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });

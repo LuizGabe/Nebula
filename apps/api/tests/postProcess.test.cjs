@@ -18,6 +18,8 @@ async function main() {
     },
   }
   const overrides = {
+    '../queues': { postProcessQueue: { add: async () => ({ id: 'insights-s1' }) } },
+    '@/lib/insights': { generateInsights: async () => ({}) },
     '@/lib/prisma': { prisma },
     '@/lib/llm': { DEFAULT_MODEL: 'groq/openai/gpt-oss-20b', createAdapter: () => ({}) },
     '@/lib/prompts': { ensureDocumentTemplateSchema: async () => {} },

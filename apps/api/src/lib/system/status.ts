@@ -1,5 +1,4 @@
 import { HeadBucketCommand } from "@aws-sdk/client-s3";
-import * as grpc from "@grpc/grpc-js";
 
 import { config } from "@/config";
 import { AVAILABLE_MODELS, createAdapter } from "@/lib/llm";
@@ -54,7 +53,7 @@ const serviceLabels: Record<string, string> = {
   minio: "MinIO",
   bullmq: "BullMQ",
   groq_worker: "Groq worker",
-  parakeet_worker: "Parakeet worker",
+  parakeet_worker: "faster-whisper worker",
   llm: "LLM",
 };
 
@@ -217,7 +216,7 @@ async function checkParakeetWorker(): Promise<CheckResult> {
   if (config.GRPC_WORKER_HOST.includes("host.docker.internal")) {
     return {
       status: "inactive",
-      message: "Worker Parakeet externo/profile opcional",
+      message: "Worker faster-whisper externo/profile opcional",
       details: { host: config.GRPC_WORKER_HOST },
     };
   }
@@ -267,13 +266,13 @@ function getParakeetStatus(): Promise<Record<string, unknown> & { model_ready?: 
   return new Promise((resolve, reject) => {
     const client = createTranscriberClient();
     const deadline = new Date(Date.now() + 1_500);
-    client.GetWorkerStatus({}, { deadline }, (error: grpc.ServiceError | null, response: Record<string, unknown>) => {
+    client.GetWorkerStatus({}, { deadline }, (error, response) => {
       if (typeof client.close === "function") client.close();
       if (error) {
         reject(error);
         return;
       }
-      resolve(response);
+      resolve({ ...response });
     });
   });
 }

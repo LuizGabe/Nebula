@@ -16,7 +16,10 @@ WORKDIR /app
 
 # ── dependências Python adicionais ───────────────────────────────────────────
 COPY requirements.txt .
+COPY requirements-diarization.txt .
+ARG ENABLE_DIARIZATION=false
 RUN pip install --no-cache-dir -r requirements.txt
+RUN if [ "$ENABLE_DIARIZATION" = "true" ]; then pip install --no-cache-dir -r requirements-diarization.txt; fi
 
 # ── compilação do proto ───────────────────────────────────────────────────────
 # Gera a partir da raiz com -I . para que o import gerado seja
@@ -36,6 +39,7 @@ COPY grpc_server/   grpc_server/
 COPY session/       session/
 COPY inference/     inference/
 COPY batch/         batch/
+COPY audio/         audio/
 COPY emit/          emit/
 COPY observability/ observability/
 COPY infra/         infra/

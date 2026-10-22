@@ -15,12 +15,14 @@ async function main() {
   const prisma = {
     transcript: { findFirst: async () => hasTranscript ? { id: 'transcript' } : null },
     recordingSession: {
-      findFirst: async ({ where }) => where.ownerId === 'owner' && where.isDeleted === false ? { id: 'session' } : null,
+      findFirst: async ({ where }) => (where.ownerId === 'owner' || where.ownerId === undefined) && where.isDeleted === false ? { id: 'session' } : null,
       findUnique: async () => ({ transcriptionModeOverride: null }),
       update: async ({ data }) => updates.push(data),
     },
     audioMedia: {
-      create: async ({ data }) => media.push(data),
+      upsert: async ({ create }) => media.push(create),
+      findFirst: async ({ where }) => media.find(row => row.sessionId === where.sessionId && row.storageKey === where.storageKey),
+      findUnique: async () => null,
       updateMany: async ({ data }) => updates.push(data),
     },
     $transaction: async (operations) => Promise.all(operations),
@@ -35,12 +37,13 @@ async function main() {
       exports, process: { env: {} },
       require: (id) => {
         if (id === '@/lib/youtubeUrl') return { normalizeYouTubeUrl: () => null }
+        if (id === '@/lib/transcriptWords') return { parseWords: value => Array.isArray(value) ? value : [] }
         if (id.includes('prisma')) return { prisma }
         if (id.includes('requireAuth')) return { requireAuth: async (request) => { request.session = { get: () => 'owner' } } }
         if (id.includes('storage')) return { s3Public: {}, BUCKET: 'test' }
         if (id.includes('publisher')) return { createEventPublisher: () => ({ emit: async (...args) => events.push(args) }) }
         if (id.includes('queues')) return {
-          transcriptionJobsQueue: { add: async (...args) => { jobs.push(args); return { id: 'job' } } },
+          transcriptionJobsQueue: { getJob: async id => jobs.find(job => job[2]?.jobId === id), add: async (...args) => { jobs.push(args); return { id: 'job' } } },
           postProcessQueue: { add: async (...args) => documentJobs.push(args) },
         }
         if (id === 'ioredis') return class {}
@@ -85,6 +88,8 @@ async function main() {
     assert.match(file.json().key, /^sessions\/session\/uploads\//)
     assert.equal((await webhook(file.json().key)).statusCode, 200)
     assert.equal(jobs.length, 1, 'ordinary file upload still transcribes')
+    assert.equal((await webhook(file.json().key)).statusCode, 200)
+    assert.equal(jobs.length, 1, 'redelivered webhook must not enqueue a duplicate')
     assert.equal(jobs[0][0], 'transcribe-upload')
     assert.equal(media.length, 2, 'both audio files remain available for playback')
     assert.equal((await upload('false')).statusCode, 400)

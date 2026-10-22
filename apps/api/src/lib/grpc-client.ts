@@ -3,6 +3,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 import { config } from '@/config';
+import type { ProtoGrpcType } from '@/proto/generated/transcriber';
 
 const PROTO_PATH = path.resolve(process.cwd(), 'src/proto/transcriber.proto');
 
@@ -14,10 +15,10 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   defaults: true,
   oneofs: true,
 });
-const protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
+const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as unknown as ProtoGrpcType;
 
 // O pacote é 'transcriber' e o serviço é 'Transcriber'
-const transcriberPackage = (protoDescriptor as any).transcriber;
+const transcriberPackage = protoDescriptor.transcriber;
 if (!transcriberPackage) {
   throw new Error('Pacote "transcriber" não encontrado no proto');
 }

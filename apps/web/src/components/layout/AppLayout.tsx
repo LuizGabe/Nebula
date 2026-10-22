@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { NewSessionModal } from '../NewSessionModal'
 import { Sidebar } from '../ui/Sidebar'
+import { RecordingRecovery } from '../RecordingRecovery'
+import { ActiveRecordingNotice } from '../ActiveRecordingNotice'
 
 export type AppLayoutContext = {
   openNewSession: (folderId?: string | null) => void
@@ -18,7 +20,9 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen bg-ink-50">
       <Sidebar onNewSession={openNewSession} />
+      <RecordingRecovery />
       <main className="flex-1 overflow-auto">
+        <ActiveRecordingNotice />
         <Outlet context={{ openNewSession } satisfies AppLayoutContext} />
       </main>
       {newSessionFolderId !== undefined && (

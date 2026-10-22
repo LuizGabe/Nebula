@@ -73,10 +73,20 @@ enum ResultType {
   FINAL     = 2;  // sessão encerrada, último flush
 }
 
+message Word {
+  string text = 1;
+  int64 start_ms = 2;
+  int64 end_ms = 3;
+  float confidence = 4;
+  string speaker_id = 5;
+}
+
 message Segment {
   string text       = 1;
   uint64 start_ms   = 2;
   uint64 end_ms     = 3;
+  repeated Word words = 4;
+  string speaker_id = 5;
 }
 
 // ── mensagens de batch ────────────────────────────────────────────────────────
@@ -108,4 +118,6 @@ message WorkerStatusResponse {
   uint64 vram_used_bytes   = 5;
   uint64 vram_total_bytes  = 6;
   bool   accepting_streams = 7;
+  string engine = 8;
+  string model = 9;
 }

@@ -28,7 +28,7 @@ const nodeLayout: Record<string, { x: number; y: number; label: string; icon: ty
   minio: { x: 490, y: 230, label: 'MinIO', icon: HardDrive },
   bullmq: { x: 490, y: 310, label: 'BullMQ', icon: Workflow },
   groq_worker: { x: 710, y: 310, label: 'Groq worker', icon: Server },
-  parakeet_worker: { x: 710, y: 150, label: 'Parakeet', icon: Server },
+  parakeet_worker: { x: 710, y: 150, label: 'faster-whisper', icon: Server },
   llm: { x: 710, y: 70, label: 'LLM', icon: BrainCircuit },
 }
 

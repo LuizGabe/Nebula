@@ -15,7 +15,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+COPY requirements-diarization.txt .
+ARG ENABLE_DIARIZATION=false
 RUN pip install --no-cache-dir -r requirements.txt
+RUN if [ "$ENABLE_DIARIZATION" = "true" ]; then pip install --no-cache-dir -r requirements-diarization.txt; fi
 
 
 FROM base AS dev
