@@ -59,6 +59,17 @@ const internalWebhook: FastifyPluginAsync = async (fastify) => {
     
     for (const record of Records) {
       const key = decodeURIComponent(record.s3.object.key);
+      // The YouTube job owns ingestion and invokes the same batch handler itself.
+      // A MinIO notification must not schedule a second transcription.
+      if (/^sessions\/[^/]+\/youtube\//.test(key)) continue;
+      // Browser speech already supplies the transcript; this object is only for playback.
+      if (/^sessions\/[^/]+\/recordings\/[^/]+$/.test(key)) {
+        await prisma.audioMedia.updateMany({
+          where: { storageKey: key, status: "PENDING_UPLOAD" },
+          data: { status: "UPLOADED" },
+        });
+        continue;
+      }
      
       const { sessionId, filename } = parseUploadKey(key) ?? {};
       if (!sessionId) {

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="10 0 190 200" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Nebula — D2.1</title>
+  <desc id="desc">Documento lilás integrado a três barras de áudio em tons de violeta. Vetor editável com fundo transparente.</desc>
+  <defs>
+    <linearGradient id="page" x1="35" y1="23" x2="178" y2="174" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4C0F1"/>
+      <stop offset=".53" stop-color="#DCCBF3"/>
+      <stop offset="1" stop-color="#CBB3E8"/>
+    </linearGradient>
+    <linearGradient id="left" x1="29" y1="130" x2="80" y2="181" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#714BA8"/>
+      <stop offset="1" stop-color="#67449C"/>
+    </linearGradient>
+    <linearGradient id="center" x1="92" y1="87" x2="129" y2="177" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#654299"/>
+      <stop offset=".58" stop-color="#654098"/>
+      <stop offset="1" stop-color="#6E49A4"/>
+    </linearGradient>
+    <linearGradient id="right" x1="139" y1="112" x2="176" y2="179" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8C68BF"/>
+      <stop offset="1" stop-color="#8460B6"/>
+    </linearGradient>
+  </defs>
+  <g id="documento">
+    <path fill="url(#page)" d="M28 125V49C28 28.5 44 13 64 13H125C133 13 138 15.5 144 21.5L173 50.5C179 56.5 181 62 181 70V160C181 174 172 184 156 184C144 184 137 176 137 164V156C134 151 132 149 129 147H100V132C97 126 94 120 90 117C72 100 50 102 28 125Z"/>
+    <path id="aba-dobrada" fill="#BA9EDD" d="M137 16.8V43C137 54 142 59 153 59H178.5C177.3 56.2 175.5 53 173 50.5L144 21.5C141.6 19.1 139.4 17.8 137 16.8Z"/>
+  </g>
+  <g id="barras-audio">
+    <path id="barra-esquerda" fill="url(#left)" d="M28 150C28 133 43 118 59 116C71 114.5 80 122 80 134V165C80 177 73 184 61 184H48C35 184 28 177 28 165Z"/>
+    <path id="barra-central" fill="url(#center)" d="M90 94C90 82 98 74 109.5 74C121 74 129 82 129 94V164C129 176 122 184 109.5 184C97 184 90 176 90 164Z"/>
+    <path id="barra-direita" fill="url(#right)" d="M137 124C137 112 145 103 156 103C167 103 175 111 175 123V163C175 176 168 184 156 184C144 184 137 176 137 164Z"/>
+  </g>
+</svg>

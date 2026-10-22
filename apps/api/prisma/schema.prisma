@@ -52,6 +52,7 @@ enum RecordingSessionStatus {
   ACTIVE
   IN_PROGRESS
   ENDED
+  ERROR
 }
 
 model User {

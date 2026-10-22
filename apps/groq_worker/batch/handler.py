@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from functools import partial
@@ -28,6 +29,7 @@ class BatchJob:
     filename: str
     mode: str
     language: str = "pt"
+    duration_seconds: float | None = None
     enqueued_at: float = field(default_factory=time.monotonic)
 
 
@@ -108,7 +110,11 @@ class BatchHandler:
             BATCH_QUEUE_SIZE.set(self._queue.qsize())
             await self._process_job(job)
 
-    async def _process_job(self, job: BatchJob) -> None:
+    async def process_job(self, job: BatchJob) -> None:
+        # Durable ingestion jobs stay active in BullMQ until the standard pipeline finishes.
+        await self._process_job(job, raise_errors=True)
+
+    async def _process_job(self, job: BatchJob, *, raise_errors: bool = False) -> None:
         slog = session_logger("batch.handler", job.session_id)
         t0 = time.monotonic()
 
@@ -121,12 +127,8 @@ class BatchHandler:
             )
 
             raw_bytes = await self._download(job.storage_key)
-            audio = await self._prepare_audio(raw_bytes, job.filename)
-            slog.info(
-                "audio preparado filename=%s size=%d bytes",
-                audio.filename,
-                len(audio.data),
-            )
+            # Bound each Groq request for long videos while keeping the original player timeline.
+            part_count = max(1, math.ceil(job.duration_seconds / 600)) if job.duration_seconds else 1
 
             await self._event_service.emit(
                 job.session_id,
@@ -135,21 +137,33 @@ class BatchHandler:
                     "job_id": job.job_id,
                     "provider": "groq",
                     "model": self._config.groq_model,
-                    "prepared_filename": audio.filename,
-                    "prepared_size_bytes": len(audio.data),
+                    "total_chunks": part_count,
                 },
             )
 
-            async with self._api_sem:
-                slog.info("groq request iniciando job_id=%s", job.job_id)
-                result = await self._groq.transcribe(
-                    audio,
-                    session_id=job.session_id,
-                    language=job.language,
-                )
-                slog.info("groq request finalizado job_id=%s segments=%d", job.job_id, len(result.segments))
+            segments = []
+            inference_ms = 0
+            for part in range(part_count):
+                offset_sec = part * 600
+                slice_options = {"start_sec": offset_sec, "duration_sec": min(600, job.duration_seconds - offset_sec)} if part_count > 1 else {}
+                audio = await self._prepare_audio(raw_bytes, job.filename, **slice_options)
+                async with self._api_sem:
+                    result = await self._groq.transcribe(audio, session_id=job.session_id, language=job.language)
+                inference_ms += result.inference_ms
+                for segment in result.segments:
+                    segments.append({
+                        **segment,
+                        "start_ms": int(segment.get("start_ms") or 0) + offset_sec * 1000,
+                        "end_ms": int(segment.get("end_ms") or 0) + offset_sec * 1000,
+                    })
+                if part_count > 1:
+                    await self._event_service.emit(job.session_id, EventType.UPLOAD_TRANSCRIPTION_PROGRESS, {
+                        "current": part + 1, "totalChunks": part_count,
+                    })
 
-            saved_chunks = await self._emit_segments(job.session_id, result.segments)
+            saved_chunks = await self._emit_segments(job.session_id, segments)
+            if not saved_chunks:
+                raise ValueError("Nenhuma fala foi encontrada no audio.")
             total_sec = time.monotonic() - t0
 
             await self._event_service.emit(
@@ -157,20 +171,22 @@ class BatchHandler:
                 EventType.UPLOAD_TRANSCRIBED,
                 {
                     "job_id": job.job_id,
-                    "total_chunks": len(result.segments),
+                    "total_chunks": len(segments),
                     "saved_chunks": saved_chunks,
                     "provider": "groq",
                     "model": self._config.groq_model,
-                    "inference_ms": result.inference_ms,
+                    "inference_ms": inference_ms,
                 },
             )
             await self._emitter.finalize(
                 session_id=job.session_id,
-                total_chunks=len(result.segments),
+                total_chunks=len(segments),
                 saved_chunks=saved_chunks,
                 total_sec=total_sec,
             )
         except Exception as exc:
+            if raise_errors:
+                raise
             await self._event_service.emit(
                 job.session_id,
                 EventType.UPLOAD_FAILED,
@@ -183,7 +199,7 @@ class BatchHandler:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._minio.get_object_bytes, storage_key)
 
-    async def _prepare_audio(self, raw_bytes: bytes, filename: str):
+    async def _prepare_audio(self, raw_bytes: bytes, filename: str, **slice_options):
         loop = asyncio.get_running_loop()
         prepare = partial(
             prepare_audio_for_groq,
@@ -193,6 +209,7 @@ class BatchHandler:
             max_bytes=int(self._config.max_groq_file_mb * 1024 * 1024),
             speed=self._config.audio_speed,
             timeout_sec=self._config.ffmpeg_timeout_sec,
+            **slice_options,
         )
         return await loop.run_in_executor(
             None,

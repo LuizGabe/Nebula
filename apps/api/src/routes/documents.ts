@@ -3,6 +3,12 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../hooks/requireAuth.js";
 import { postProcessQueue } from "../jobs/queues.js";
+import { createEventPublisher } from '@/events/publisher';
+
+const sessionParams = z.object({ id: z.string().min(1).max(128) });
+const jobStatusQuery = z.object({ jobId: z.string().min(1).max(200).optional() });
+const versionQuery = z.object({ version: z.coerce.number().int().positive().optional() });
+const reprocessBody = z.object({}).strict();
 
 const editBody = z.object({
   content: z.string().min(1),
@@ -10,6 +16,10 @@ const editBody = z.object({
 
 const documents: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
+  fastify.addHook('preValidation', async (request, reply) => {
+    if (!sessionParams.safeParse(request.params).success) return reply.status(400).send({ error: 'Sessao invalida' });
+  });
+  const events = createEventPublisher();
 
   // lista versões do documento de uma sessão
   fastify.get<{ Params: { id: string } }>(
@@ -18,7 +28,7 @@ const documents: FastifyPluginAsync = async (fastify) => {
       const ownerId = request.session.get("userId")!;
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
 
@@ -43,13 +53,13 @@ const documents: FastifyPluginAsync = async (fastify) => {
       const ownerId = request.session.get("userId")!;
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
 
-      const version = request.query.version
-        ? parseInt(request.query.version)
-        : undefined;
+      const parsedQuery = versionQuery.safeParse(request.query);
+      if (!parsedQuery.success) return reply.status(400).send({ error: 'Versao invalida' });
+      const version = parsedQuery.data.version;
 
       const document = await prisma.document.findFirst({
         select: {
@@ -81,7 +91,7 @@ const documents: FastifyPluginAsync = async (fastify) => {
       }
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
 
@@ -113,38 +123,63 @@ const documents: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const ownerId = request.session.get("userId")!;
 
+      if (!reprocessBody.safeParse(request.body ?? {}).success) return reply.status(400).send({ error: 'Dados invalidos' });
+
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId, status: "ENDED" },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
       if (!session) {
-        return reply.status(404).send({ error: "Sessão não encontrada ou ainda ativa" });
+        return reply.status(404).send({ error: "Sessao nao encontrada" });
+      }
+
+      if (!['ENDED', 'ERROR'].includes(session.status)) return reply.status(409).send({ error: 'Aguarde a transcricao terminar antes de gerar o documento' });
+      const transcripts = await prisma.transcript.count({ where: { sessionId: session.id, text: { not: '' } } });
+      if (!transcripts) return reply.status(409).send({ error: 'Nenhuma transcricao disponivel para gerar o documento' });
+
+      const reprocessId = `reprocess-${session.id}`;
+      for (const id of [`session-${session.id}`, reprocessId]) {
+        const existing = await postProcessQueue.getJob(id);
+        if (!existing) continue;
+        if (!['completed', 'failed'].includes(await existing.getState())) {
+          return reply.status(409).send({ error: 'Ja existe uma geracao de documento em andamento para esta sessao' });
+        }
+        if (id === reprocessId) await existing.remove();
       }
 
       const job = await postProcessQueue.add(
         "generate-document",
         { sessionId: session.id, triggeredBy: "user_reprocess" },
-        { jobId: `reprocess-${session.id}-${Date.now()}` }
+        { jobId: reprocessId }
       );
+
+      await events.emit(session.id, 'DOCUMENT_QUEUED', { jobId: job.id, triggeredBy: 'user_reprocess' });
 
       return reply.status(202).send({ jobId: job.id });
     }
   );
 
   // status do job de geração
-  fastify.get<{ Params: { id: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { jobId?: string } }>(
     "/sessions/:id/document/job-status",
     async (request, reply) => {
       const ownerId = request.session.get("userId")!;
 
       const session = await prisma.recordingSession.findFirst({
-        where: { id: request.params.id, ownerId },
+        where: { id: request.params.id, ownerId, isDeleted: false },
       });
       if (!session) return reply.status(404).send({ error: "Não encontrada" });
 
-      const job = await postProcessQueue.getJob(`session-${session.id}`);
+      const parsedQuery = jobStatusQuery.safeParse(request.query);
+      if (!parsedQuery.success) return reply.status(400).send({ error: 'Job invalido' });
+      const candidates = await Promise.all((parsedQuery.data.jobId
+        ? [parsedQuery.data.jobId]
+        : [`session-${session.id}`, `reprocess-${session.id}`]).map((id) => postProcessQueue.getJob(id)));
+      const job = candidates.filter((candidate) => candidate && candidate.data.sessionId === session.id)
+        .sort((left, right) => right!.timestamp - left!.timestamp)[0];
       if (!job) return reply.send({ status: "not_found" });
 
       return reply.send({
+        jobId: job.id,
         status:   await job.getState(),  // waiting | active | completed | failed
         progress: job.progress,
         result:   job.returnvalue ?? null,

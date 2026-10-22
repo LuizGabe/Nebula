@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mic } from 'lucide-react'
+import nebulaIcon from '../assets/nebula-icon.svg'
+import { NebulaWordmark } from '../components/ui/NebulaWordmark'
 import { auth } from '../api/client'
 import { useAuthStore } from '../store/auth'
 import { Button } from '../components/ui/Button'
@@ -51,10 +52,8 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-ink-900 flex items-center justify-center mb-4 shadow-card">
-            <Mic className="w-7 h-7 text-white" strokeWidth={2} />
-          </div>
-          <h1 className="font-display text-3xl font-semibold text-ink-900 tracking-tight">nebula</h1>
+          <img src={nebulaIcon} alt="" className="mb-4 h-16 w-16 object-contain" />
+          <h1 className="font-display text-3xl font-semibold text-ink-900 tracking-tight"><NebulaWordmark /></h1>
           <p className="text-sm text-ink-500 mt-1">gravação e transcrição de áudio</p>
         </div>
 

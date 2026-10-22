@@ -16,7 +16,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.message ?? `HTTP ${res.status}`)
+    throw new Error(body?.error ?? body?.message ?? `HTTP ${res.status}`)
   }
 
   if (res.status === 204) return undefined as T
@@ -45,7 +45,8 @@ export const auth = {
 
 // Sessions
 
-export type SessionStatus = 'ACTIVE' | 'IN_PROGRESS' | 'ENDED'
+export type SessionStatus = 'ACTIVE' | 'IN_PROGRESS' | 'ENDED' | 'ERROR'
+export type SessionInputSource = 'microphone' | 'upload' | 'youtube'
 export type DocumentFormality = 'informal' | 'neutral' | 'formal'
 export type DocumentDetailLevel = 'concise' | 'balanced' | 'detailed'
 export type DocumentTranscriptionMode = 'MEETING' | 'CLASS'
@@ -177,6 +178,7 @@ export const sessions = {
   audioMedia: (id: string) => request<{ audioMedia: SessionAudioMedia[] }>(`/sessions/${id}/audio-media`),
 
   create: (data: {
+    youtubeUrl?: string
     promptId: string
     title?: string
     folderId?: string | null
@@ -345,17 +347,19 @@ export const chunks = {
 // Uploads
 
 export const uploads = {
-  presignedUrl: (sessionId: string, filename: string, contentType: string, sizeBytes: number) =>
+  presignedUrl: (sessionId: string, filename: string, contentType: string, sizeBytes: number, transcribe = true) =>
     request<{ url: string; key: string }>('/uploads/audio/presigned-url', {
       method: 'POST',
-      body: JSON.stringify({ sessionId, filename, contentType, sizeBytes }),
+      body: JSON.stringify({ sessionId, filename, contentType, sizeBytes, transcribe }),
     }),
 
-  uploadToMinio: (presignedUrl: string, file: File) =>
+  uploadToMinio: (presignedUrl: string, file: Blob) =>
     fetch(presignedUrl, {
       method: 'PUT',
       body: file,
       headers: { 'Content-Type': file.type },
+    }).then((response) => {
+      if (!response.ok) throw new Error(`Falha ao enviar audio (HTTP ${response.status})`)
     }),
 }
 
@@ -378,6 +382,14 @@ export interface DocumentContent {
   createdAt: string
 }
 
+export interface DocumentJobStatus {
+  jobId?: string
+  status: string
+  progress?: number
+  result?: { version?: number; skipped?: boolean; reason?: string } | null
+  error?: string | null
+}
+
 export const documents = {
 
   listVersions: (sessionId: string) =>
@@ -395,7 +407,10 @@ export const documents = {
     }),
 
   reprocess: (sessionId: string) =>
-    request(`/sessions/${sessionId}/document/reprocess`, { method: 'POST', body: JSON.stringify({}) })
+    request<{ jobId: string }>(`/sessions/${sessionId}/document/reprocess`, { method: 'POST', body: JSON.stringify({}) }),
+
+  jobStatus: (sessionId: string, jobId?: string) =>
+    request<DocumentJobStatus>(`/sessions/${sessionId}/document/job-status${jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''}`),
 }
 
 // Transcripts
@@ -409,6 +424,11 @@ export interface TranscriptBlock {
 }
 
 export const transcripts = {
+  browserStatus: (sessionId: string, stage: string, errorCode?: string) =>
+    request<void>(`/sessions/${sessionId}/transcripts/browser-status`, {
+      method: 'POST',
+      body: JSON.stringify({ stage, errorCode }),
+    }),
   list: (sessionId: string) =>
     request<{ transcripts: TranscriptBlock[] }>(`/sessions/${sessionId}/transcripts`),
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pytest
+import shutil
+import subprocess
 
 from audio import preprocess
 from audio.preprocess import PreparedAudio, prepare_audio_for_groq, validate_input_audio
@@ -44,3 +46,19 @@ def test_prepare_audio_raises_when_compressed_audio_still_exceeds_limit(monkeypa
 
     with pytest.raises(ValueError, match="excede"):
         prepare_audio_for_groq(b"raw", "meeting.wav", max_bytes=100)
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="ffmpeg/ffprobe required")
+def test_audio_slice_applies_duration_before_speed_conversion(tmp_path):
+    source = subprocess.run([
+        "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
+        "-f", "mp3", "pipe:1",
+    ], capture_output=True, check=True).stdout
+    audio = prepare_audio_for_groq(source, "audio.mp3", speed=1.5, start_sec=2, duration_sec=3)
+    path = tmp_path / "audio.wav"
+    path.write_bytes(audio.data)
+    duration = float(subprocess.run([
+        "ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path),
+    ], capture_output=True, text=True, check=True).stdout)
+    assert duration == pytest.approx(2, abs=0.1)
+    assert audio.duration_factor == 1.5

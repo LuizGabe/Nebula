@@ -44,6 +44,8 @@ def prepare_audio_for_groq(
     max_bytes: int = MAX_FILE_BYTES,
     speed: float = 1.08,
     timeout_sec: int = 300,
+    start_sec: float = 0,
+    duration_sec: float | None = None,
 ) -> PreparedAudio:
     ext = validate_input_audio(filename, raw_bytes)
     target = target_format.lower()
@@ -56,6 +58,8 @@ def prepare_audio_for_groq(
         output_format=target,
         speed=speed,
         timeout_sec=timeout_sec,
+        start_sec=start_sec,
+        duration_sec=duration_sec,
     )
 
     if len(prepared) > max_bytes and target != "mp3":
@@ -65,17 +69,22 @@ def prepare_audio_for_groq(
             output_format="mp3",
             speed=speed,
             timeout_sec=timeout_sec,
+            start_sec=start_sec,
+            duration_sec=duration_sec,
         )
         target = "mp3"
 
     if len(prepared) > max_bytes:
+        speed = max(speed, 1.15)
         prepared = _run_ffmpeg(
             raw_bytes,
             input_ext=ext,
             output_format="mp3",
-            speed=max(speed, 1.15),
+            speed=speed,
             timeout_sec=timeout_sec,
             bitrate="32k",
+            start_sec=start_sec,
+            duration_sec=duration_sec,
         )
         target = "mp3"
 
@@ -102,6 +111,8 @@ def _run_ffmpeg(
     speed: float,
     timeout_sec: int,
     bitrate: str | None = None,
+    start_sec: float = 0,
+    duration_sec: float | None = None,
 ) -> bytes:
     out_ext, _content_type, output_args = _OUTPUT_FORMATS[output_format]
     if bitrate and output_format == "mp3":
@@ -111,7 +122,7 @@ def _run_ffmpeg(
     input_data = raw_bytes
     input_arg = "pipe:0"
 
-    use_temp_file = input_ext in {"m4a", "mp4", "mov", "3gp"}
+    use_temp_file = input_ext in {"m4a", "mp4", "mov", "3gp"} or duration_sec is not None
     try:
         if use_temp_file:
             with tempfile.NamedTemporaryFile(suffix=f".{input_ext}", delete=False) as tmp:
@@ -133,6 +144,8 @@ def _run_ffmpeg(
             "-hide_banner",
             "-loglevel",
             "warning",
+            *(["-ss", str(start_sec)] if start_sec else []),
+            *(["-t", str(duration_sec)] if duration_sec is not None else []),
             "-i",
             input_arg,
             "-vn",

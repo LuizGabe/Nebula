@@ -26,6 +26,7 @@ const uploadBody = z.object({
   filename:    z.string().max(200),
   contentType: z.string(),
   sizeBytes:   z.number().int().positive().max(1000 * 1024 * 1024), // 1GB max (ajustar conforme necessário)
+  transcribe: z.boolean().default(true),
 });
 
 const uploads: FastifyPluginAsync = async (fastify) => {
@@ -39,7 +40,7 @@ const uploads: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid request body' });
     }
 
-    const { sessionId, filename, contentType, sizeBytes } = parsed.data;
+    const { sessionId, filename, contentType, sizeBytes, transcribe } = parsed.data;
     void sizeBytes; // TODO: validar o tamanho do upload depois que o arquivo for enviado para S3
     const ownerId = request.session.get("userId")!;
 
@@ -48,7 +49,7 @@ const uploads: FastifyPluginAsync = async (fastify) => {
     }
 
     const session = await prisma.recordingSession.findFirst({
-      where: { id: sessionId, ownerId },
+      where: { id: sessionId, ownerId, isDeleted: false },
     });
     if (!session) {
       return reply.status(404).send({ error: "Sessão não encontrada" });
@@ -56,7 +57,7 @@ const uploads: FastifyPluginAsync = async (fastify) => {
 
     // extensão original preservada na chave
     const ext = filename.split(".").pop()?.toLowerCase() ?? "audio";
-    const key = `sessions/${sessionId}/uploads/${Date.now()}.${ext}`;
+    const key = `sessions/${sessionId}/${transcribe ? 'uploads' : 'recordings'}/${Date.now()}.${ext}`;
     // TODO: pensar em alguma forma de rastreabilidade, pois atualmente o /chunks simplesmente adiciona um chunk
     // porem o upload não pode fazer isso, pq um upload vai gerar varios AudioChunk
 
@@ -77,13 +78,13 @@ const uploads: FastifyPluginAsync = async (fastify) => {
           status: "PENDING_UPLOAD",
         },
       }),
-      prisma.recordingSession.update({
+      ...(transcribe ? [prisma.recordingSession.update({
         where: { id: session.id },
         data: { status: "IN_PROGRESS" },
-      }),
+      })] : []),
     ]);
 
-    await events.emit(sessionId, "UPLOAD_RECEIVED", {
+    if (transcribe) await events.emit(sessionId, "UPLOAD_RECEIVED", {
       filename,
       storageKey: key,
       sizeBytes,

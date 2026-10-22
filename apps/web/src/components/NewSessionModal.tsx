@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Mic, Upload, Youtube } from 'lucide-react'
 import clsx from 'clsx'
 import {
   folders as foldersApi,
@@ -11,8 +11,11 @@ import {
   type Folder as FolderItem,
   type Prompt,
   type Session,
+  type SessionInputSource,
 } from '../api/client'
 import { Button } from './ui/Button'
+import { youtubeUrlSchema, normalizeYouTubeUrl } from '../utils/youtubeUrl'
+import { useAuthStore } from '../store/auth'
 
 type FolderNode = FolderItem & { children: FolderNode[] }
 
@@ -146,7 +149,7 @@ export function NewSessionModal({
 }: {
   initialFolderId?: string | null
   onClose: () => void
-  onCreate: (session: Session) => void
+  onCreate: (session: Session, source: SessionInputSource) => void
 }) {
   const [promptList, setPromptList] = useState<Prompt[]>([])
   const [folderList, setFolderList] = useState<FolderItem[]>([])
@@ -165,6 +168,10 @@ export function NewSessionModal({
   const [includeAudioCitationsOverride, setIncludeAudioCitationsOverride] = useState<boolean | null>(null)
   const [transcriptionModeOverride, setTranscriptionModeOverride] = useState<DocumentTranscriptionMode | null>(null)
   const [loading, setLoading] = useState(false)
+  const [source, setSource] = useState<SessionInputSource>('microphone')
+  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [error, setError] = useState('')
+  const username = useAuthStore((state) => state.user?.username)
 
   useEffect(() => {
     setFolderId(initialFolderId ?? null)
@@ -209,10 +216,19 @@ export function NewSessionModal({
   }, [promptId])
 
   const handleCreate = async () => {
-    if (!promptId) return
+    if (!promptId || loading) return
+    setError('')
+    if (source === 'youtube') {
+      const parsed = youtubeUrlSchema.safeParse(youtubeUrl)
+      if (!parsed.success) {
+        setError(parsed.error.issues[0].message)
+        return
+      }
+    }
     setLoading(true)
     try {
       const { session } = await sessionsApi.create({
+        ...(source === 'youtube' ? { youtubeUrl: normalizeYouTubeUrl(youtubeUrl)! } : {}),
         promptId,
         title: title.trim() || undefined,
         folderId,
@@ -228,7 +244,9 @@ export function NewSessionModal({
         includeAudioCitationsOverride,
         transcriptionModeOverride,
       })
-      onCreate(session)
+      onCreate(session, source)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Nao foi possivel criar a sessao')
     } finally {
       setLoading(false)
     }
@@ -243,12 +261,39 @@ export function NewSessionModal({
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h2 className="font-display font-semibold text-xl text-ink-900">Nova sessao</h2>
-            <p className="text-sm text-ink-400 mt-1">Escolha o prompt e o caderno antes de gravar ou enviar audio.</p>
+            <p className="text-sm text-ink-400 mt-1">Escolha a fonte do audio, o prompt e o caderno.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
           <div className="flex flex-col gap-4">
+            <fieldset disabled={loading}>
+              <legend className="mb-2 text-sm font-medium text-ink-700">Fonte do audio</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: 'microphone', label: 'Microfone', Icon: Mic },
+                  { value: 'upload', label: 'Arquivo', Icon: Upload },
+                  { value: 'youtube', label: 'YouTube', Icon: Youtube },
+                ] as const).map(({ value, label, Icon }) => (
+                  <button key={value} type="button" aria-pressed={source === value}
+                    onClick={() => { setSource(value); setError('') }}
+                    className={clsx('flex items-center justify-center gap-2 rounded-xl border px-2 py-3 text-sm', source === value ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-200 text-ink-600 hover:bg-ink-50')}>
+                    <Icon className="h-4 w-4" />{label}
+                  </button>
+                ))}
+              </div>
+              {source === 'youtube' && (
+                <label className="mt-3 block text-sm text-ink-700">
+                  Link do video
+                  <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    onKeyDown={(event) => event.key === 'Enter' && handleCreate()}
+                    className="mt-1 w-full rounded-xl border border-ink-200 px-3 py-2.5 text-sm outline-none focus:border-ink-400" />
+                  <span className="mt-1 block text-xs text-ink-400">Videos de ate {username === 'luizgabe' ? 300 : 30} minutos. O audio sera transcrito e o documento sera gerado automaticamente.</span>
+                </label>
+              )}
+              {source === 'upload' && <p className="mt-2 text-xs text-ink-400">Selecione e envie seu arquivo na proxima etapa.</p>}
+            </fieldset>
             <div>
               <p className="text-sm font-medium text-ink-700 mb-2">Prompt</p>
               <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
@@ -386,10 +431,11 @@ export function NewSessionModal({
           </div>
         </div>
 
+        {error && <p role="alert" className="mt-4 text-sm text-rose-500">{error}</p>}
         <div className="flex gap-2 mt-6">
           <Button variant="secondary" className="flex-1" onClick={onClose}>Cancelar</Button>
           <Button variant="primary" className="flex-1" loading={loading} disabled={!promptId} onClick={handleCreate}>
-            Criar sessao
+            {source === 'youtube' ? 'Importar video' : 'Criar sessao'}
           </Button>
         </div>
       </div>

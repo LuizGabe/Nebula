@@ -4,39 +4,39 @@ import { config } from "@/config";
 import type { LLMAdapter, LLMMessage, LLMCompleteOptions } from "../types";
 
 const GROQ_MODEL_IDS: Record<string, string> = {
-  "groq/compound": "compound-beta",
-  "groq/compound-mini": "compound-beta-mini",
+  // Retain saved profile ids after the Compound systems were retired.
+  "groq/compound": "openai/gpt-oss-120b",
+  "groq/compound-mini": "openai/gpt-oss-20b",
+  "groq/openai/gpt-oss-20b": "openai/gpt-oss-20b",
+  "groq/openai/gpt-oss-120b": "openai/gpt-oss-120b",
 };
 
 export class GroqAdapter implements LLMAdapter {
   private client: Groq;
 
   constructor(readonly modelId: string) {
-    this.client = new Groq({ apiKey: config.GROQ_API_KEY });
+    this.client = new Groq({ apiKey: config.GROQ_API_KEY, maxRetries: 0 });
   }
 
   private get resolvedModel(): string {
-    return GROQ_MODEL_IDS[this.modelId] ?? "compound-beta-mini";
+    return GROQ_MODEL_IDS[this.modelId] ?? "openai/gpt-oss-20b";
   }
 
   async complete(messages: LLMMessage[], opts: LLMCompleteOptions = {}): Promise<string> {
-    return this.completeWithRetry(messages, opts);
+    const res = await this.requestWithRetry(() => this.client.chat.completions.create({
+      model: this.resolvedModel, messages, temperature: opts.temperature ?? 0.2,
+      max_tokens: opts.maxTokens ?? 4096, reasoning_effort: 'low',
+    }));
+    if (res.choices[0]?.finish_reason === 'length') {
+      throw new Error('O modelo atingiu o limite da resposta antes de concluir. Use um template mais conciso ou tente outro modelo.');
+    }
+    return res.choices[0]?.message.content ?? '';
   }
 
-  private async completeWithRetry(
-    messages: LLMMessage[],
-    opts: LLMCompleteOptions,
-    maxRetries = 3
-  ): Promise<string> {
+  private async requestWithRetry<T>(request: () => Promise<T>, maxRetries = 4): Promise<T> {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const res = await this.client.chat.completions.create({
-          model: this.resolvedModel,
-          messages,
-          temperature: opts.temperature ?? 0.2,
-          max_tokens: opts.maxTokens ?? 4096,
-        });
-        return res.choices[0].message.content ?? "";
+        return await request();
       } catch (err: unknown) {
         const isRateLimit =
           err instanceof Error && "status" in err && (err as { status: number }).status === 429;
@@ -45,8 +45,12 @@ export class GroqAdapter implements LLMAdapter {
 
         // Extrai tempo de espera da mensagem de erro
         let wait = 20;
+        const headers = (err as { headers?: Headers }).headers;
+        const retryAfter = headers?.get?.('retry-after');
+        if (retryAfter && Number.isFinite(Number(retryAfter))) wait = Number(retryAfter);
         const match = String(err).match(/try again in ([\d.]+)s/i);
-        if (match) wait = parseFloat(match[1]) + 1;
+        if (!retryAfter && match) wait = parseFloat(match[1]);
+        wait = Math.min(60, Math.max(1, wait + 1));
 
         console.warn(`[groq] rate limit, aguardando ${wait.toFixed(1)}s… (tentativa ${attempt + 1})`);
         await new Promise((r) => setTimeout(r, wait * 1000));
@@ -56,15 +60,19 @@ export class GroqAdapter implements LLMAdapter {
   }
 
   async *stream(messages: LLMMessage[], opts: LLMCompleteOptions = {}): AsyncIterable<string> {
-    const res = await this.client.chat.completions.create({
+    const res = await this.requestWithRetry(() => this.client.chat.completions.create({
       model: this.resolvedModel,
       messages,
       temperature: opts.temperature ?? 0.2,
       max_tokens: opts.maxTokens ?? 4096,
       stream: true,
-    });
+      reasoning_effort: 'low',
+    }));
 
     for await (const chunk of res) {
+      if (chunk.choices[0]?.finish_reason === 'length') {
+        throw new Error('O modelo atingiu o limite da resposta antes de concluir o documento. Use um template mais conciso ou tente outro modelo.');
+      }
       const delta = chunk.choices[0]?.delta?.content;
       if (delta) yield delta;
     }

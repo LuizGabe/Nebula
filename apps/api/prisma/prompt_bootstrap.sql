@@ -132,6 +132,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'RecordingSessionStatus') THEN
     ALTER TYPE "RecordingSessionStatus" ADD VALUE IF NOT EXISTS 'IN_PROGRESS';
+    ALTER TYPE "RecordingSessionStatus" ADD VALUE IF NOT EXISTS 'ERROR';
   END IF;
 
   IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SessionEventType') THEN

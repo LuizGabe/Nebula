@@ -40,6 +40,9 @@ class EventService:
     async def emit(self, session_id: str, event_type: EventType, payload: dict[str, Any] | None = None) -> None:
         await self._queue.put(Event(session_id=session_id, event_type=event_type, payload=payload or {}))
 
+    async def flush(self) -> None:
+        await self._queue.join()
+
     async def _processor_loop(self) -> None:
         while self._running or not self._queue.empty():
             try:
@@ -54,14 +57,14 @@ class EventService:
                     "timestamp_ms": int(asyncio.get_event_loop().time() * 1000),
                     "payload": event.payload,
                 }
-                await self._redis.publish(
-                    channel=f"session:status:{event.session_id}",
-                    message=json.dumps(message),
-                )
                 await self._db.save_event(
                     session_id=event.session_id,
                     event_type=event.event_type.value,
                     payload=event.payload,
+                )
+                await self._redis.publish(
+                    channel=f"session:status:{event.session_id}",
+                    message=json.dumps(message),
                 )
             except Exception as exc:
                 log.error("Falha ao processar evento: %s", exc, exc_info=True)

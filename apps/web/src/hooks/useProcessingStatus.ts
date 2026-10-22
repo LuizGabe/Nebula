@@ -26,7 +26,7 @@ export interface LiveTranscription {
   timestamp_end_ms: number
 }
 
-export type ProcessingPhase = 'transcript' | 'document'
+export type ProcessingPhase = 'ingestion' | 'transcript' | 'document'
 export type ProcessingState = 'waiting' | 'processing' | 'done' | 'error'
 
 export type DetailedProcessingStatus =
@@ -135,14 +135,49 @@ export function useSessionEvents(sessionId: string, enabled: boolean) {
   const [transcriptionProgress, setTranscriptionProgress] = useState<[number, number] | null>(null)
   const [transcriptVersion, setTranscriptVersion] = useState(0)
   const [documentVersion, setDocumentVersion] = useState(0)
+  const [audioVersion, setAudioVersion] = useState(0)
+  const [processingMessage, setProcessingMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [sourceTitle, setSourceTitle] = useState('')
   const statusSourceRef = useRef<EventSource | null>(null)
   const transcriptionSourceRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
     if (!enabled || !sessionId) return
+    setStatus('idle')
+    setErrorMessage('')
+    setProcessingMessage('')
+    setLiveText(null)
+    setSourceTitle('')
 
     const applyEvent = (event: NormalizedEvent) => {
       const { type, payload } = event
+      if (type === 'UPLOAD_RECEIVED' && payload.source === 'youtube' && payload.stage) {
+        if (payload.title) setSourceTitle(String(payload.title))
+        setProcessingMessage(payload.message ?? '')
+        setErrorMessage('')
+        setStatus(payload.stage === 'stored' ? 'waiting:transcript' : payload.stage === 'queued' ? 'waiting:ingestion' : 'processing:ingestion')
+        if (payload.stage === 'stored') setAudioVersion((value) => value + 1)
+        return
+      }
+      if (type === 'UPLOAD_FAILED' || type === 'CHUNK_FAILED' || type === 'DOCUMENT_FAILED') {
+        setErrorMessage(String(payload.error ?? payload.reason ?? 'Falha no processamento. Tente novamente.'))
+        setProcessingMessage('')
+        setStatus(type === 'UPLOAD_FAILED' && payload.source === 'youtube' && payload.stage !== 'transcript' ? 'error:ingestion' : mapEventToStatus(type))
+        return
+      }
+      setProcessingMessage('')
+      setErrorMessage('')
+      if (type === 'DOCUMENT_SKIPPED' && ['no_transcripts', 'too_large'].includes(payload.reason)) {
+        setStatus(payload.reason === 'no_transcripts' ? 'error:transcript' : 'error:document')
+        setErrorMessage(payload.reason === 'too_large' ? 'A transcricao excedeu o limite do modelo. Tente gerar o documento novamente.' : 'Nenhuma transcricao disponivel.')
+        return
+      }
+      if (type === 'DOCUMENT_GENERATING' && payload.message) setProcessingMessage(String(payload.message))
+      if (type === 'CHUNK_TRANSCRIPTION_PROGRESS' && payload.source === 'web_speech') {
+        setTranscriptVersion((value) => value + 1)
+        return
+      }
       setStatus(mapEventToStatus(type))
 
       if (type === 'UPLOAD_TRANSCRIPTION_STARTED') {
@@ -209,5 +244,5 @@ export function useSessionEvents(sessionId: string, enabled: boolean) {
     }
   }, [sessionId, enabled])
 
-  return { status, liveText, transcriptionProgress, transcriptVersion, documentVersion }
+  return { status, liveText, transcriptionProgress, transcriptVersion, documentVersion, audioVersion, processingMessage, errorMessage, sourceTitle }
 }

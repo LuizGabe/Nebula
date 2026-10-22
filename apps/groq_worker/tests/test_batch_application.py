@@ -121,9 +121,30 @@ async def _run_batch_handler_processes_job_and_keeps_parakeet_contract(monkeypat
     assert [event[1] for event in events.events] == [
         "UPLOAD_RECEIVED",
         "UPLOAD_TRANSCRIPTION_STARTED",
+        "UPLOAD_TRANSCRIPTION_PROGRESS",
+        "UPLOAD_TRANSCRIPTION_PROGRESS",
         "UPLOAD_TRANSCRIBED",
     ]
     assert len(db.transcripts) == 2
     assert db.transcripts[0]["full_text"] == "primeiro"
     assert bullmq.post_process_sessions == [("s1", "batch_transcription_done")]
     assert redis.messages[-1][0] == "session:transcription:s1"
+
+
+def test_long_video_preserves_offsets_and_only_enqueues_one_document(monkeypatch):
+    async def run():
+        slices = []
+        def prepare(*args, **kwargs):
+            slices.append((kwargs.get("start_sec"), kwargs.get("duration_sec")))
+            return PreparedAudio("audio.wav", "audio/wav", b"prepared", 1)
+        monkeypatch.setattr(handler_module, "prepare_audio_for_groq", prepare)
+        config = SimpleNamespace(batch_concurrency=1, audio_target_format="wav", max_groq_file_mb=19.5,
+                                 audio_speed=1.08, ffmpeg_timeout_sec=300, groq_model="test")
+        db, bullmq, redis, events = FakeDatabase(), FakeBullMQ(), FakeRedis(), FakeEventService()
+        handler = BatchHandler(config, FakeGroq(), db, bullmq, FakeMinio(), redis, events)
+        await handler.process_job(BatchJob("j", "s1", "sessions/s1/audio.wav", "audio.wav", "MEETING", duration_seconds=1201))
+        assert slices == [(0, 600), (600, 600), (1200, 1)]
+        assert [row["timestamp_start_ms"] for row in db.transcripts] == [0, 1000, 600000, 601000, 1200000, 1201000]
+        assert [row["chunk_index"] for row in db.transcripts] == list(range(6))
+        assert bullmq.post_process_sessions == [("s1", "batch_transcription_done")]
+    asyncio.run(run())

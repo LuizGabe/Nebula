@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Mic, Square, Pause, Play, Upload, X, Radio } from 'lucide-react'
 import clsx from 'clsx'
-import { useRecorder, type RecorderState } from '../hooks/useRecorder'
-import { type SelectedTranscriptionEngine, uploads } from '../api/client'
+import { useRecorder } from '../hooks/useRecorder'
+import { type SelectedTranscriptionEngine, sessions, uploads } from '../api/client'
 import { Button } from './ui/Button'
 import { useBrowserSpeechTranscription } from '@/hooks/useBrowserSpeechTranscription'
 import { type LiveTranscription } from '@/hooks/useProcessingStatus'
@@ -14,33 +14,35 @@ function formatTime(s: number) {
 }
 
 interface Props {
+  inputSource?: 'microphone' | 'upload'
   sessionId: string
   transcriptionEngine: SelectedTranscriptionEngine | null
-  onEnd: () => void | Promise<void>
   onUploadStarted?: () => void
   onBrowserLive?: (items: LiveTranscription[]) => void
-  onBrowserTranscriptSaved?: () => void
   disabled?: boolean
 }
 
 export function RecordingPanel({
+  inputSource,
   sessionId,
   transcriptionEngine,
-  onEnd,
   onUploadStarted,
   onBrowserLive,
-  onBrowserTranscriptSaved,
   disabled,
 }: Props) {
   const [recordError, setRecordError] = useState('')
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [deviceId, setDeviceId] = useState('')
   const useBrowserSpeech = transcriptionEngine?.mode === 'web_speech'
   const browserSpeech = useBrowserSpeechTranscription({
     sessionId,
     enabled: useBrowserSpeech,
     onError: (error) => setRecordError(error.message),
   })
-  const { state, elapsed, start, pause, resume, stop } = useRecorder({
+  const { state, elapsed, audioLevel, start, pause, resume, stop, getAudioTrack } = useRecorder({
     sessionId,
+    transcribe: !useBrowserSpeech,
+    deviceId,
     onError: (error) => setRecordError(error.message),
   })
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
@@ -51,9 +53,21 @@ export function RecordingPanel({
   const isRecording = state === 'recording'
   const isPaused = state === 'paused'
   const isStopped = state === 'stopped'
+  const isSaving = state === 'saving'
   const isIdle = state === 'idle'
   const liveEngineLabel = transcriptionEngine?.label ?? 'verificando motor'
   const browserUnavailable = useBrowserSpeech && !browserSpeech.supported
+
+  useEffect(() => {
+    const refresh = () => {
+      void navigator.mediaDevices?.enumerateDevices().then((items) => {
+        setDevices(items.filter((device) => device.kind === 'audioinput'))
+      }).catch(() => {})
+    }
+    refresh()
+    navigator.mediaDevices?.addEventListener('devicechange', refresh)
+    return () => navigator.mediaDevices?.removeEventListener('devicechange', refresh)
+  }, [isRecording])
 
   useEffect(() => {
     if (!useBrowserSpeech) return
@@ -62,14 +76,15 @@ export function RecordingPanel({
 
   const handleStart = async () => {
     setRecordError('')
+    if (!await start()) return
     if (useBrowserSpeech) {
-      const started = browserSpeech.start()
+      const started = browserSpeech.start(true, getAudioTrack())
       if (!started) {
+        pause()
         setRecordError('Web Speech API indisponivel neste navegador')
         return
       }
     }
-    await start()
   }
 
   const handlePause = () => {
@@ -77,18 +92,24 @@ export function RecordingPanel({
     pause()
   }
 
-  const handleResume = () => {
-    if (useBrowserSpeech) browserSpeech.resume()
+  const handleResume = async () => {
+    if (useBrowserSpeech && !await browserSpeech.resume()) return
+    setRecordError('')
     resume()
   }
 
   const handleEnd = async () => {
-    stop()
-    if (useBrowserSpeech) {
-      await browserSpeech.stop()
-      onBrowserTranscriptSaved?.()
+    try {
+      pause()
+      if (useBrowserSpeech) {
+        await browserSpeech.stop()
+      }
+      await stop()
+      if (useBrowserSpeech) await sessions.end(sessionId)
+      onUploadStarted?.()
+    } catch (error) {
+      setRecordError(error instanceof Error ? error.message : String(error))
     }
-    await onEnd()
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,7 +145,7 @@ export function RecordingPanel({
     <div className="bg-white rounded-2xl border border-ink-100 shadow-soft p-6">
       <div className="flex gap-6">
         {/* ── Live recording side ── */}
-        <div className="flex-1 flex flex-col gap-4">
+        <div className={clsx('flex-1 flex flex-col gap-4', inputSource === 'upload' && 'hidden')}>
           <div className="flex items-start justify-between gap-3 mb-1">
             <div className="flex items-center gap-2">
               <Mic className="w-4 h-4 text-ink-500" />
@@ -137,8 +158,30 @@ export function RecordingPanel({
           </div>
 
           {/* Timer */}
+          <label className="flex flex-col gap-1 text-xs text-ink-500">
+            Microfone
+            <select
+              value={deviceId}
+              onChange={(event) => setDeviceId(event.target.value)}
+              disabled={!isIdle && !isStopped}
+              className="w-full rounded-lg border border-ink-200 bg-white px-2 py-2 text-sm text-ink-700 disabled:opacity-60"
+            >
+              <option value="">Padrao do sistema</option>
+              {devices.filter((device) => device.deviceId !== 'default').map((device, index) => (
+                <option key={device.deviceId} value={device.deviceId}>{device.label || `Microfone ${index + 1}`}</option>
+              ))}
+            </select>
+          </label>
+          {isRecording && (
+            <div className="flex flex-col gap-1">
+              <div role="meter" aria-label="Volume do microfone" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(audioLevel)} className="h-2 overflow-hidden rounded-full bg-ink-100">
+                <div className="h-full bg-jade-500 transition-[width]" style={{ width: `${audioLevel}%` }} />
+              </div>
+              <p className="text-xs text-ink-500">{audioLevel < 1 ? 'Microfone sem sinal de voz. Verifique o dispositivo e o botao de mute.' : 'Microfone recebendo audio.'}</p>
+            </div>
+          )}
           <div className="flex items-center gap-3">
-            {(isRecording || isPaused || isStopped) && (
+            {(isRecording || isPaused || isSaving || isStopped) && (
               <div className="flex items-center gap-2">
                 {isRecording && (
                   <span className="relative flex h-2 w-2 shrink-0">
@@ -191,21 +234,31 @@ export function RecordingPanel({
               </>
             )}
 
-            {isStopped && (
+            {isSaving && <span className="text-sm text-ink-400">Salvando audio...</span>}
+            {isStopped && recordError && (
+              <>
+                <Button variant="primary" onClick={handleEnd}>Tentar finalizar novamente</Button>
+                <Button variant="secondary" onClick={handleStart}>Gravar novamente</Button>
+              </>
+            )}
+            {isStopped && !recordError && (
               <span className="text-sm text-ink-400">Gravação encerrada</span>
             )}
           </div>
           {recordError && <p className="text-xs text-rose-500">{recordError}</p>}
+          {useBrowserSpeech && isRecording && (
+            <p className="text-xs text-ink-500">{browserSpeech.recognitionStatus}</p>
+          )}
           {browserUnavailable && (
             <p className="text-xs text-rose-500">Web Speech API indisponivel neste navegador.</p>
           )}
         </div>
 
         {/* Divider */}
-        <div className="w-px bg-ink-100 self-stretch" />
+        {!inputSource && <div className="w-px bg-ink-100 self-stretch" />}
 
         {/* ── Upload side ── */}
-        <div className="flex-1 flex flex-col gap-4">
+        <div className={clsx('flex-1 flex flex-col gap-4', inputSource === 'microphone' && 'hidden')}>
           <div className="flex items-center gap-2 mb-1">
             <Upload className="w-4 h-4 text-ink-500" />
             <span className="text-sm font-medium text-ink-700">Enviar arquivo</span>
@@ -214,10 +267,10 @@ export function RecordingPanel({
           {!uploadFile ? (
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={disabled || isStopped || isRecording || isPaused}
+              disabled={disabled || isStopped || isSaving || isRecording || isPaused}
               className={clsx(
                 'flex flex-col items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed text-sm transition-all',
-                disabled || isStopped || isRecording || isPaused
+                disabled || isStopped || isSaving || isRecording || isPaused
                   ? 'border-ink-100 text-ink-300 cursor-not-allowed'
                   : 'border-ink-200 text-ink-500 hover:border-jade-400 hover:text-jade-500 hover:bg-jade-50 cursor-pointer'
               )}

@@ -10,10 +10,30 @@ const manualTranscriptBody = z.object({
   timestampEnd: z.number().min(0).default(0),
   chunkIndex: z.number().int().min(0).optional(),
 });
+const browserStatusBody = z.object({
+  stage: z.enum(['starting', 'listening', 'audio', 'speech', 'result', 'error', 'end']),
+  errorCode: z.string().max(100).optional(),
+});
+const sessionParams = z.object({ id: z.string().min(1) });
 
 const transcripts: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
   const events = createEventPublisher();
+  fastify.post('/sessions/:id/transcripts/browser-status', async (request, reply) => {
+    const params = sessionParams.safeParse(request.params);
+    const body = browserStatusBody.safeParse(request.body);
+    if (!params.success || !body.success) return reply.status(400).send({ error: 'Dados invalidos' });
+    const session = await prisma.recordingSession.findFirst({
+      where: { id: params.data.id, ownerId: request.session.get('userId')!, isDeleted: false },
+      select: { id: true },
+    });
+    if (!session) return reply.status(404).send({ error: 'Sessao nao encontrada' });
+    fastify.log.info({ sessionId: session.id, ...body.data }, 'Browser speech status');
+    if (body.data.stage === 'error' && body.data.errorCode !== 'no-speech') {
+      await events.emit(session.id, 'CHUNK_FAILED', { source: 'web_speech', ...body.data });
+    }
+    return reply.status(204).send();
+  });
 
   // lista versões do documento de uma sessão
   fastify.get<{ Params: { id: string } }>(

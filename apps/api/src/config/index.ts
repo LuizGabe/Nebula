@@ -47,7 +47,7 @@ const envSchema = z.object({
   // LLM
   GROQ_API_KEY: z.string().min(1, "GROQ_API_KEY é obrigatório"),
   OLLAMA_URL: z.string().default("http://localhost:11434"),
-  DEFAULT_MODEL: z.string().default("groq/compound-mini"),
+  DEFAULT_MODEL: z.string().default("groq/openai/gpt-oss-20b"),
 });
 
 export type Env = z.infer<typeof envSchema>;

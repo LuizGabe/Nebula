@@ -29,3 +29,6 @@ class MinIOClient:
             if response:
                 response.close()
                 response.release_conn()
+
+    def put_audio_file(self, storage_key: str, filename: str) -> None:
+        self._client.fput_object(self._bucket, storage_key, filename, content_type="audio/mpeg")

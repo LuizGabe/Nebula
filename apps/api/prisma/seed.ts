@@ -9,19 +9,19 @@ const prisma = new PrismaClient({ adapter });
 
 const templates = [
   {
-    name: "Ata de reuniao",
-    description: "Template para transformar reunioes em atas objetivas e acionaveis.",
+    name: "Briefing executivo",
+    description: "Transforma conversas em um resumo direto para decisao, com contexto, riscos e proximos passos.",
     instructions: [
-      "Crie uma ata clara e organizada.",
+      "Crie um briefing executivo claro, objetivo e acionavel.",
       "",
-      "Priorize:",
-      "- assuntos discutidos;",
-      "- decisoes tomadas;",
-      "- responsaveis;",
-      "- proximos passos;",
-      "- prazos mencionados.",
+      "Estruture o documento com:",
+      "- resumo em ate 5 bullets;",
+      "- contexto essencial;",
+      "- decisoes e alinhamentos;",
+      "- riscos, bloqueios e dependencias;",
+      "- proximos passos com responsaveis e prazos quando forem mencionados.",
       "",
-      "Evite repeticao e informacoes irrelevantes.",
+      "Corte repeticoes, conversas laterais e detalhes que nao ajudem uma pessoa ocupada a entender o que precisa decidir ou acompanhar.",
     ].join("\n"),
     formality: "formal",
     detailLevel: "balanced",
@@ -35,12 +35,75 @@ const templates = [
     isDefault: true,
   },
   {
-    name: "Notas de aula",
-    description: "Template para converter aulas em material de estudo estruturado.",
+    name: "Artigo estruturado",
+    description: "Converte a transcricao em um artigo ou post longo com tese, secoes e conclusao forte.",
     instructions: [
-      "Crie notas de estudo didaticas a partir da aula.",
+      "Transforme o conteudo em um artigo bem estruturado em portugues brasileiro.",
       "",
-      "Organize conceitos, definicoes, exemplos, duvidas relevantes e pontos para revisao.",
+      "Inclua uma abertura com gancho, uma tese central, secoes com argumentos claros, exemplos extraidos da transcricao e uma conclusao util.",
+      "Preserve as ideias do audio, mas reescreva com fluidez editorial. Nao invente dados, fontes ou exemplos que nao estejam no material.",
+    ].join("\n"),
+    formality: "neutral",
+    detailLevel: "detailed",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: true,
+    includeAudioCitations: true,
+    transcriptionMode: "MEETING",
+    isDefault: false,
+  },
+  {
+    name: "Guia passo a passo",
+    description: "Gera um tutorial pratico, organizado em etapas, pre-requisitos, alertas e checklist final.",
+    instructions: [
+      "Crie um guia pratico e facil de executar a partir da transcricao.",
+      "",
+      "Organize em objetivo, pre-requisitos, passo a passo, cuidados importantes, erros comuns e checklist final.",
+      "Quando uma etapa depender de contexto ou ordem especifica mencionada no audio, deixe isso claro.",
+      "Use linguagem direta e operacional.",
+    ].join("\n"),
+    formality: "neutral",
+    detailLevel: "detailed",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: false,
+    includeAudioCitations: true,
+    transcriptionMode: "CLASS",
+    isDefault: false,
+  },
+  {
+    name: "Plano de acao",
+    description: "Extrai tarefas, prioridades, donos, prazos, riscos e criterios de sucesso.",
+    instructions: [
+      "Converta a transcricao em um plano de acao executavel.",
+      "",
+      "Inclua uma visao geral curta, uma tabela de tarefas, prioridades, responsaveis, prazos, dependencias e status sugerido.",
+      "Separe tambem riscos, perguntas em aberto e decisoes que precisam ser tomadas.",
+      "Se algum responsavel ou prazo nao foi dito, marque como 'nao definido' em vez de inventar.",
+    ].join("\n"),
+    formality: "neutral",
+    detailLevel: "balanced",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: true,
+    includeAudioCitations: true,
+    transcriptionMode: "MEETING",
+    isDefault: false,
+  },
+  {
+    name: "Material de estudo",
+    description: "Cria notas de aula, conceitos-chave, exemplos, perguntas de revisao e flashcards.",
+    instructions: [
+      "Transforme a transcricao em um material de estudo completo e didatico.",
+      "",
+      "Organize conceitos principais, definicoes, exemplos, duvidas importantes, resumo da aula e pontos para revisar.",
+      "Inclua ao final perguntas de revisao e flashcards em formato pergunta/resposta.",
       "Quando houver exercicios, leituras ou tarefas sugeridas, destaque-os separadamente.",
     ].join("\n"),
     formality: "neutral",
@@ -55,13 +118,35 @@ const templates = [
     isDefault: false,
   },
   {
-    name: "Resumo de entrevista",
-    description: "Template para organizar entrevistas em temas, respostas e sinais importantes.",
+    name: "Mapa de ideias",
+    description: "Uma opcao mais criativa para encontrar oportunidades, temas recorrentes e conexoes inesperadas.",
     instructions: [
-      "Crie um documento estruturado da entrevista.",
+      "Crie um mapa de ideias a partir da transcricao.",
       "",
-      "Organize os principais temas, perguntas e respostas quando forem identificaveis.",
-      "Destaque citacoes relevantes, sinais de decisao e pontos de acompanhamento.",
+      "Identifique temas recorrentes, tensoes, oportunidades, perguntas boas, hipoteses e possiveis caminhos de exploracao.",
+      "Agrupe as ideias por clusters e indique quais parecem mais promissoras, quais precisam de validacao e quais sao apenas especulativas.",
+      "Nao transforme especulacao em fato.",
+    ].join("\n"),
+    formality: "neutral",
+    detailLevel: "balanced",
+    useTitle: true,
+    useHeadings: true,
+    useSubheadings: true,
+    preferLists: true,
+    preferTables: true,
+    includeAudioCitations: true,
+    transcriptionMode: "MEETING",
+    isDefault: false,
+  },
+  {
+    name: "Roteiro multiformato",
+    description: "Gera ideias de conteudo reutilizaveis para video, carrossel, newsletter e post curto.",
+    instructions: [
+      "Transforme a transcricao em um pacote de conteudo multiformato.",
+      "",
+      "Crie: um roteiro curto para video, uma estrutura de carrossel, uma newsletter resumida, 5 ideias de posts curtos e uma lista de titulos possiveis.",
+      "Mantenha cada formato fiel ao que foi dito, com linguagem clara e boa cadencia editorial.",
+      "Sinalize trechos que precisariam de dados adicionais antes de publicar.",
     ].join("\n"),
     formality: "neutral",
     detailLevel: "balanced",
@@ -174,10 +259,13 @@ async function ensureSchema() {
 
 async function mergeLegacyTemplateNames() {
   const mappings = [
-    ["Reuniao", "Ata de reuniao"],
-    [String.fromCharCode(82, 101, 117, 110, 105, 227, 111), "Ata de reuniao"],
-    ["Aula", "Notas de aula"],
-    ["Entrevista", "Resumo de entrevista"],
+    ["Reuniao", "Briefing executivo"],
+    [String.fromCharCode(82, 101, 117, 110, 105, 227, 111), "Briefing executivo"],
+    ["Aula", "Material de estudo"],
+    ["Entrevista", "Briefing executivo"],
+    ["Ata de reuniao", "Briefing executivo"],
+    ["Notas de aula", "Material de estudo"],
+    ["Resumo de entrevista", "Briefing executivo"],
   ] as const;
 
   for (const [legacyName, canonicalName] of mappings) {
@@ -214,15 +302,19 @@ async function main() {
   });
 
   await prisma.$transaction(async (tx) => {
+    await tx.recordingSession.updateMany({
+      where: { promptId: { not: null } },
+      data: { promptId: null },
+    });
+    await tx.document.updateMany({
+      where: { promptId: { not: null } },
+      data: { promptId: null },
+    });
+    await tx.prompt.deleteMany({});
+
     for (const template of templates) {
-      await tx.prompt.upsert({
-        where: { name: template.name },
-        update: {
-          ...template,
-          isPublic: true,
-          ownerId: owner?.id ?? null,
-        },
-        create: {
+      await tx.prompt.create({
+        data: {
           ...template,
           isPublic: true,
           ownerId: owner?.id ?? null,
@@ -231,7 +323,7 @@ async function main() {
     }
 
     await tx.prompt.updateMany({
-      where: { name: { not: "Ata de reuniao" }, isDefault: true },
+      where: { name: { not: "Briefing executivo" }, isDefault: true },
       data: { isDefault: false },
     });
   });

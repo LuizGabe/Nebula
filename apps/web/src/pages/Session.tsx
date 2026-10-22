@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Folder, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
 import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, system as systemApi, type Folder as FolderItem, type Prompt, type SelectedTranscriptionEngine, type Session, type SessionAudioMedia } from '../api/client'
 import { RecordingPanel } from '../components/RecordingPanel'
+import { SessionAudioPlayer, type SessionAudioPlayerHandle } from '../components/SessionAudioPlayer'
 import { PipelineStatus } from '../components/PipelineStatus'
 import { TranscriptViewer } from '../components/TranscriptViewer'
 import { DocumentEditor } from '../components/DocumentEditor'
@@ -17,6 +18,7 @@ import { type LiveTranscription, useSessionEvents } from '@/hooks/useProcessingS
 export function SessionPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [session, setSession] = useState<Session | null>(null)
@@ -31,16 +33,19 @@ export function SessionPage() {
   const [processingHint, setProcessingHint] = useState(false)
   const [transcriptionEngine, setTranscriptionEngine] = useState<SelectedTranscriptionEngine | null>(null)
   const [browserLiveText, setBrowserLiveText] = useState<LiveTranscription[]>([])
-  const [browserTranscriptVersion, setBrowserTranscriptVersion] = useState(0)
   const [audioMedia, setAudioMedia] = useState<SessionAudioMedia[]>([])
   const [activeAudio, setActiveAudio] = useState<SessionAudioMedia | null>(null)
   const [pendingSeek, setPendingSeek] = useState<number | null>(null)
   const [audioError, setAudioError] = useState('')
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioRef = useRef<SessionAudioPlayerHandle | null>(null)
 
-  const isEnded = session?.status === 'ENDED' || ended
-  const { status, liveText, transcriptionProgress, transcriptVersion, documentVersion } = useSessionEvents(id || '', isEnded)
+  const isEnded = session?.status === 'ENDED' || session?.status === 'IN_PROGRESS' || session?.status === 'ERROR' || ended
+  const { status, liveText, transcriptionProgress, transcriptVersion, documentVersion, audioVersion, processingMessage, errorMessage, sourceTitle } = useSessionEvents(id || '', isEnded)
   const visibleStatus = status === 'idle' && processingHint ? 'waiting:transcript' : status
+
+  useEffect(() => {
+    if (sourceTitle) setSession((current) => current && !current.title?.trim() ? { ...current, title: sourceTitle } : current)
+  }, [sourceTitle, session?.id])
 
   const handleRename = async () => {
     if (!id || !renameValue.trim()) return
@@ -101,16 +106,7 @@ export function SessionPage() {
 
   useEffect(() => {
     loadAudioMedia()
-  }, [loadAudioMedia, transcriptVersion, browserTranscriptVersion])
-
-  const handleEnd = async () => {
-    if (!id) return
-    try {
-      await sessionsApi.end(id)
-      setEnded(true)
-      setSession((current) => current ? { ...current, status: 'ENDED' } : current)
-    } catch { }
-  }
+  }, [loadAudioMedia, transcriptVersion, audioVersion])
 
   const handlePromptChange = async () => {
     if (!id || !session) return
@@ -122,10 +118,13 @@ export function SessionPage() {
   const handleUploadStarted = () => {
     setProcessingHint(true)
     setEnded(true)
+    setBrowserLiveText([])
     setSession((current) => current ? { ...current, status: 'IN_PROGRESS' } : current)
+    void loadAudioMedia()
   }
 
   const visibleLiveText = browserLiveText.length > 0 ? browserLiveText : liveText
+  const playerAudio = audioMedia.find((media) => media.source === 'UPLOAD') ?? activeAudio ?? audioMedia[0]
 
   const seekAudio = useCallback(async (seconds: number) => {
     setAudioError('')
@@ -163,16 +162,8 @@ export function SessionPage() {
       return
     }
 
-    audio.currentTime = relativeSeconds
-    await audio.play().catch(() => setAudioError('Nao foi possivel iniciar o audio'))
+    audio.seekTo(relativeSeconds)
   }, [activeAudio?.id, audioMedia, loadAudioMedia])
-
-  const handleAudioReady = async () => {
-    if (pendingSeek == null || !audioRef.current) return
-    audioRef.current.currentTime = pendingSeek
-    setPendingSeek(null)
-    await audioRef.current.play().catch(() => setAudioError('Nao foi possivel iniciar o audio'))
-  }
 
   const folderPath = useMemo(() => {
     if (!session?.folderId) return []
@@ -231,7 +222,7 @@ export function SessionPage() {
               <Pencil className="w-3 h-3" />
               Editar template
             </button>
-            {isEnded ? (
+            {session.status === 'ERROR' || status.startsWith('error:') ? <Badge variant="rose">Erro no processamento</Badge> : isEnded ? (
               <Badge variant="jade">
                 <CheckCircle2 className="w-3 h-3" />
                 Encerrada
@@ -321,19 +312,18 @@ export function SessionPage() {
         {!isEnded && (
           <div className="fade-in w-full max-w-4xl">
             <RecordingPanel
+              inputSource={searchParams.get('source') === 'upload' ? 'upload' : searchParams.get('source') === 'microphone' ? 'microphone' : undefined}
               sessionId={session.id}
               transcriptionEngine={transcriptionEngine}
-              onEnd={handleEnd}
               onUploadStarted={handleUploadStarted}
               onBrowserLive={setBrowserLiveText}
-              onBrowserTranscriptSaved={() => setBrowserTranscriptVersion((value) => value + 1)}
             />
           </div>
         )}
 
         {isEnded && visibleStatus !== 'idle' && (
           <div className="fade-in w-full max-w-4xl">
-            <PipelineStatus status={visibleStatus} />
+            <PipelineStatus status={visibleStatus} message={processingMessage} errorMessage={errorMessage} />
           </div>
         )}
 
@@ -356,7 +346,7 @@ export function SessionPage() {
               sessionId={session.id}
               liveText={visibleLiveText}
               transcriptionProgress={transcriptionProgress}
-              reloadToken={transcriptVersion + browserTranscriptVersion}
+              reloadToken={transcriptVersion}
               onSeekTo={seekAudio}
             />
           </div>
@@ -374,23 +364,24 @@ export function SessionPage() {
         )}
       </div>
 
-      {(activeAudio || audioMedia.length > 0) && (
+      {playerAudio && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-100 bg-white/95 px-6 py-3 shadow-float backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center gap-4">
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium text-ink-500">
                 Player da sessao
-                {activeAudio?.source === 'STREAM' && activeAudio.chunkIndex != null ? ` - chunk ${activeAudio.chunkIndex}` : ''}
-                {activeAudio?.source === 'UPLOAD' ? ' - audio completo' : ''}
+                {playerAudio.source === 'STREAM' && playerAudio.chunkIndex != null ? ` - chunk ${playerAudio.chunkIndex}` : ''}
+                {playerAudio.source === 'UPLOAD' ? ' - audio completo' : ''}
               </p>
               {audioError && <p className="text-xs text-rose-500">{audioError}</p>}
             </div>
-            <audio
+            <SessionAudioPlayer
+              key={`${playerAudio.id}:${playerAudio.url}`}
               ref={audioRef}
-              src={activeAudio?.url ?? audioMedia[0]?.url}
-              controls
-              className="h-9 w-full max-w-xl"
-              onLoadedMetadata={handleAudioReady}
+              src={playerAudio.url}
+              pendingSeek={pendingSeek}
+              onSeekHandled={() => setPendingSeek(null)}
+              onError={setAudioError}
             />
           </div>
         </div>

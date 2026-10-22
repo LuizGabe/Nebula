@@ -9,10 +9,11 @@ log = logging.getLogger("infra.bullmq_consumer")
 
 
 class BullMQConsumer:
-    def __init__(self, redis_url: str, queue_name: str, batch_handler: object) -> None:
+    def __init__(self, redis_url: str, queue_name: str, batch_handler: object, youtube_handler=None) -> None:
         self._redis_url = redis_url
         self._queue_name = queue_name
         self._handler = batch_handler
+        self._youtube_handler = youtube_handler
         self._worker: Optional[Worker] = None
 
     async def start(self, concurrency: int = 1) -> None:
@@ -29,6 +30,10 @@ class BullMQConsumer:
 
     async def _process(self, job, token: str):
         data = job.data or {}
+        if job.name == "ingest-youtube":
+            if not self._youtube_handler:
+                raise RuntimeError("YouTube handler nao configurado")
+            return await self._youtube_handler.process(job.id, data)
         session_id = data.get("sessionId") or job.id
         storage_key = data.get("storageKey")
         filename = data.get("filename", "")

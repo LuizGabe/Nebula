@@ -1,13 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, AlertTriangle, CheckCircle2, Clock, GitBranch, RefreshCw, Server, XCircle } from 'lucide-react'
+import { Activity, AlertTriangle, BrainCircuit, CheckCircle2, Clock, Database, GitBranch, HardDrive, Network, RefreshCw, Server, Workflow, XCircle, Zap } from 'lucide-react'
 import { system, type QueueHealth, type ServiceHealth, type ServiceHealthStatus, type SystemStatus } from '../api/client'
-import { Spinner } from '../components/ui/misc'
 
 const statusCopy: Record<ServiceHealthStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
   healthy: { label: 'Saudavel', className: 'bg-jade-50 text-jade-700 border-jade-100', icon: CheckCircle2 },
   degraded: { label: 'Degradado', className: 'bg-amber-50 text-amber-700 border-amber-100', icon: AlertTriangle },
   down: { label: 'Indisponivel', className: 'bg-rose-50 text-rose-700 border-rose-100', icon: XCircle },
   inactive: { label: 'Inativo', className: 'bg-ink-50 text-ink-500 border-ink-100', icon: Clock },
+}
+const MIN_INITIAL_LOADING_MS = 700
+type DiagramNodeStatus = ServiceHealthStatus | 'external'
+type DiagramNode = {
+  id: string
+  x: number
+  y: number
+  label: string
+  icon: typeof Server
+  status: DiagramNodeStatus
+  message: string
+}
+
+const nodeLayout: Record<string, { x: number; y: number; label: string; icon: typeof Server }> = {
+  web: { x: 90, y: 190, label: 'Web', icon: Network },
+  api: { x: 285, y: 190, label: 'API', icon: Server },
+  postgres: { x: 490, y: 70, label: 'PostgreSQL', icon: Database },
+  redis: { x: 490, y: 150, label: 'Redis', icon: Zap },
+  minio: { x: 490, y: 230, label: 'MinIO', icon: HardDrive },
+  bullmq: { x: 490, y: 310, label: 'BullMQ', icon: Workflow },
+  groq_worker: { x: 710, y: 310, label: 'Groq worker', icon: Server },
+  parakeet_worker: { x: 710, y: 150, label: 'Parakeet', icon: Server },
+  llm: { x: 710, y: 70, label: 'LLM', icon: BrainCircuit },
+}
+
+function statusTone(status: ServiceHealthStatus | 'external') {
+  if (status === 'healthy') return { fill: '#edfaf4', stroke: '#22b584', text: '#0f5c3a', line: '#22b584' }
+  if (status === 'degraded') return { fill: '#fff6e6', stroke: '#f08c1a', text: '#7a4200', line: '#f08c1a' }
+  if (status === 'down') return { fill: '#fef0f3', stroke: '#e84e6a', text: '#8b1a2e', line: '#e84e6a' }
+  if (status === 'inactive') return { fill: '#f7f5f2', stroke: '#c4bdb4', text: '#5a5650', line: '#9e9890' }
+  return { fill: '#ffffff', stroke: '#ddd8d0', text: '#2c2a26', line: '#c4bdb4' }
 }
 
 function formatTime(value: string) {
@@ -69,6 +99,223 @@ function ServiceCard({ service }: { service: ServiceHealth }) {
   )
 }
 
+function ServiceDiagram({ data }: { data: SystemStatus }) {
+  const servicesById = useMemo(() => {
+    return new Map(data.services.map((service) => [service.id, service]))
+  }, [data.services])
+
+  const nodes = useMemo(() => {
+    const ids = new Set<string>(['web'])
+    data.connections.forEach((connection) => {
+      ids.add(connection.from)
+      ids.add(connection.to)
+    })
+    data.services.forEach((service) => ids.add(service.id))
+
+    return Array.from(ids).map<DiagramNode>((id, index) => {
+      const known = nodeLayout[id]
+      const service = servicesById.get(id)
+      return {
+        id,
+        x: known?.x ?? 160 + (index % 4) * 180,
+        y: known?.y ?? 370 + Math.floor(index / 4) * 80,
+        label: service?.label ?? known?.label ?? id,
+        icon: known?.icon ?? Server,
+        status: service?.status ?? 'external',
+        message: service?.message ?? 'Interface do navegador',
+      }
+    })
+  }, [data.connections, data.services, servicesById])
+
+  const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
+
+  return (
+    <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-4 w-4 text-ink-400" />
+          <h2 className="text-sm font-semibold text-ink-900">Conexoes</h2>
+        </div>
+        <span className="text-xs text-ink-400">{data.connections.length} links</span>
+      </div>
+
+      <div className="mt-4 overflow-x-auto rounded-xl bg-ink-50 p-3">
+        <svg className="h-[360px] min-w-[760px] w-full" viewBox="0 0 820 380" role="img" aria-label="Diagrama animado dos servicos conectados">
+          <defs>
+            <filter id="diagramShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0d0c0b" floodOpacity="0.09" />
+            </filter>
+          </defs>
+
+          {data.connections.map((connection, index) => {
+            const from = nodesById.get(connection.from)
+            const to = nodesById.get(connection.to)
+            if (!from || !to) return null
+            const tone = statusTone(to.status)
+            const midX = (from.x + to.x) / 2
+
+            return (
+              <g key={`${connection.from}-${connection.to}-${connection.label}`}>
+                <path
+                  d={`M ${from.x + 58} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 58} ${to.y}`}
+                  fill="none"
+                  stroke="#ddd8d0"
+                  strokeWidth="2"
+                />
+                <path
+                  d={`M ${from.x + 58} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 58} ${to.y}`}
+                  fill="none"
+                  stroke={tone.line}
+                  strokeDasharray="8 14"
+                  strokeLinecap="round"
+                  strokeWidth="3"
+                  opacity="0.85"
+                >
+                  <animate attributeName="stroke-dashoffset" from="44" to="0" dur={`${1.7 + index * 0.12}s`} repeatCount="indefinite" />
+                </path>
+                <circle r="4" fill={tone.line}>
+                  <animateMotion
+                    dur={`${2.4 + index * 0.16}s`}
+                    repeatCount="indefinite"
+                    path={`M ${from.x + 58} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 58} ${to.y}`}
+                  />
+                </circle>
+              </g>
+            )
+          })}
+
+          {nodes.map((node) => {
+            const tone = statusTone(node.status)
+            const Icon = node.icon
+            return (
+              <g key={node.id} filter="url(#diagramShadow)">
+                <circle cx={node.x} cy={node.y} r="33" fill={tone.fill} stroke={tone.stroke} strokeWidth="2">
+                  {node.status === 'healthy' && (
+                    <animate attributeName="r" values="33;37;33" dur="2.4s" repeatCount="indefinite" />
+                  )}
+                </circle>
+                <foreignObject x={node.x - 12} y={node.y - 12} width="24" height="24">
+                  <Icon className="h-6 w-6" style={{ color: tone.text }} />
+                </foreignObject>
+                <rect x={node.x - 58} y={node.y + 43} width="116" height="38" rx="10" fill="white" stroke="#eeebe6" />
+                <text x={node.x} y={node.y + 60} textAnchor="middle" className="fill-ink-900 text-[12px] font-semibold">
+                  {node.label}
+                </text>
+                <text x={node.x} y={node.y + 74} textAnchor="middle" className="fill-ink-400 text-[10px]">
+                  {node.status === 'external' ? 'interface' : statusCopy[node.status].label}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+function SkeletonBlock({ className }: { className: string }) {
+  return <div className={`shimmer rounded-lg ${className}`} />
+}
+
+function ServiceCardSkeleton() {
+  return (
+    <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-4 w-32" />
+          </div>
+          <SkeletonBlock className="mt-3 h-3 w-full" />
+          <SkeletonBlock className="mt-2 h-3 w-3/4" />
+        </div>
+        <SkeletonBlock className="h-7 w-24 rounded-full" />
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="rounded-xl bg-ink-50 px-3 py-2">
+            <SkeletonBlock className="h-3 w-12" />
+            <SkeletonBlock className="mt-2 h-4 w-10" />
+          </div>
+        ))}
+      </div>
+
+      <SkeletonBlock className="mt-4 h-3 w-40" />
+    </div>
+  )
+}
+
+function StatusPageSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <SkeletonBlock className="h-5 w-5 rounded" />
+            <SkeletonBlock className="h-4 w-36" />
+          </div>
+          <SkeletonBlock className="mt-3 h-9 w-full max-w-sm" />
+          <SkeletonBlock className="mt-3 h-4 w-full max-w-xl" />
+        </div>
+        <SkeletonBlock className="h-10 w-32 rounded-xl" />
+      </header>
+
+      <section className="grid gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+            <SkeletonBlock className="h-3 w-20" />
+            <SkeletonBlock className="mt-3 h-8 w-16" />
+          </div>
+        ))}
+      </section>
+
+      <section className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <ServiceCardSkeleton key={index} />
+        ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+        <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+          <div className="flex items-center gap-2">
+            <SkeletonBlock className="h-4 w-4 rounded" />
+            <SkeletonBlock className="h-4 w-24" />
+          </div>
+          <div className="mt-4 rounded-xl bg-ink-50 p-3">
+            <div className="relative h-[320px] min-w-[360px] overflow-hidden rounded-lg">
+              <SkeletonBlock className="absolute left-[4%] top-[42%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[29%] top-[42%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[56%] top-[8%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[56%] top-[34%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[56%] top-[60%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[82%] top-[8%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[82%] top-[60%] h-16 w-16 rounded-full" />
+              <SkeletonBlock className="absolute left-[17%] top-[49%] h-2 w-20" />
+              <SkeletonBlock className="absolute left-[42%] top-[22%] h-2 w-24" />
+              <SkeletonBlock className="absolute left-[42%] top-[49%] h-2 w-24" />
+              <SkeletonBlock className="absolute left-[69%] top-[22%] h-2 w-24" />
+              <SkeletonBlock className="absolute left-[69%] top-[72%] h-2 w-24" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+          <div className="flex items-center justify-between gap-3">
+            <SkeletonBlock className="h-4 w-24" />
+            <SkeletonBlock className="h-4 w-56" />
+          </div>
+          <div className="mt-4 flex flex-col gap-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <SkeletonBlock key={index} className="h-10 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function QueueRow({ name, queue }: { name: string; queue: QueueHealth }) {
   return (
     <div className="grid grid-cols-[1fr_repeat(4,64px)] items-center gap-2 rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm">
@@ -88,14 +335,25 @@ export function StatusPage() {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async (silent = false) => {
+    const startedAt = performance.now()
     if (silent) setRefreshing(true)
     else setLoading(true)
     setError(null)
 
+    const waitForInitialSkeleton = async () => {
+      if (silent) return
+      const remaining = MIN_INITIAL_LOADING_MS - (performance.now() - startedAt)
+      if (remaining > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remaining))
+      }
+    }
+
     try {
       const response = await system.status()
+      await waitForInitialSkeleton()
       setData(response)
     } catch (err) {
+      await waitForInitialSkeleton()
       setError(err instanceof Error ? err.message : 'Falha ao carregar status')
     } finally {
       setLoading(false)
@@ -125,11 +383,7 @@ export function StatusPage() {
   }, [data])
 
   if (loading && !data) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Spinner />
-      </div>
-    )
+    return <StatusPageSkeleton />
   }
 
   return (
@@ -190,22 +444,7 @@ export function StatusPage() {
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
-              <div className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-ink-400" />
-                <h2 className="text-sm font-semibold text-ink-900">Conexoes</h2>
-              </div>
-              <div className="mt-4 flex flex-col gap-2">
-                {data.connections.map((connection) => (
-                  <div key={`${connection.from}-${connection.to}-${connection.label}`} className="flex items-center gap-2 rounded-xl bg-ink-50 px-3 py-2 text-sm">
-                    <span className="font-medium text-ink-800">{connection.from}</span>
-                    <span className="text-ink-300">{'->'}</span>
-                    <span className="font-medium text-ink-800">{connection.to}</span>
-                    <span className="ml-auto truncate text-xs text-ink-400">{connection.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ServiceDiagram data={data} />
 
             <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
               <div className="flex items-center justify-between gap-3">

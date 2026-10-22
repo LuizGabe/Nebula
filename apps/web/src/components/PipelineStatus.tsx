@@ -8,7 +8,7 @@ const STEPS: { type: string; label: string }[] = [
   { type: 'done', label: 'Concluído' },
 ]
 
-const TYPE_ORDER = ['transcript', 'document', 'done', 'unknown'] as const
+const TYPE_ORDER = ['ingestion', 'transcript', 'document', 'done', 'unknown'] as const
 
 type StepVisualState =
   | 'done'
@@ -167,10 +167,13 @@ function StepIndicator({ state }: { state: StepVisualState }) {
 
 interface Props {
   status: DetailedProcessingStatus
+  message?: string
+  errorMessage?: string
 }
 
-export function PipelineStatus({ status }: Props) {
+export function PipelineStatus({ status, message, errorMessage }: Props) {
   if (status === 'idle') return null
+  const steps = status.endsWith(':ingestion') ? [{ type: 'ingestion', label: 'Importando YouTube' }, ...STEPS] : STEPS
 
   return (
     <motion.div
@@ -182,13 +185,13 @@ export function PipelineStatus({ status }: Props) {
       }}
       className="bg-white rounded-2xl border border-ink-100 shadow-soft px-6 py-4"
     >
-      <div className="flex items-center gap-0">
-        {STEPS.map(({ type, label }, i) => {
+      <div className="flex flex-wrap items-center gap-y-3">
+        {steps.map(({ type, label }, i) => {
           const state = resolveStepState(type, status)
 
           const prevState =
             i > 0
-              ? resolveStepState(STEPS[i - 1].type, status)
+              ? resolveStepState(steps[i - 1].type, status)
               : null
 
           const connectorDone = prevState === 'done'
@@ -253,6 +256,8 @@ export function PipelineStatus({ status }: Props) {
         })}
       </div>
 
+      {message && !status.startsWith('error:') && <p role="status" className="mt-2 text-xs text-ink-500">{message}</p>}
+
       <AnimatePresence>
         {status.startsWith('error:') && (
           <motion.p
@@ -261,13 +266,13 @@ export function PipelineStatus({ status }: Props) {
             exit={{ opacity: 0 }}
             className="text-xs text-rose-500 mt-2"
           >
-            {status === 'error:transcript' &&
-              'Erro ao transcrever áudio. Sorry :('}
+            {errorMessage || (status === 'error:transcript' &&
+              'Erro ao transcrever áudio. Tente novamente.')}
 
-            {status === 'error:document' &&
+            {!errorMessage && status === 'error:document' &&
               'Erro ao gerar documento. Tente reprocessar o arquivo.'}
 
-            {!['error:transcript', 'error:document'].includes(
+            {!errorMessage && !['error:transcript', 'error:document'].includes(
               status
             ) &&
               'Ocorreu um erro no processamento. Já estamos investigando.'}

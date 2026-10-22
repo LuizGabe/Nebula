@@ -68,3 +68,57 @@ class Database:
                 json.dumps(payload),
                 session_id,
             )
+
+    async def youtube_session(self, session_id: str, owner_id: str):
+        async with self._pool.acquire() as conn:
+            return await conn.fetchrow(
+                '''SELECT s.id, s.status, u.username,
+                          (EXISTS(SELECT 1 FROM documents d WHERE d."sessionId" = s.id)
+                           OR EXISTS(SELECT 1 FROM session_events e WHERE e."sessionId" = s.id
+                                     AND e.type = 'UPLOAD_TRANSCRIBED')) AS completed
+                   FROM recording_sessions s JOIN users u ON u.id = s."ownerId"
+                   WHERE s.id = $1 AND s."ownerId" = $2 AND NOT s."isDeleted"''',
+                session_id, owner_id,
+            )
+
+    async def register_youtube_audio(self, session_id: str, storage_key: str, duration_ms: int) -> None:
+        async with self._pool.acquire() as conn:
+            # Deterministic media id and key make a redelivered job reuse the same object.
+            await conn.execute(
+                '''INSERT INTO audio_chunks
+                     (id, "sessionId", "storageKey", source, status, "timestampStart", "timestampEnd")
+                   SELECT $1, id, $3, 'UPLOAD', 'PROCESSING', 0, $4
+                   FROM recording_sessions WHERE id = $2 AND NOT "isDeleted"
+                   ON CONFLICT (id) DO UPDATE SET status = 'PROCESSING', "timestampEnd" = EXCLUDED."timestampEnd"''',
+                f"youtube-{session_id}", session_id, storage_key, duration_ms,
+            )
+
+    async def set_youtube_title_if_empty(self, session_id: str, owner_id: str, title: str) -> None:
+        title = title.strip()[:120]
+        if not title:
+            return
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                '''UPDATE recording_sessions SET title = $3, "updatedAt" = CURRENT_TIMESTAMP
+                   WHERE id = $1 AND "ownerId" = $2 AND NOT "isDeleted"
+                     AND btrim(COALESCE(title, '')) = '' ''', session_id, owner_id, title,
+            )
+
+    async def youtube_audio_exists(self, session_id: str):
+        async with self._pool.acquire() as conn:
+            return await conn.fetchrow(
+                '''SELECT "storageKey", "timestampEnd" FROM audio_chunks
+                   WHERE id = $1 AND status IN ('PROCESSING', 'TRANSCRIBED')''',
+                f"youtube-{session_id}",
+            )
+
+    async def fail_youtube_session(self, session_id: str) -> None:
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    '''UPDATE recording_sessions SET status = 'ERROR', "updatedAt" = CURRENT_TIMESTAMP
+                       WHERE id = $1 AND NOT "isDeleted"''', session_id,
+                )
+                await conn.execute(
+                    "UPDATE audio_chunks SET status = 'FAILED' WHERE id = $1", f"youtube-{session_id}",
+                )

@@ -153,6 +153,9 @@ importers:
       react-router-dom:
         specifier: ^6.26.2
         version: 6.30.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      remark-gfm:
+        specifier: ^4
+        version: 4.0.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6

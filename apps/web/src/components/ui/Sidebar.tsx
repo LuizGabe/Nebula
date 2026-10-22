@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
+import nebulaIcon from '../../assets/nebula-icon.svg'
+import { NebulaWordmark } from './NebulaWordmark'
 import clsx from 'clsx'
 import { folders, sessions, type Folder as FolderItem, type Session } from '../../api/client'
 import { useAuthStore } from '../../store/auth'
@@ -395,10 +397,8 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   return (
     <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-ink-100">
       <div className="px-5 py-5 flex items-center gap-2.5 border-b border-ink-100">
-        <div className="w-8 h-8 rounded-xl bg-ink-900 flex items-center justify-center">
-          <Mic className="w-4 h-4 text-white" strokeWidth={2} />
-        </div>
-        <span className="font-display font-semibold text-ink-900 text-lg tracking-tight">nebula</span>
+        <img src={nebulaIcon} alt="" className="h-9 w-9 shrink-0 object-contain" />
+        <span className="flex h-9 items-center font-display font-semibold text-lg tracking-tight"><NebulaWordmark /></span>
       </div>
 
       <nav className="px-3 py-4 flex flex-col gap-0.5 border-b border-ink-100">

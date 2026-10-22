@@ -42,6 +42,7 @@ function formatSessionDate(value: string) {
 }
 
 function statusBadge(session: Session) {
+  if (session.status === 'ERROR') return <Badge variant="rose">Erro</Badge>
   if (session.status === 'IN_PROGRESS') return <Badge variant="amber">Transcrevendo</Badge>
   if (session.status === 'ACTIVE') return <Badge variant="rose">Ativa</Badge>
   return <Badge variant="jade">Pronta</Badge>

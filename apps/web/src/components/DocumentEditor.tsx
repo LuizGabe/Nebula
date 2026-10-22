@@ -53,6 +53,20 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   const [showVersions, setShowVersions] = useState(false)
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const requestRef = useRef(0)
+  const reprocessingRef = useRef(false)
+
+  useEffect(() => {
+    setReprocessing(false)
+    setActionError('')
+    return () => {
+      requestRef.current++
+      reprocessingRef.current = false
+      if (pollRef.current) clearTimeout(pollRef.current)
+    }
+  }, [sessionId])
 
   // Referência para o getter de markdown exposto pelo EditorInner
   const getMarkdownRef = useRef<() => string>(() => '')
@@ -111,20 +125,59 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   }
 
   const reprocess = async () => {
+    if (reprocessingRef.current) return
+    reprocessingRef.current = true
+    const requestId = ++requestRef.current
+    setActionError('')
     setReprocessing(true)
+    const finish = (error = '') => {
+      if (requestId !== requestRef.current) return
+      reprocessingRef.current = false
+      setReprocessing(false)
+      setActionError(error)
+    }
     try {
-      await documents.reprocess(sessionId)
+      const { jobId } = await documents.reprocess(sessionId)
+      if (requestId !== requestRef.current) return
       onReprocessed?.()
-      const poll = setInterval(async () => {
-        const v = await loadVersions()
-        if (v.length > versions.length) {
-          clearInterval(poll)
-          loadContent()
-          setReprocessing(false)
+      let failures = 0
+      const poll = async () => {
+        try {
+          const job = await documents.jobStatus(sessionId, jobId)
+          if (requestId !== requestRef.current) return
+          failures = 0
+          if (job.status === 'failed') {
+            finish(job.error || 'Nao foi possivel gerar o documento. Tente novamente.')
+            return
+          }
+          if (job.status === 'not_found') {
+            finish('Nao foi possivel localizar o processamento. Atualize a sessao para conferir o documento.')
+            return
+          }
+          if (job.status === 'completed') {
+            if (job.result?.skipped) {
+              finish('O documento nao foi gerado. Verifique se a sessao possui uma transcricao valida.')
+              return
+            }
+            await loadVersions()
+            if (requestId !== requestRef.current) return
+            await loadContent(job.result?.version)
+            finish()
+            return
+          }
+        } catch (error) {
+          if (requestId !== requestRef.current) return
+          if (++failures >= 3) {
+            finish(error instanceof Error ? error.message : 'Nao foi possivel acompanhar o processamento.')
+            return
+          }
         }
-      }, 3000)
-      setTimeout(() => { clearInterval(poll); setReprocessing(false) }, 120000)
-    } catch { setReprocessing(false) }
+        pollRef.current = setTimeout(() => void poll(), 3000)
+      }
+      await poll()
+    } catch (error) {
+      finish(error instanceof Error ? error.message : 'Nao foi possivel iniciar a geracao do documento.')
+    }
   }
 
   const downloadMd = () => {
@@ -152,6 +205,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
       <div className="bg-white rounded-2xl border border-ink-100 shadow-soft p-8 flex items-center justify-center">
         <Spinner className="w-6 h-6" />
       </div>
+
     )
   }
 
@@ -240,6 +294,9 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
           )}
         </div>
       </div>
+
+      {actionError && <p role="alert" className="px-6 pt-3 text-sm text-rose-500">{actionError}</p>}
+      {reprocessing && <p role="status" className="px-6 pt-3 text-xs text-ink-500">Gerando nova versao. Transcricoes longas podem levar alguns minutos.</p>}
 
       {/* Model badge */}
       {current?.modelUsed && (

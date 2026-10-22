@@ -10,7 +10,9 @@ import { prisma } from "@/lib/prisma.js";
 import { requireAuth } from "@/hooks/requireAuth";
 import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import { config, type UserConfig } from "@/config";
-import { postProcessQueue } from "@/jobs/queues";
+import { postProcessQueue, transcriptionJobsQueue } from "@/jobs/queues";
+import { createEventPublisher } from "@/events/publisher";
+import { normalizeYouTubeUrl } from "@/lib/youtubeUrl";
 import { BUCKET, s3Public } from "@/lib/storage";
 import { formatAudioTag } from "@/lib/audioTimestamps";
 import {
@@ -22,6 +24,7 @@ import {
 
 
 const createBody = z.object({
+  youtubeUrl: z.string().trim().max(2048).refine((value) => normalizeYouTubeUrl(value) !== null, 'URL do YouTube invalida').optional(),
   promptId: z.string().min(1),
   folderId: z.string().nullable().optional(),
   title: z.string().max(120).optional(),
@@ -66,6 +69,7 @@ const statusStreamParams = z.object({
 const sessions: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
   const subscriber = new Redis(config.REDIS_URL);
+  const events = createEventPublisher();
   const promptSelect = {
     id: true,
     name: true,
@@ -139,7 +143,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     }
 
     const session = await prisma.recordingSession.findFirst({
-      where: { id: params.data.id, ownerId },
+      where: { id: params.data.id, ownerId, isDeleted: false },
     });
     if (!session) return reply.status(404).send({ error: "Session not found" });
 
@@ -248,6 +252,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
     const session = await prisma.recordingSession.create({
       data: {
+        status: parsed.data.youtubeUrl ? "IN_PROGRESS" : "ACTIVE",
         title: parsed.data.title,
         promptId: prompt.id,
         folderId: folder?.id ?? null,
@@ -290,6 +295,32 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       },
     });
 
+    if (parsed.data.youtubeUrl) {
+      const youtubeUrl = normalizeYouTubeUrl(parsed.data.youtubeUrl)!;
+      // The authenticated owner determines the allowance; never trust a limit from the browser.
+      const maxDurationMinutes = session.owner.username === 'luizgabe' ? 300 : 30;
+      await events.emit(session.id, 'UPLOAD_RECEIVED', {
+        source: 'youtube', stage: 'queued', youtubeUrl, maxDurationMinutes,
+        message: 'Video do YouTube aguardando processamento',
+      });
+      try {
+        await transcriptionJobsQueue.add('ingest-youtube', {
+          sessionId: session.id, ownerId, youtubeUrl, maxDurationMinutes,
+          mode: parsed.data.transcriptionModeOverride ?? prompt.transcriptionMode ?? 'MEETING',
+          language: 'pt',
+        }, {
+          jobId: `youtube-${session.id}`, attempts: 1,
+          removeOnComplete: { count: 100 }, removeOnFail: { count: 50 },
+        });
+      } catch (error) {
+        request.log.error(error, 'Falha ao enfileirar video do YouTube');
+        await prisma.recordingSession.update({ where: { id: session.id }, data: { status: 'ERROR' } });
+        await events.emit(session.id, 'UPLOAD_FAILED', {
+          source: 'youtube', stage: 'queued', error: 'Nao foi possivel iniciar a importacao do YouTube. Tente criar a sessao novamente.',
+        });
+        return reply.status(503).send({ error: 'Nao foi possivel iniciar a importacao do YouTube', sessionId: session.id });
+      }
+    }
     return reply.status(201).send({ session });
   });
   // GET /sessions - lista sessoes do usuario
@@ -412,6 +443,13 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
       if (!session) return reply.status(404).send({ error: "Nao encontrada" });
       // Nao deve finalizar sessao se nao tiver chunks transcritos
+      const transcript = await prisma.transcript.findFirst({
+        where: { sessionId: session.id, text: { not: "" } },
+        select: { id: true },
+      });
+      if (!transcript) {
+        return reply.status(409).send({ error: "Nenhuma fala foi transcrita. O audio foi salvo, mas a sessao nao pode ser concluida sem texto." });
+      }
 
       const updated = await prisma.recordingSession.update({
         where: { id: session.id },

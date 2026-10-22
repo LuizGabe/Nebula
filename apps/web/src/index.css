@@ -36,6 +36,24 @@
   }
 
   @layer components {
+    .nebula-wordmark {
+      display: inline-flex;
+      align-items: baseline;
+      color: #67449c;
+      line-height: 1;
+      vertical-align: middle;
+      transform: translateY(0.12em);
+    }
+
+    .nebula-initial {
+      font-family: 'League Script', cursive;
+      font-size: 1.65em;
+      font-weight: 400;
+      line-height: 0.8;
+      letter-spacing: 0;
+      -webkit-text-stroke: 0.025em currentColor;
+    }
+
     .tiptap {
       @apply outline-none min-h-[200px];
     }
@@ -145,3 +163,37 @@
       animation: slideInRight 0.25s ease-out forwards;
     }
   }
+
+/* Scoped Markdown presentation: standard GFM structure, independent of the editor. */
+@layer components {
+  .nebula-markdown { overflow-wrap: anywhere; }
+  .nebula-markdown p { @apply mb-3; }
+  .nebula-markdown h1 { @apply mb-4 mt-6 font-display text-2xl font-semibold text-ink-900; }
+  .nebula-markdown h2 { @apply mb-3 mt-5 font-display text-xl font-semibold text-ink-900; }
+  .nebula-markdown h3 { @apply mb-2 mt-4 text-lg font-semibold text-ink-800; }
+  .nebula-markdown h4, .nebula-markdown h5, .nebula-markdown h6 { @apply mb-2 mt-3 font-semibold text-ink-800; }
+  .nebula-markdown ul { @apply mb-3 list-disc pl-5; }
+  .nebula-markdown ol { @apply mb-3 list-decimal pl-5; }
+  .nebula-markdown li { @apply my-1; }
+  .nebula-markdown li > ul, .nebula-markdown li > ol { @apply mb-0; }
+  .nebula-markdown .contains-task-list { @apply list-none; }
+  .nebula-markdown input[type='checkbox'] { @apply mr-2 accent-jade-500; }
+  .nebula-markdown strong { @apply font-semibold text-ink-900; }
+  .nebula-markdown em { @apply italic; }
+  .nebula-markdown a { @apply text-jade-700 underline underline-offset-2; }
+  .nebula-markdown blockquote { @apply my-4 border-l-2 border-jade-400 pl-4 italic text-ink-600; }
+  .nebula-markdown code { @apply rounded bg-ink-100 px-1.5 py-0.5 font-mono text-xs text-rose-500; }
+  .nebula-markdown pre { @apply my-4 overflow-x-auto rounded-lg bg-ink-100 p-4; overflow-wrap: normal; }
+  .nebula-markdown pre code { @apply bg-transparent p-0 text-ink-800; }
+  .nebula-markdown hr { @apply my-6 border-ink-200; }
+  .nebula-markdown img { @apply my-3 max-w-full rounded-lg; }
+  .nebula-markdown .markdown-table-scroll { @apply my-4 max-w-full overflow-x-auto rounded-lg border border-ink-200; }
+  .nebula-markdown table { @apply w-full border-collapse; }
+  .nebula-markdown th, .nebula-markdown td { @apply border-b border-r border-ink-200 px-4 py-2; min-width: 7rem; }
+  .nebula-markdown th { @apply bg-ink-50 font-semibold text-ink-900; }
+  .nebula-markdown tbody tr:nth-child(even) { @apply bg-ink-50; }
+  .nebula-markdown tr > :last-child { border-right: 0; }
+  .nebula-markdown tbody tr:last-child td { border-bottom: 0; }
+  .nebula-markdown > :first-child { margin-top: 0; }
+  .nebula-markdown > :last-child { margin-bottom: 0; }
+}

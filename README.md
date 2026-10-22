@@ -10,6 +10,7 @@ O fluxo principal e simples: o usuario cria uma sessao, escolhe um prompt cadast
 - Redirecionamento automatico de `/login` para o dashboard quando o usuario ja esta logado.
 - Dashboard de sessoes com criacao por prompt dinamico.
 - Gravacao pelo navegador e upload de arquivos de audio.
+- Importacao de audio de videos do YouTube, com transcricao e documento automaticos.
 - Upload seguro para MinIO usando presigned URLs.
 - Processamento assincrono com Redis e BullMQ.
 - Transcricao por workers Python.
@@ -125,6 +126,27 @@ Tambem e possivel rodar Node localmente:
 pnpm install
 pnpm dev
 ```
+
+## Videos do YouTube
+
+No modal **Nova sessao**, escolha **YouTube**, cole o link do video e selecione o prompt.
+Sao aceitos links `youtube.com/watch?v=...`, `youtu.be/...` e `youtube.com/shorts/...`.
+O worker verifica a duracao antes do download: ate 30 minutos por usuario ou 300 minutos para `luizgabe`.
+Lives, playlists sem video selecionado e videos privados/protegidos nao sao importados.
+
+O `groq_worker` usa `yt-dlp[default]`, FFmpeg e Node 22 para extracao do audio.
+Se o titulo da sessao estiver vazio, o titulo do video e aplicado automaticamente; titulos personalizados sao preservados.
+Downloads transitorios recebem ate tres tentativas; erros e progresso aparecem via SSE.
+O audio fica em `sessions/<id>/youtube/audio.mp3` no MinIO. Esse caminho nao dispara uma segunda
+transcricao pelo webhook: o job de ingestao chama o mesmo processamento batch de uploads.
+Videos longos sao divididos em requisicoes de ate dez minutos ao Groq, preservando timestamps
+na linha do tempo original. A geracao do documento continua usando a fila `post-processing` e
+esta sujeita aos limites do modelo de IA configurado.
+Transcricoes longas sao sintetizadas em etapas antes da geracao final, com referencias ao audio.
+O reprocessamento acompanha o job solicitado ate concluir ou falhar, preservando as versoes anteriores do documento.
+
+A API adiciona o estado `ERROR` ao enum de sessoes na inicializacao com SQL conservador.
+Configuracoes antigas de modelos Compound continuam aceitas e usam GPT-OSS 20B/120B no Groq.
 
 ## Banco de Dados
 

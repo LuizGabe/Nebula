@@ -25,10 +25,10 @@ export function AppLayout() {
         <NewSessionModal
           initialFolderId={newSessionFolderId}
           onClose={() => setNewSessionFolderId(undefined)}
-          onCreate={(session) => {
+          onCreate={(session, source) => {
             setNewSessionFolderId(undefined)
             window.dispatchEvent(new Event('nebula:sessions-changed'))
-            navigate(`/sessions/${session.id}`)
+            navigate(`/sessions/${session.id}?source=${source}`)
           }}
         />
       )}

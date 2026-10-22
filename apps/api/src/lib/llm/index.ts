@@ -3,11 +3,13 @@ import { LLMAdapter } from "./types.js";
 import { GroqAdapter } from "./adapters/groq.js";
 import { OllamaAdapter } from "./adapters/ollama.js";
 
-export const DEFAULT_MODEL = "groq/compound-mini";
+export const DEFAULT_MODEL = "groq/openai/gpt-oss-20b";
 
 export const AVAILABLE_MODELS = [
-  { id: "groq/compound-mini", label: "Groq Compound Mini", provider: "groq" },
-  { id: "groq/compound", label: "Groq Compound", provider: "groq" },
+  { id: "groq/openai/gpt-oss-20b", label: "Groq GPT-OSS 20B", provider: "groq" },
+  { id: "groq/openai/gpt-oss-120b", label: "Groq GPT-OSS 120B", provider: "groq" },
+  { id: "groq/compound-mini", label: "Groq GPT-OSS 20B (perfil anterior)", provider: "groq" },
+  { id: "groq/compound", label: "Groq GPT-OSS 120B (perfil anterior)", provider: "groq" },
   { id: "ollama/qwen3.8b", label: "Qwen 3.8B (local)", provider: "ollama" },
   { id: "ollama/qwen3.4b", label: "Qwen 3.4B (local)", provider: "ollama" },
 ] as const;

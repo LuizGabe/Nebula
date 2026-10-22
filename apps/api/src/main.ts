@@ -9,6 +9,7 @@ import { config } from "@/config";
 import { ensureBucketExists } from "@/lib/storage";
 import { getReadinessStatus } from "@/lib/system/status";
 import { ensureDefaultDocumentTemplates } from "@/lib/prompts";
+import { ensureSessionStatusSchema } from "@/lib/sessionSchema";
 
 import { startWorkers } from "@/workers";
 
@@ -78,6 +79,7 @@ await app.register(wsRoutes);
 await app.register(transcriptionStreamRoutes);
 
 try {
+  await ensureSessionStatusSchema();
   await ensureDefaultDocumentTemplates();
   await ensureBucketExists();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });

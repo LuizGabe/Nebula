@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import json
 import logging
-import time
+import uuid
 
-import redis.asyncio as aioredis
+from bullmq import Queue
 
 from events.enums import EventType
 
 log = logging.getLogger("infra.bullmq_client")
-_BULL_PREFIX = "bull"
 
 
 class BullMQClient:
@@ -17,45 +15,28 @@ class BullMQClient:
         self._redis_url = redis_url
         self._queue_name = queue_name
         self._event_service = event_service
-        self._redis: aioredis.Redis | None = None
+        self._queue: Queue | None = None
 
     async def connect(self) -> None:
-        self._redis = aioredis.from_url(self._redis_url, encoding="utf-8", decode_responses=True)
+        self._queue = Queue(self._queue_name, {"connection": self._redis_url})
 
     async def disconnect(self) -> None:
-        if self._redis:
-            await self._redis.aclose()
+        if self._queue:
+            await self._queue.close()
 
     async def enqueue_post_processing(
         self,
         session_id: str,
         triggered_by: str = "batch_transcription_done",
     ) -> str:
-        if not self._redis:
+        if not self._queue:
             raise RuntimeError("BullMQClient nao conectado")
 
-        job_id = f"{session_id}-{int(time.time() * 1000)}"
-        job_key = f"{_BULL_PREFIX}:{self._queue_name}:{job_id}"
-        wait_key = f"{_BULL_PREFIX}:{self._queue_name}:wait"
-
-        job_data = {
-            "id": job_id,
-            "name": "post-process",
-            "data": json.dumps({"sessionId": session_id, "triggeredBy": triggered_by}),
-            "opts": json.dumps({"attempts": 3, "backoff": {"type": "exponential", "delay": 5000}}),
-            "timestamp": int(time.time() * 1000),
-            "processedOn": "",
-            "finishedOn": "",
-            "returnvalue": "",
-            "failedReason": "",
-            "attemptsMade": "0",
-            "stacktrace": "[]",
-        }
-
-        pipe = self._redis.pipeline()
-        pipe.hset(job_key, mapping=job_data)
-        pipe.rpush(wait_key, job_id)
-        await pipe.execute()
+        job_id = f"session-{session_id}" if triggered_by == "batch_transcription_done" else f"{session_id}-{uuid.uuid4()}"
+        await self._queue.add("post-process", {"sessionId": session_id, "triggeredBy": triggered_by}, {
+            "jobId": job_id, "attempts": 3, "backoff": {"type": "exponential", "delay": 5000},
+            "removeOnComplete": {"count": 100}, "removeOnFail": {"count": 50},
+        })
         await self._event_service.emit(
             session_id,
             EventType.DOCUMENT_QUEUED,

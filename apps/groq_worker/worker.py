@@ -6,6 +6,7 @@ import signal
 import sys
 
 from batch.handler import BatchHandler
+from batch.youtube import YouTubeHandler
 from core.config import load_config
 from core.logging import setup_logging
 from events.service import EventService
@@ -64,6 +65,7 @@ async def main() -> None:
         redis_url=config.redis_url,
         queue_name=config.queue_transcription_jobs,
         batch_handler=batch_handler,
+        youtube_handler=YouTubeHandler(db, minio, event_service, batch_handler),
     )
     await bullmq_consumer.start(concurrency=config.batch_concurrency)
 

@@ -1,4 +1,9 @@
+FROM node:22-slim AS youtube-js
+
 FROM python:3.11-slim AS base
+
+# Current yt-dlp uses EJS to extract YouTube formats. The runtime is only used by yt-dlp.
+COPY --from=youtube-js /usr/local/bin/node /usr/local/bin/node
 
 WORKDIR /app
 
