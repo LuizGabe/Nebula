@@ -3,7 +3,7 @@
   @tailwind utilities;
 
 :where(button, a, input, select, textarea, audio):focus-visible {
-  outline: 2px solid #23846a;
+  outline: 2px solid #007aff;
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -13,6 +13,126 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+/* Materials shared by the application canvas, recording stage and floating UI. */
+@layer components {
+  .nebula-shell {
+    background: radial-gradient(ellipse at 85% 0%, rgba(210, 221, 241, .28), transparent 48%), #f6f6f8;
+    font-variant-numeric: tabular-nums;
+    isolation: isolate;
+  }
+
+  .nebula-sidebar {
+    background: rgba(241, 242, 246, .78);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    box-shadow: 1px 0 0 rgba(32, 33, 38, .04);
+  }
+
+  .nebula-surface.bg-white,
+  .nebula-login .nebula-surface,
+  .nebula-recorder {
+    background: rgba(255, 255, 255, .76);
+    border-color: rgba(255, 255, 255, .9);
+    box-shadow: 0 8px 32px rgba(30, 35, 55, .035), 0 1px 3px rgba(30, 35, 55, .04), inset 0 1px 0 rgba(255, 255, 255, .95);
+  }
+
+  .nebula-recorder {
+    background: radial-gradient(ellipse at 50% 45%, rgba(224, 235, 253, .35), transparent 65%), rgba(255, 255, 255, .8);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+  }
+
+  .nebula-recording-stage { padding-block: 8px; }
+  .nebula-recording-stage > label { max-width: 360px; width: 100%; margin-inline: auto; }
+  .nebula-recording-stage > label select { border-radius: 12px; background: rgba(246, 246, 248, .8); }
+  .nebula-recording-stage .relative.bg-rose-500 { box-shadow: 0 0 14px rgba(255, 59, 48, .4); }
+  .nebula-live-wave { filter: drop-shadow(0 6px 12px rgba(0, 122, 255, .14)); }
+
+  .nebula-button { min-height: 36px; }
+  .nebula-button:focus-visible { outline: 2px solid #007aff; outline-offset: 3px; }
+  .nebula-button.nebula-record-pill {
+    min-height: 52px;
+    padding-inline: 28px;
+    border-radius: 999px;
+    box-shadow: 0 6px 20px rgba(255, 59, 48, .18), inset 0 1px 0 rgba(255, 255, 255, .2);
+  }
+  .nebula-record-pill:disabled { box-shadow: none; }
+  .nebula-record-pill:not(:disabled):hover { background: #ed352b; transform: translateY(-1px); }
+
+  .nebula-player {
+    padding: 16px 20px;
+    border: 1px solid rgba(255, 255, 255, .85);
+    border-radius: 24px;
+    background: rgba(246, 248, 252, .84);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    box-shadow: 0 12px 36px rgba(28, 35, 55, .1), inset 0 1px 0 rgba(255, 255, 255, .9);
+  }
+  .nebula-player audio { margin-top: 8px; }
+  .nebula-modal { box-shadow: 0 32px 96px rgba(15, 15, 18, .22), 0 8px 24px rgba(15, 15, 18, .08); }
+
+  .nebula-transcript article { border-left: 2px solid var(--speaker-color, #c5c9d4); border-radius: 0 10px 10px 0; padding: 6px 10px; }
+  .nebula-transcript article[data-active='true'] { background: rgba(0, 122, 255, .055); border-left-color: #007aff; }
+  .nebula-transcript [data-current='true'] { background: #dcecff; color: #154e8c; }
+
+  .nebula-page { width: 100%; animation: fadeIn .25s ease-out; }
+  .nebula-page-header h1 { font-size: clamp(1.55rem, 2.5vw, 2rem); line-height: 1.2; letter-spacing: -.035em; overflow-wrap: anywhere; }
+  .nebula-page-header p { line-height: 1.6; }
+  .nebula-login { background: radial-gradient(ellipse at 50% 25%, #e8edf8 0%, transparent 60%), #f6f6f8; }
+  .nebula-login .nebula-surface { backdrop-filter: blur(24px) saturate(150%); }
+  .nebula-surface { border-radius: 24px; min-width: 0; }
+  .nebula-surface button.group:hover { transform: translateY(-1px); }
+  button.nebula-surface:hover { box-shadow: 0 12px 32px rgba(30, 35, 55, .075), 0 1px 4px rgba(30, 35, 55, .04); }
+  .nebula-icon-button { display: inline-flex; min-width: 32px; min-height: 32px; align-items: center; justify-content: center; border-radius: 10px; transition: background .15s ease, color .15s ease; }
+  .nebula-icon-button:hover { background: rgba(115, 117, 128, .08); }
+  .nebula-drawer { box-shadow: -16px 0 64px rgba(15, 15, 18, .12); padding-bottom: env(safe-area-inset-bottom); }
+  .nebula-audio-dock { padding-bottom: max(12px, env(safe-area-inset-bottom)); pointer-events: none; }
+  .nebula-audio-dock > div { pointer-events: auto; border: 1px solid rgba(255, 255, 255, .9); border-radius: 28px; padding: 10px 16px; background: rgba(246, 248, 252, .9); backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); box-shadow: 0 12px 48px rgba(28, 35, 55, .14), 0 2px 6px rgba(28, 35, 55, .05); }
+  .nebula-audio-dock .nebula-player { padding: 0; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
+  .nebula-audio-dock .nebula-player audio { margin-top: 4px; }
+  .nebula-transcript-scroll { scrollbar-gutter: stable; overflow-anchor: none; }
+  .nebula-transcript-meta { margin-bottom: 3px; }
+  .nebula-transcript-tools input { flex-basis: 180px; min-height: 36px; }
+  .nebula-transcript-tools select { min-height: 36px; padding-inline: 8px; }
+  .nebula-switch-track { display: inline-flex; width: 32px; height: 20px; padding: 2px; border-radius: 999px; background: #c6c8d0; transition: background .2s ease; }
+  .nebula-switch-track > span { width: 16px; height: 16px; border-radius: 999px; background: white; box-shadow: 0 1px 3px rgba(15, 15, 18, .18); transition: transform .2s ease; }
+  .nebula-follow-switch[aria-checked='true'] .nebula-switch-track { background: #007aff; }
+  .nebula-follow-switch[aria-checked='true'] .nebula-switch-track > span { transform: translateX(12px); }
+  .nebula-follow-switch:hover { background: rgba(115, 117, 128, .06); }
+  .nebula-sidebar nav [aria-current='page'] { background: rgba(255, 255, 255, .9); color: #202126; box-shadow: 0 1px 4px rgba(30, 35, 55, .08); }
+  .nebula-sidebar nav [aria-current='page'] svg { color: #007aff; }
+  .nebula-sidebar :where(button, a):focus-visible { opacity: 1; }
+  .nebula-page :where(input, textarea, select) { accent-color: #007aff; }
+
+  @media (min-width: 640px) {
+    .nebula-transcript article { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 12px; padding-block: 7px; }
+    .nebula-transcript-meta { align-content: start; align-items: center; margin-bottom: 0; }
+  }
+  @media (min-width: 768px) {
+    .nebula-audio-dock { left: 256px; }
+  }
+
+  @supports (corner-shape: squircle) {
+    .nebula-recorder, .nebula-modal, .nebula-player, .nebula-button { corner-shape: squircle; }
+    .nebula-record-pill { corner-shape: round; }
+  }
+
+  @media (max-width: 767px) {
+    .nebula-shell { flex-direction: column; }
+    .nebula-sidebar { width: 100%; height: auto; position: relative; border-bottom: 1px solid #dcdee5; }
+    .nebula-sidebar > .flex-1 { max-height: 200px; }
+    .nebula-sidebar[data-mobile-open='false'] > :is(nav, .flex-1, .border-t) { display: none; }
+    .nebula-sidebar > div:first-child { padding-block: 12px; }
+    .nebula-shell main > .p-8 { padding: 24px 16px; }
+    .nebula-player { padding: 12px; }
+    .nebula-audio-dock > div { padding: 10px 12px; }
+    .nebula-drawer { border-radius: 24px 0 0 24px; }
+  }
+  @media (hover: none) {
+    .nebula-sidebar .opacity-0 { opacity: 1; }
+  }
+}
 }
 
   @layer base {

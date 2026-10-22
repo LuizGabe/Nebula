@@ -18,10 +18,10 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-ink-50">
+    <div className="nebula-shell flex min-h-screen bg-ink-50">
       <Sidebar onNewSession={openNewSession} />
       <RecordingRecovery />
-      <main className="flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto">
         <ActiveRecordingNotice />
         <Outlet context={{ openNewSession } satisfies AppLayoutContext} />
       </main>

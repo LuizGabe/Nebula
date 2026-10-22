@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { forwardRef } from 'react'
+import { forwardRef, useId } from 'react'
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 interface BadgeProps {
@@ -37,11 +37,18 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className, ...props }, ref) => (
+  ({ label, error, className, id, ...props }, ref) => {
+    const generatedId = useId()
+    const inputId = id ?? generatedId
+    const errorId = `${inputId}-error`
+    return (
     <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-ink-700">{label}</label>}
+      {label && <label htmlFor={inputId} className="text-sm font-medium text-ink-700">{label}</label>}
       <input
         ref={ref}
+        id={inputId}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
         className={clsx(
           'w-full px-3.5 py-2.5 rounded-xl border text-sm bg-white text-ink-900 outline-none transition-all',
           'placeholder:text-ink-400',
@@ -52,9 +59,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
         {...props}
       />
-      {error && <p className="text-xs text-rose-500">{error}</p>}
+      {error && <p id={errorId} role="alert" className="text-xs text-rose-500">{error}</p>}
     </div>
   )
+  }
 )
 Input.displayName = 'Input'
 

@@ -14,7 +14,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={clsx(
-          'inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-all duration-150 select-none',
+          'nebula-button inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-all duration-200 select-none',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           {
             // variants

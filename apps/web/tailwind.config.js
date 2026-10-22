@@ -4,23 +4,23 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"DM Sans"', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
         mono: ['"DM Mono"', 'monospace'],
-        display: ['"Fraunces"', 'serif'],
+        display: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
       },
       colors: {
         ink: {
-          950: '#0d0c0b',
-          900: '#1a1917',
-          800: '#2c2a26',
-          700: '#3d3a35',
-          600: '#5a5650',
-          500: '#7a756e',
-          400: '#9e9890',
-          300: '#c4bdb4',
-          200: '#ddd8d0',
-          100: '#eeebe6',
-          50:  '#f7f5f2',
+          950: '#0f0f12',
+          900: '#202126',
+          800: '#303138',
+          700: '#43444c',
+          600: '#61636e',
+          500: '#737580',
+          400: '#777985',
+          300: '#bfc1ca',
+          200: '#dcdee5',
+          100: '#eceef3',
+          50:  '#f6f6f8',
         },
         jade: {
           900: '#0a2e20',
@@ -42,16 +42,16 @@ export default {
         },
         rose: {
           700: '#8b1a2e',
-          500: '#d4294a',
-          400: '#e84e6a',
+          500: '#ff3b30',
+          400: '#ff6961',
           100: '#fcd6de',
           50:  '#fef0f3',
         },
       },
       borderRadius: {
         'xl': '12px',
-        '2xl': '16px',
-        '3xl': '24px',
+        '2xl': '24px',
+        '3xl': '32px',
       },
       boxShadow: {
         'soft': '0 2px 8px rgba(13,12,11,0.06), 0 1px 2px rgba(13,12,11,0.04)',

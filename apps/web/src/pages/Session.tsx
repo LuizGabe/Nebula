@@ -11,6 +11,7 @@ import { TranscriptViewer } from '../components/TranscriptViewer'
 import { DocumentEditor } from '../components/DocumentEditor'
 import { QADrawer } from '../components/QADrawer'
 import { Button } from '../components/ui/Button'
+import { useDialogFocus } from '../hooks/useDialogFocus'
 import { Badge } from '../components/ui/misc'
 import { SessionSkeleton } from '../components/ui/Skeleton'
 import { format } from 'date-fns'
@@ -29,6 +30,7 @@ export function SessionPage() {
   const [ended, setEnded] = useState(false)
   const [showQA, setShowQA] = useState(false)
   const [showPromptModal, setShowPromptModal] = useState(false)
+  const promptDialogRef = useDialogFocus(() => setShowPromptModal(false), showPromptModal)
   const [reprocessTrigger, setReprocessTrigger] = useState(0)
   const [promptList, setPromptList] = useState<Prompt[]>([])
   const [folderList, setFolderList] = useState<FolderItem[]>([])
@@ -197,7 +199,7 @@ export function SessionPage() {
   const promptName = session.prompt?.name ?? 'Documento'
 
   return (
-    <div className="max-w-7xl mx-auto px-6 pb-28 pt-8">
+    <div className="nebula-page nebula-session max-w-7xl mx-auto px-4 pb-44 pt-8 sm:px-8 sm:pt-10">
       <Link
         to="/"
         className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900 mb-6 transition-colors"
@@ -206,9 +208,9 @@ export function SessionPage() {
         Sessoes
       </Link>
 
-      <div className="flex items-start justify-between gap-4 mb-6">
+      <div className="nebula-page-header flex flex-wrap items-start justify-between gap-3 mb-8">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <Badge variant="ink">
               <FileText className="w-3 h-3" />
               {promptName}
@@ -261,8 +263,9 @@ export function SessionPage() {
                 {session.title || `${promptName} sem titulo`}
               </h1>
               <button
+                aria-label="Renomear sessão"
                 onClick={() => { setRenameValue(session.title ?? ''); setRenaming(true) }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-ink-400 hover:text-ink-700 p-1 rounded-lg"
+                className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-ink-400 hover:text-ink-700 p-1 rounded-lg"
               >
                 <Pencil className="w-4 h-4" />
               </button>
@@ -275,7 +278,7 @@ export function SessionPage() {
               : '-'
             }
           </p>
-          <p className="text-sm text-ink-400 mt-1">Id: {session.id}</p>
+          <details className="mt-2 text-xs text-ink-400"><summary className="cursor-pointer hover:text-ink-700">Detalhes da sessão</summary><p className="mt-1 break-all select-all">ID: {session.id}</p></details>
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-400">
             <Folder className="w-3.5 h-3.5" />
@@ -305,12 +308,12 @@ export function SessionPage() {
             Perguntar
           </Button>
         )}
-        <Button variant="ghost" onClick={handleDelete} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50">
+        <Button variant="ghost" aria-label="Excluir sessão" onClick={handleDelete} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50">
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 items-center">
+      <div className="flex flex-col gap-5 items-center">
         {isEnded && <div className="w-full max-w-4xl"><RecordingMilestones sessionId={session.id} media={audioMedia} complete={session.status === 'ENDED' || status === 'done' || status.endsWith(':document')} /></div>}
         {!isEnded && (
           <div className="fade-in w-full max-w-4xl">
@@ -370,13 +373,13 @@ export function SessionPage() {
       </div>
 
       {playerAudio && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-100 bg-white/95 px-6 py-3 shadow-float backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center gap-4">
+        <div className="nebula-audio-dock fixed inset-x-0 bottom-0 z-40 px-3 py-3 sm:px-6">
+          <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium text-ink-500">
-                Player da sessao
-                {playerAudio.source === 'STREAM' && playerAudio.chunkIndex != null ? ` - chunk ${playerAudio.chunkIndex}` : ''}
-                {playerAudio.source === 'UPLOAD' ? ' - audio completo' : ''}
+                Áudio da sessão
+                {playerAudio.source === 'STREAM' && playerAudio.chunkIndex != null ? ` · Parte ${playerAudio.chunkIndex + 1}` : ''}
+                {playerAudio.source === 'UPLOAD' ? ' · Áudio completo' : ''}
               </p>
               {audioError && <p className="text-xs text-rose-500">{audioError}</p>}
             </div>
@@ -401,10 +404,10 @@ export function SessionPage() {
 
       {showPromptModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/30 px-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/30 px-4 backdrop-blur-md"
           onClick={(event) => event.target === event.currentTarget && setShowPromptModal(false)}
         >
-          <div className="w-full max-w-md rounded-2xl border border-ink-100 bg-white p-5 shadow-float">
+          <div ref={promptDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Editar template" className="nebula-modal w-full max-w-md rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-float backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="font-display text-lg font-semibold text-ink-900">Editar template</h2>

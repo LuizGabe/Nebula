@@ -208,9 +208,9 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-ink-100 shadow-soft">
+    <div className="nebula-surface bg-white rounded-2xl border border-ink-100 shadow-soft">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-ink-100">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-ink-100">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-ink-500" />
           <h3 className="font-medium text-ink-800 text-sm">Documento</h3>
@@ -219,7 +219,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {/* Version selector */}
           {versions.length > 1 && (
             <div className="relative">
@@ -252,15 +252,15 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
             </div>
           )}
 
-          <Button size="sm" variant="ghost" onClick={copyMd} title="Copiar Markdown">
+          <Button size="sm" variant="ghost" onClick={copyMd} disabled={!current} aria-label="Copiar documento" title="Copiar Markdown">
             {copied ? <Check className="w-3.5 h-3.5 text-jade-500" /> : <Copy className="w-3.5 h-3.5" />}
           </Button>
 
-          <Button size="sm" variant="ghost" onClick={downloadMd} title="Baixar .md">
+          <Button size="sm" variant="ghost" onClick={downloadMd} disabled={!current} aria-label="Baixar documento em Markdown" title="Baixar .md">
             <Download className="w-3.5 h-3.5" />
           </Button>
 
-          <Button size="sm" variant="ghost" onClick={reprocess} disabled={reprocessing} title="Reprocessar">
+          <Button size="sm" variant="ghost" onClick={reprocess} disabled={reprocessing} aria-label="Gerar nova versão do documento" title="Gerar nova versão">
             <RefreshCw className={`w-3.5 h-3.5 ${reprocessing ? 'animate-spin' : ''}`} />
           </Button>
 
@@ -306,7 +306,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
       )}
 
       {/* Editor */}
-      <div className="px-6 py-4">
+      <div className="px-4 py-5 sm:px-6">
         {versions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-ink-50 flex items-center justify-center">
@@ -327,7 +327,7 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
               />
             </MilkdownProvider>
           ) : (
-            <div className="min-h-96 rounded-xl border border-ink-100 bg-white px-2 py-1">
+            <div className="min-h-64 py-1 sm:px-1">
               <AudioLinkedText content={current?.content ?? ''} onSeekTo={onSeekTo} />
             </div>
           )

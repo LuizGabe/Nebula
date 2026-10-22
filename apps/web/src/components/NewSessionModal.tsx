@@ -16,6 +16,8 @@ import {
 import { Button } from './ui/Button'
 import { youtubeUrlSchema, normalizeYouTubeUrl } from '../utils/youtubeUrl'
 import { useAuthStore } from '../store/auth'
+import { useDialogFocus } from '../hooks/useDialogFocus'
+import { Toggle } from './ui/Toggle'
 
 type FolderNode = FolderItem & { children: FolderNode[] }
 
@@ -46,6 +48,7 @@ function Segmented<T extends string>({
         <button
           key={option.value}
           type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={clsx(
             'rounded-lg px-2 py-1.5 text-xs font-medium transition-all',
@@ -61,10 +64,7 @@ function Segmented<T extends string>({
 
 function CheckboxRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (value: boolean) => void }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-ink-700">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300" />
-      {label}
-    </label>
+    <Toggle checked={checked} onChange={onChange} label={label} />
   )
 }
 
@@ -151,6 +151,7 @@ export function NewSessionModal({
   onClose: () => void
   onCreate: (session: Session, source: SessionInputSource) => void
 }) {
+  const dialogRef = useDialogFocus(onClose)
   const [promptList, setPromptList] = useState<Prompt[]>([])
   const [folderList, setFolderList] = useState<FolderItem[]>([])
   const [promptId, setPromptId] = useState('')
@@ -254,10 +255,10 @@ export function NewSessionModal({
 
   return (
     <div
-      className="fixed inset-0 bg-ink-900/30 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+      className="fixed inset-0 bg-ink-950/30 backdrop-blur-md flex items-center justify-center z-50 px-4"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-float border border-ink-100 p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto fade-in">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Nova sessão" className="nebula-modal bg-white/90 backdrop-blur-xl rounded-[32px] shadow-float border border-white/80 p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto fade-in">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
             <h2 className="font-display font-semibold text-xl text-ink-900">Nova sessao</h2>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, AlertTriangle, BrainCircuit, CheckCircle2, Clock, Database, GitBranch, HardDrive, Network, RefreshCw, Server, Workflow, XCircle, Zap } from 'lucide-react'
+import { Button } from '../components/ui/Button'
 import { system, type QueueHealth, type ServiceHealth, type ServiceHealthStatus, type SystemStatus } from '../api/client'
 
 const statusCopy: Record<ServiceHealthStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
@@ -36,8 +37,8 @@ function statusTone(status: ServiceHealthStatus | 'external') {
   if (status === 'healthy') return { fill: '#edfaf4', stroke: '#22b584', text: '#0f5c3a', line: '#22b584' }
   if (status === 'degraded') return { fill: '#fff6e6', stroke: '#f08c1a', text: '#7a4200', line: '#f08c1a' }
   if (status === 'down') return { fill: '#fef0f3', stroke: '#e84e6a', text: '#8b1a2e', line: '#e84e6a' }
-  if (status === 'inactive') return { fill: '#f7f5f2', stroke: '#c4bdb4', text: '#5a5650', line: '#9e9890' }
-  return { fill: '#ffffff', stroke: '#ddd8d0', text: '#2c2a26', line: '#c4bdb4' }
+  if (status === 'inactive') return { fill: '#f6f6f8', stroke: '#bfc1ca', text: '#61636e', line: '#777985' }
+  return { fill: '#ffffff', stroke: '#dcdee5', text: '#303138', line: '#bfc1ca' }
 }
 
 function formatTime(value: string) {
@@ -67,7 +68,7 @@ function StatusPill({ status }: { status: ServiceHealthStatus }) {
 
 function ServiceCard({ service }: { service: ServiceHealth }) {
   return (
-    <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+    <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -130,7 +131,7 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
 
   return (
-    <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+    <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-ink-400" />
@@ -143,7 +144,7 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
         <svg className="h-[360px] min-w-[760px] w-full" viewBox="0 0 820 380" role="img" aria-label="Diagrama animado dos servicos conectados">
           <defs>
             <filter id="diagramShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0d0c0b" floodOpacity="0.09" />
+              <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0f0f12" floodOpacity="0.09" />
             </filter>
           </defs>
 
@@ -159,7 +160,7 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
                 <path
                   d={`M ${from.x + 58} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 58} ${to.y}`}
                   fill="none"
-                  stroke="#ddd8d0"
+                  stroke="#dcdee5"
                   strokeWidth="2"
                 />
                 <path
@@ -197,7 +198,7 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
                 <foreignObject x={node.x - 12} y={node.y - 12} width="24" height="24">
                   <Icon className="h-6 w-6" style={{ color: tone.text }} />
                 </foreignObject>
-                <rect x={node.x - 58} y={node.y + 43} width="116" height="38" rx="10" fill="white" stroke="#eeebe6" />
+                <rect x={node.x - 58} y={node.y + 43} width="116" height="38" rx="10" fill="white" stroke="#eceef3" />
                 <text x={node.x} y={node.y + 60} textAnchor="middle" className="fill-ink-900 text-[12px] font-semibold">
                   {node.label}
                 </text>
@@ -219,7 +220,7 @@ function SkeletonBlock({ className }: { className: string }) {
 
 function ServiceCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+    <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -248,8 +249,8 @@ function ServiceCardSkeleton() {
 
 function StatusPageSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="nebula-page mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-8 sm:py-10">
+      <header className="nebula-page-header flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <SkeletonBlock className="h-5 w-5 rounded" />
@@ -263,7 +264,7 @@ function StatusPageSkeleton() {
 
       <section className="grid gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+          <div key={index} className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
             <SkeletonBlock className="h-3 w-20" />
             <SkeletonBlock className="mt-3 h-8 w-16" />
           </div>
@@ -277,7 +278,7 @@ function StatusPageSkeleton() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-        <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+        <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
           <div className="flex items-center gap-2">
             <SkeletonBlock className="h-4 w-4 rounded" />
             <SkeletonBlock className="h-4 w-24" />
@@ -300,7 +301,7 @@ function StatusPageSkeleton() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+        <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
           <div className="flex items-center justify-between gap-3">
             <SkeletonBlock className="h-4 w-24" />
             <SkeletonBlock className="h-4 w-56" />
@@ -387,8 +388,8 @@ export function StatusPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="nebula-page mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-8 sm:py-10">
+      <header className="nebula-page-header flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-ink-500" />
@@ -400,18 +401,18 @@ export function StatusPage() {
           </p>
         </div>
 
-        <button
+        <Button variant="secondary"
           onClick={() => load(true)}
           disabled={refreshing}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium text-ink-700 hover:border-ink-300 hover:bg-ink-50 disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Atualizar
-        </button>
+          {refreshing ? 'Atualizando…' : 'Atualizar'}
+        </Button>
       </header>
 
       {error && (
-        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       )}
@@ -419,19 +420,19 @@ export function StatusPage() {
       {data && (
         <>
           <section className="grid gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Geral</p>
-              <p className="mt-2 text-2xl font-semibold text-ink-900">{data.status}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink-900">{data.status === 'healthy' ? 'Operacional' : data.status === 'degraded' ? 'Com alertas' : 'Indisponível'}</p>
             </div>
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Saudaveis</p>
               <p className="mt-2 text-2xl font-semibold text-jade-700">{counts.healthy}</p>
             </div>
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Alertas</p>
               <p className="mt-2 text-2xl font-semibold text-amber-700">{counts.degraded + counts.inactive}</p>
             </div>
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Indisponiveis</p>
               <p className="mt-2 text-2xl font-semibold text-rose-700">{counts.down}</p>
             </div>
@@ -446,8 +447,8 @@ export function StatusPage() {
           <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
             <ServiceDiagram data={data} />
 
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
-              <div className="flex items-center justify-between gap-3">
+            <div className="nebula-surface nebula-queue-panel min-w-0 overflow-x-auto rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
+              <div className="flex min-w-[440px] items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-ink-900">Filas BullMQ</h2>
                 <div className="grid grid-cols-4 gap-2 text-right text-xs font-medium text-ink-400">
                   <span className="w-16">Wait</span>
@@ -456,7 +457,7 @@ export function StatusPage() {
                   <span className="w-16">Fail</span>
                 </div>
               </div>
-              <div className="mt-4 flex flex-col gap-2">
+              <div className="mt-4 flex min-w-[440px] flex-col gap-2">
                 {Object.entries(queues).length > 0 ? (
                   Object.entries(queues).map(([name, queue]) => (
                     <QueueRow key={name} name={name} queue={queue} />

@@ -143,14 +143,14 @@ export function RecordingPanel({
   const ACCEPTED = '.mp3,.wav,.webm,.ogg,.m4a,audio/*'
 
   return (
-    <div className="bg-white rounded-2xl border border-ink-100 shadow-soft p-6">
-      <div className="flex gap-6">
+    <div className="nebula-recorder rounded-[32px] border border-white/80 shadow-card p-6 sm:p-8">
+      <div className="flex flex-col gap-8 md:flex-row">
         {/* ── Live recording side ── */}
-        <div className={clsx('flex-1 flex flex-col gap-4', inputSource === 'upload' && 'hidden')}>
-          <div className="flex items-start justify-between gap-3 mb-1">
+        <div className={clsx('nebula-recording-stage min-w-0 flex-1 flex flex-col gap-5', inputSource === 'upload' && 'hidden')}>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
             <div className="flex items-center gap-2">
               <Mic className="w-4 h-4 text-ink-500" />
-              <span className="text-sm font-medium text-ink-700">Gravar ao vivo</span>
+              <span className="text-sm font-medium text-ink-700">Estúdio de gravação</span>
             </div>
             <div className="inline-flex items-center gap-1.5 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-xs font-medium text-ink-500">
               <Radio className={clsx('w-3 h-3', useBrowserSpeech ? 'text-sky-500' : 'text-jade-500')} />
@@ -174,11 +174,11 @@ export function RecordingPanel({
             </select>
           </label>
           <LiveWaveform analyser={analyser} active={isRecording} />
-          <div className="flex gap-3 text-xs" role="status">
+          <div className="flex flex-wrap justify-center gap-3 text-xs" role="status">
             <span className={saved ? 'text-jade-700' : 'text-ink-400'}>{saved ? '✓ ' : '○ '}Salvo no Dispositivo</span>
             <span className={uploaded ? 'text-jade-700' : 'text-ink-400'}>{uploaded ? '✓ ' : '○ '}Enviado para Nuvem</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center gap-3">
             {(isRecording || isPaused || isSaving || isStopped) && (
               <div className="flex items-center gap-2">
                 {isRecording && (
@@ -187,22 +187,22 @@ export function RecordingPanel({
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
                   </span>
                 )}
-                <span className="font-mono text-2xl font-medium text-ink-900 tabular-nums">
+                <span className="font-sans text-5xl tracking-tight font-medium text-ink-900 tabular-nums">
                   {formatTime(elapsed)}
                 </span>
               </div>
             )}
             {isIdle && (
-              <span className="font-mono text-2xl font-medium text-ink-300 tabular-nums">00:00</span>
+              <span className="font-sans text-5xl tracking-tight font-medium text-ink-400 tabular-nums">00:00</span>
             )}
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             {isIdle && (
-              <Button variant="primary" onClick={handleStart} disabled={disabled || !transcriptionEngine || browserUnavailable}>
+              <Button variant="danger" size="lg" className="nebula-record-pill" onClick={handleStart} disabled={disabled || !transcriptionEngine || browserUnavailable}>
                 <Mic className="w-4 h-4" />
-                Gravar
+                Iniciar gravação
               </Button>
             )}
 
@@ -253,7 +253,7 @@ export function RecordingPanel({
         </div>
 
         {/* Divider */}
-        {!inputSource && <div className="w-px bg-ink-100 self-stretch" />}
+        {!inputSource && <div className="h-px bg-ink-200/60 self-stretch md:h-auto md:w-px" />}
 
         {/* ── Upload side ── */}
         <div className={clsx('flex-1 flex flex-col gap-4', inputSource === 'microphone' && 'hidden')}>
@@ -267,7 +267,7 @@ export function RecordingPanel({
               onClick={() => fileRef.current?.click()}
               disabled={disabled || isStopped || isSaving || isRecording || isPaused}
               className={clsx(
-                'flex flex-col items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed text-sm transition-all',
+                'flex flex-col items-center justify-center gap-3 min-h-44 rounded-2xl border border-dashed text-sm transition-all',
                 disabled || isStopped || isSaving || isRecording || isPaused
                   ? 'border-ink-100 text-ink-300 cursor-not-allowed'
                   : 'border-ink-200 text-ink-500 hover:border-jade-400 hover:text-jade-500 hover:bg-jade-50 cursor-pointer'
@@ -282,7 +282,7 @@ export function RecordingPanel({
                 <p className="text-sm font-medium text-ink-800 truncate">{uploadFile.name}</p>
                 <p className="text-xs text-ink-400">{(uploadFile.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
-              <button onClick={() => setUploadFile(null)} className="text-ink-400 hover:text-ink-700">
+              <button aria-label="Remover arquivo selecionado" onClick={() => setUploadFile(null)} className="text-ink-400 hover:text-ink-700">
                 <X className="w-4 h-4" />
               </button>
             </div>

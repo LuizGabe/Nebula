@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { X, Send, MessageSquare, Loader2 } from 'lucide-react'
 import { openQuestionSSE } from '../api/client'
 import clsx from 'clsx'
+import { useDialogFocus } from '../hooks/useDialogFocus'
 
 interface Message {
   id: string
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function QADrawer({ sessionId, onClose }: Props) {
+  const dialogRef = useDialogFocus(onClose)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -25,6 +27,8 @@ export function QADrawer({ sessionId, onClose }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => () => abortRef.current?.(), [])
 
   const send = () => {
     const q = input.trim()
@@ -69,12 +73,12 @@ export function QADrawer({ sessionId, onClose }: Props) {
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-ink-900/20 backdrop-blur-[2px] z-30"
+        className="fixed inset-0 bg-ink-950/25 backdrop-blur-md z-50"
         onClick={onClose}
       />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-[420px] bg-white border-l border-ink-100 shadow-float z-40 flex flex-col slide-in-right">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Perguntas sobre a sessão" className="fixed right-0 top-0 nebula-drawer h-full w-full max-w-[440px] bg-white/90 backdrop-blur-xl border-l border-ink-100 shadow-float z-50 flex flex-col slide-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink-100 shrink-0">
           <div className="flex items-center gap-2">
@@ -82,6 +86,7 @@ export function QADrawer({ sessionId, onClose }: Props) {
             <span className="font-medium text-ink-800 text-sm">Perguntas sobre a sessão</span>
           </div>
           <button
+            aria-label="Fechar perguntas"
             onClick={onClose}
             className="text-ink-400 hover:text-ink-700 hover:bg-ink-50 rounded-lg p-1.5 transition-all"
           >
@@ -149,6 +154,7 @@ export function QADrawer({ sessionId, onClose }: Props) {
         <div className="px-5 py-4 border-t border-ink-100 shrink-0">
           <div className="flex items-end gap-2 bg-ink-50 rounded-xl border border-ink-200 focus-within:border-ink-400 focus-within:bg-white transition-all px-3 py-2.5">
             <textarea
+              aria-label="Sua pergunta sobre a sessão"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -162,6 +168,7 @@ export function QADrawer({ sessionId, onClose }: Props) {
               className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none resize-none leading-relaxed"
             />
             <button
+              aria-label="Enviar pergunta"
               onClick={send}
               disabled={!input.trim() || busy}
               className="p-1.5 rounded-lg bg-ink-900 text-white disabled:opacity-30 hover:bg-ink-700 transition-all shrink-0 mb-0.5"

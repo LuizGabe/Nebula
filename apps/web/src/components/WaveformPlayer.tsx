@@ -62,7 +62,7 @@ export const WaveformPlayer = forwardRef<SessionAudioPlayerHandle, Props>(functi
       if (controller.signal.aborted || !result.peaks?.[0]?.length || !result.durationMs || !waveRef.current) return
       // Precomputed peaks: WaveSurfer never fetches/decodes the complete audio.
       wave.current = WaveSurfer.create({ container: waveRef.current, media: audio, peaks: result.peaks,
-        duration: result.durationMs / 1000, height: 48, waveColor: '#a7d9ca', progressColor: '#23846a', cursorColor: '#142d26', barWidth: 2, barGap: 1 })
+        duration: result.durationMs / 1000, height: 48, waveColor: '#bfd6f6', progressColor: '#007aff', cursorColor: '#0a84ff', barWidth: 2, barGap: 1 })
       setWaveReady(true)
     }).catch(() => { /* Native playback remains available for legacy media. */ })
     return () => {
@@ -86,7 +86,7 @@ export const WaveformPlayer = forwardRef<SessionAudioPlayerHandle, Props>(functi
       if (queuedSeek.current != null) { const seconds = queuedSeek.current; queuedSeek.current = null; seekTo(seconds) }
     } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Falha ao carregar áudio') }
   }
-  return <div className="w-full max-w-xl" aria-label="Player da sessão">
+  return <div className="nebula-player w-full max-w-xl" aria-label="Player da sessão">
     <div ref={waveRef} className={waveReady ? 'h-12' : 'hidden'} aria-hidden="true" />
     <audio ref={audioRef} src={src} preload="metadata" controls className="h-9 w-full" aria-label="Áudio da sessão. Espaço reproduz ou pausa; setas avançam cinco segundos."
       onLoadedMetadata={() => void prepare()} onError={() => setError('Não foi possível carregar o áudio.')} />

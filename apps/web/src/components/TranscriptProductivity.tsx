@@ -52,7 +52,7 @@ export function TranscriptProductivity({ sessionId, reloadToken = 0, onSeekTo }:
     catch { setError('Não foi possível localizar a fonte da tarefa.') }
   }
   const sentiment = { positive: 'Positivo', negative: 'Negativo', neutral: 'Neutro', mixed: 'Misto', unknown: 'Indeterminado' }
-  return <section className="rounded-2xl border border-ink-100 bg-white p-6 shadow-soft" aria-label="Insights e exportação">
+  return <section className="nebula-surface rounded-2xl border border-ink-100 bg-white p-6 shadow-soft" aria-label="Insights e exportação">
     <div className="flex flex-wrap items-center gap-3"><h3 className="mr-auto font-medium">Insights</h3>
       <Button disabled={working} onClick={() => void generate()}>{working ? 'Gerando insights…' : data ? 'Atualizar insights' : 'Gerar insights'}</Button>
       <select aria-label="Formato de exportação" value={format} onChange={e => setFormat(e.target.value)} className="rounded-lg border border-ink-200 px-2 py-2 text-sm">{['srt','vtt','pdf','docx','json','md','txt'].map(f => <option key={f} value={f}>{f.toUpperCase()}</option>)}</select>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
-import { Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Menu, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
 import nebulaIcon from '../../assets/nebula-icon.svg'
 import { NebulaWordmark } from './NebulaWordmark'
 import clsx from 'clsx'
@@ -335,6 +335,9 @@ function RootFolder({
 }
 
 export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | null) => void }) {
+  const location = useLocation()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  useEffect(() => setMobileOpen(false), [location.pathname, location.search])
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [folderList, setFolderList] = useState<FolderItem[]>([])
@@ -395,10 +398,13 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   }
 
   return (
-    <aside className="w-64 shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-ink-100">
+    <aside data-mobile-open={mobileOpen} className="nebula-sidebar w-64 shrink-0 h-screen sticky top-0 flex flex-col border-r border-white/60">
       <div className="px-5 py-5 flex items-center gap-2.5 border-b border-ink-100">
         <img src={nebulaIcon} alt="" className="h-9 w-9 shrink-0 object-contain" />
         <span className="flex h-9 items-center font-display font-semibold text-lg tracking-tight"><NebulaWordmark /></span>
+        <button type="button" aria-label={mobileOpen ? 'Fechar navegação' : 'Abrir navegação'} aria-expanded={mobileOpen} onClick={() => setMobileOpen(open => !open)} className="nebula-icon-button ml-auto md:hidden">
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
       </div>
 
       <nav className="px-3 py-4 flex flex-col gap-0.5 border-b border-ink-100">
@@ -440,7 +446,7 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
           Status
         </NavLink>
         <button
-          onClick={() => onNewSession?.(null)}
+          onClick={() => { setMobileOpen(false); onNewSession?.(null) }}
           className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-ink-600 hover:text-jade-900 hover:bg-jade-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade-400 transition-all"
         >
           <FilePlus2 className="w-4 h-4" />
@@ -504,7 +510,7 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-float border border-ink-100">
+          <div className="nebula-surface w-full max-w-md rounded-2xl bg-white p-5 shadow-float border border-ink-100">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-ink-900">Excluir pasta</h2>

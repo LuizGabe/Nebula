@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 
 export function LiveWaveform({ analyser, active }: { analyser: AnalyserNode | null; active: boolean }) {
   const pathRef = useRef<SVGPathElement>(null)
+  const gradientId = useId()
   useEffect(() => {
-    if (!analyser || !active) { pathRef.current?.setAttribute('d', 'M0 32 L600 32'); return }
+    if (!analyser || !active) { pathRef.current?.setAttribute('d', 'M0 64 L600 64'); return }
     const samples = new Float32Array(analyser.fftSize)
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
     let frame = 0
@@ -11,11 +12,19 @@ export function LiveWaveform({ analyser, active }: { analyser: AnalyserNode | nu
     const draw = (time: number) => {
       if (!reduced.matches || time - last > 250) {
         analyser.getFloatTimeDomainData(samples)
-        let d = ''
-        for (let i = 0; i < 200; i++) {
-          const value = samples[Math.floor(i * samples.length / 200)]
-          d += `${i ? ' L' : 'M'}${i * 600 / 199} ${32 + value * 30}`
+        const points: [number, number][] = []
+        for (let i = 0; i < 120; i++) {
+          const value = samples[Math.floor(i * samples.length / 120)]
+          const envelope = Math.sin(Math.PI * i / 119)
+          points.push([i * 600 / 119, 64 + Math.max(-1, Math.min(1, value)) * 54 * envelope])
         }
+        let d = `M${points[0][0]} ${points[0][1]}`
+        for (let i = 1; i < points.length - 1; i++) {
+          const [x, y] = points[i]
+          const next = points[i + 1]
+          d += ` Q${x} ${y} ${(x + next[0]) / 2} ${(y + next[1]) / 2}`
+        }
+        d += ' L600 64'
         pathRef.current?.setAttribute('d', d)
         last = time
       }
@@ -24,7 +33,17 @@ export function LiveWaveform({ analyser, active }: { analyser: AnalyserNode | nu
     frame = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(frame)
   }, [analyser, active])
-  return <svg viewBox="0 0 600 64" className="h-16 w-full rounded-xl bg-jade-50" role="img" aria-label={active ? 'Forma de onda do microfone' : 'Gravação pausada'}>
-    <path ref={pathRef} d="M0 32 L600 32" fill="none" stroke="currentColor" strokeWidth="2" className="text-jade-600" />
+  return <svg viewBox="0 0 600 128" className="nebula-live-wave h-32 w-full" role="img" aria-label={active ? 'Forma de onda do microfone' : 'Microfone em espera'}>
+    <defs>
+      <linearGradient id={gradientId}>
+        <stop offset="0%" stopColor="#0a84ff" stopOpacity="0.05" />
+        <stop offset="25%" stopColor="#0a84ff" stopOpacity="0.65" />
+        <stop offset="50%" stopColor="#007aff" />
+        <stop offset="75%" stopColor="#0a84ff" stopOpacity="0.65" />
+        <stop offset="100%" stopColor="#0a84ff" stopOpacity="0.05" />
+      </linearGradient>
+    </defs>
+    <path d="M0 64 H600" stroke="#0a84ff" strokeOpacity="0.08" />
+    <path ref={pathRef} d="M0 64 L600 64" fill="none" stroke={`url(#${gradientId})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 }

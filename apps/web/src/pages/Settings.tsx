@@ -14,6 +14,7 @@ import {
 } from '../api/client'
 import { useAuthStore } from '../store/auth'
 import { Button } from '../components/ui/Button'
+import { Toggle } from '../components/ui/Toggle'
 
 type Section = 'templates' | 'model' | 'docs' | 'account'
 
@@ -78,6 +79,7 @@ function Segmented<T extends string>({
         <button
           key={option.value}
           type="button"
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={clsx(
             'rounded-lg px-2 py-2 text-xs font-medium transition-all',
@@ -101,10 +103,7 @@ function CheckboxRow({
   onChange: (value: boolean) => void
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-ink-700">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-ink-300" />
-      {label}
-    </label>
+    <Toggle checked={checked} onChange={onChange} label={label} />
   )
 }
 
@@ -117,6 +116,7 @@ export function SettingsPage() {
   const [loadingModels, setLoadingModels] = useState(true)
   const [savingModel, setSavingModel] = useState(false)
   const [savedModel, setSavedModel] = useState(false)
+  const [modelError, setModelError] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
 
   const [templateList, setTemplateList] = useState<Prompt[]>([])
@@ -176,11 +176,14 @@ export function SettingsPage() {
   const saveModel = async () => {
     if (!selected) return
     setSavingModel(true)
+    setModelError('')
     try {
       await users.updateConfig(selected)
       if (user) setUser({ ...user, config: { ...user.config, defaultModel: selected } })
       setSavedModel(true)
       setTimeout(() => setSavedModel(false), 2000)
+    } catch (error) {
+      setModelError(error instanceof Error ? error.message : 'Não foi possível salvar o modelo.')
     } finally {
       setSavingModel(false)
     }
@@ -248,30 +251,31 @@ export function SettingsPage() {
   const sections = [
     { id: 'templates' as const, label: 'Templates', icon: Wand2 },
     { id: 'model' as const, label: 'Modelo', icon: SlidersHorizontal },
-    { id: 'docs' as const, label: 'Docs', icon: BookOpen },
-    { id: 'account' as const, label: 'Usuario', icon: User },
+    { id: 'docs' as const, label: 'Guia', icon: BookOpen },
+    { id: 'account' as const, label: 'Conta', icon: User },
   ]
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <div className="flex items-center gap-3 mb-8">
+    <div className="nebula-page max-w-6xl mx-auto px-4 py-8 sm:px-8 sm:py-10">
+      <div className="nebula-page-header flex items-center gap-3 mb-8">
         <div className="w-9 h-9 rounded-xl bg-ink-100 flex items-center justify-center">
           <Settings className="w-5 h-5 text-ink-600" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">Configuracoes</h1>
+          <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">Configurações</h1>
           <p className="text-sm text-ink-400">Templates, modelo e conta</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[220px,1fr] gap-6">
-        <aside className="bg-white rounded-2xl border border-ink-100 shadow-soft p-2 h-max">
+      <div className="grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-6">
+        <aside className="nebula-surface bg-white rounded-2xl border border-ink-100 shadow-soft p-2 h-max">
           {sections.map((item) => {
             const Icon = item.icon
             return (
               <button
                 key={item.id}
                 onClick={() => setSection(item.id)}
+                aria-pressed={section === item.id}
                 className={clsx(
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
                   section === item.id ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
@@ -284,12 +288,13 @@ export function SettingsPage() {
           })}
         </aside>
 
-        <section className="bg-white rounded-2xl border border-ink-100 shadow-soft">
+        <section className="nebula-surface bg-white rounded-2xl border border-ink-100 shadow-soft">
           {section === 'model' && (
             <div className="px-6 py-5">
               <h2 className="font-medium text-ink-800 text-sm mb-0.5">Modelo LLM padrao</h2>
               <p className="text-xs text-ink-400 mb-4">Modelo usado para gerar documentos e responder perguntas.</p>
 
+              {modelError && <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{modelError}</p>}
               {loadingModels ? (
                 <div className="flex items-center gap-2 text-sm text-ink-400">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -358,7 +363,7 @@ export function SettingsPage() {
                 </Button>
               </div>
 
-              <div className="grid grid-cols-1 xl:grid-cols-[300px,1fr] gap-5">
+              <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)] gap-5">
                 <div className="border border-ink-100 rounded-xl overflow-hidden h-max">
                   {loadingTemplates ? (
                     <div className="p-4 flex items-center gap-2 text-sm text-ink-400">
@@ -390,12 +395,14 @@ export function SettingsPage() {
                 <div className="flex flex-col gap-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
+                      aria-label="Nome do template"
                       value={draft.name}
                       onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
                       placeholder="Nome do template"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
                     />
                     <select
+                      aria-label="Tipo de transcrição"
                       value={draft.transcriptionMode}
                       onChange={(event) => setDraft((current) => ({ ...current, transcriptionMode: event.target.value as DocumentTranscriptionMode }))}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 transition-all"
@@ -406,6 +413,7 @@ export function SettingsPage() {
                   </div>
 
                   <textarea
+                    aria-label="Descrição do template"
                     value={draft.description}
                     onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
                     placeholder="Descricao curta do uso deste template"
@@ -436,6 +444,7 @@ export function SettingsPage() {
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-ink-500">Instrucoes adicionais</label>
                     <textarea
+                      aria-label="Instruções adicionais"
                       value={draft.instructions}
                       onChange={(event) => setDraft((current) => ({ ...current, instructions: event.target.value }))}
                       placeholder="Descreva o foco, organizacao e criterios do documento final"
@@ -466,7 +475,7 @@ export function SettingsPage() {
 
           {section === 'docs' && (
             <div className="px-6 py-5">
-              <h2 className="font-medium text-ink-800 text-sm mb-0.5">Docs</h2>
+              <h2 className="font-medium text-ink-800 text-sm mb-0.5">Como personalizar seus documentos</h2>
               <p className="text-xs text-ink-400 mb-5">Templates definem a estrutura e o estilo do documento. O Nebula injeta automaticamente transcricao, contexto e regras internas.</p>
 
               <div className="space-y-4 text-sm text-ink-700">
