@@ -21,7 +21,8 @@ async function main() {
   let queueFailure = false
   let listQueries = 0
   const prisma = {
-    prompt: { findFirst: async ({ where }) => where.id === 'public-prompt' ? { id: 'public-prompt', transcriptionMode: 'CLASS' } : null },
+    prompt: { findFirst: async ({ where }) => { assert.equal(where.deletedAt, null); return where.id === 'public-prompt' ? { id: 'public-prompt', isPublic: true, transcriptionMode: 'CLASS' } : null } },
+    user: { findUnique: async () => ({ username }) },
     folder: { findFirst: async ({ where }) => where.id === 'owned-folder' ? { id: 'owned-folder' } : null },
     recordingSession: {
       create: async ({ data }) => { created.push(data); return { ...data, id: `s${created.length}`, owner: { id: 'owner', username } } },
@@ -54,7 +55,7 @@ async function main() {
     } } },
     '@/events/publisher': { createEventPublisher: () => ({ emit: async (...args) => events.push(args) }) },
     '@/lib/youtubeUrl': urls, '@/lib/storage': {}, '@/lib/audioTimestamps': {},
-    '@/lib/prompts': { FORMALITY_VALUES: ['neutral'], DETAIL_LEVEL_VALUES: ['balanced'], TRANSCRIPTION_MODE_VALUES: ['MEETING', 'CLASS'] },
+    '@/lib/prompts': require('./templatePolicyHarness.cjs').loadPolicy(prisma),
   }).default
   const app = Fastify()
   await app.register(route)
@@ -72,9 +73,11 @@ async function main() {
       assert.equal(jobs.at(-1)[1].mode, 'CLASS')
       assert.equal(jobs.at(-1)[2].attempts, 1)
     }
+    assert.equal((await app.inject({ method: 'GET', url: '/sessions/creation-options', headers: { 'x-test-auth': 'yes' } })).json().youtubeMaxDurationMinutes, 30)
     username = 'luizgabe'
     await create({ youtubeUrl: 'https://youtu.be/jNQXAC9IVRw' })
     assert.equal(jobs.at(-1)[1].maxDurationMinutes, 300)
+    assert.equal((await app.inject({ method: 'GET', url: '/sessions/creation-options', headers: { 'x-test-auth': 'yes' } })).json().youtubeMaxDurationMinutes, 300)
     const before = created.length
     for (const youtubeUrl of ['http://localhost/file', 'https://youtube.com.evil.test/watch?v=jNQXAC9IVRw', 'https://youtu.be/short', 'https://youtube.com/playlist?list=123', 'file:///etc/passwd']) {
       assert.equal((await create({ youtubeUrl })).statusCode, 400)

@@ -12,10 +12,11 @@ import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import { config, type UserConfig } from "@/config";
 import { postProcessQueue, transcriptionJobsQueue } from "@/jobs/queues";
 import { createEventPublisher } from "@/events/publisher";
-import { normalizeYouTubeUrl } from "@/lib/youtubeUrl";
+import { youtubeDurationLimit, normalizeYouTubeUrl } from "@/lib/youtubeUrl";
 import { BUCKET, s3Public } from "@/lib/storage";
 import { formatAudioTag } from "@/lib/audioTimestamps";
 import {
+  usableTemplateWhere, templateResponse,
   DETAIL_LEVEL_VALUES,
   FORMALITY_VALUES,
   TRANSCRIPTION_MODE_VALUES,
@@ -72,6 +73,8 @@ const sessions: FastifyPluginAsync = async (fastify) => {
   const events = createEventPublisher();
   const promptSelect = {
     id: true,
+    platformKey: true,
+    deletedAt: true,
     name: true,
     description: true,
     instructions: true,
@@ -97,7 +100,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     return prisma.prompt.findFirst({
       where: {
         id: promptId,
-        OR: [{ isPublic: true }, { ownerId }],
+        ...usableTemplateWhere(ownerId),
       },
       select: { id: true },
     });
@@ -133,6 +136,11 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       data: { status: "ENDED", endedAt: new Date() },
     });
   }
+  fastify.get('/sessions/creation-options', async (request) => {
+    const user = await prisma.user.findUnique({ where: { id: request.session.get('userId')! }, select: { username: true } });
+    return { youtubeMaxDurationMinutes: youtubeDurationLimit(user?.username ?? '') };
+  });
+
   // GET /sessions/:id/status/stream - SSE de status do pos-processamento
   fastify.get("/sessions/:id/status/stream", async (request, reply) => {
     const ownerId = request.session.get("userId")!;
@@ -237,12 +245,12 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     const prompt = await prisma.prompt.findFirst({
       where: {
         id: parsed.data.promptId,
-        OR: [{ isPublic: true }, { ownerId }],
+        ...usableTemplateWhere(ownerId),
       },
     });
 
     if (!prompt) {
-      return reply.status(400).send({ error: "Selecione um prompt valido antes de criar sessoes" });
+      return reply.status(400).send({ error: "Selecione um template utilizável antes de criar sessões" });
     }
 
     const folder = await getOwnedFolder(parsed.data.folderId, ownerId);
@@ -298,7 +306,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
     if (parsed.data.youtubeUrl) {
       const youtubeUrl = normalizeYouTubeUrl(parsed.data.youtubeUrl)!;
       // The authenticated owner determines the allowance; never trust a limit from the browser.
-      const maxDurationMinutes = session.owner.username === 'luizgabe' ? 300 : 30;
+      const maxDurationMinutes = youtubeDurationLimit(session.owner.username);
       await events.emit(session.id, 'UPLOAD_RECEIVED', {
         source: 'youtube', stage: 'queued', youtubeUrl, maxDurationMinutes,
         message: 'Video do YouTube aguardando processamento',
@@ -316,12 +324,12 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         request.log.error(error, 'Falha ao enfileirar video do YouTube');
         await prisma.recordingSession.update({ where: { id: session.id }, data: { status: 'ERROR' } });
         await events.emit(session.id, 'UPLOAD_FAILED', {
-          source: 'youtube', stage: 'queued', error: 'Nao foi possivel iniciar a importacao do YouTube. Tente criar a sessao novamente.',
+          source: 'youtube', stage: 'queued', error: 'Nao foi possivel iniciar a importacao do YouTube. Abra a sessão existente para conferir a falha.',
         });
         return reply.status(503).send({ error: 'Nao foi possivel iniciar a importacao do YouTube', sessionId: session.id });
       }
     }
-    return reply.status(201).send({ session });
+    return reply.status(201).send({ session: { ...session, prompt: session.prompt ? templateResponse(session.prompt, ownerId) : null } });
   });
   // GET /sessions - lista sessoes do usuario
   fastify.get("/sessions", async (request, reply) => {
@@ -368,6 +376,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
     return reply.send({ sessions: list.map(({ _count, audioMedias, sessionEvents, ...session }) => ({
       ...session,
+      prompt: session.prompt ? templateResponse(session.prompt, ownerId) : null,
       processing: {
         hasDocument: _count.documents > 0,
         hasTranscript: _count.transcripts > 0,
@@ -397,7 +406,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
 
       if (!session) return reply.status(404).send({ error: "Nao encontrada" });
 
-      return reply.send({ session });
+      return reply.send({ session: { ...session, prompt: session.prompt ? templateResponse(session.prompt, ownerId) : null } });
     }
   );
 
@@ -518,7 +527,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       const modelId = userConfig.defaultModel ?? DEFAULT_MODEL;
 
       if (!session.prompt) {
-        return reply.status(400).send({ error: "Sessao sem prompt configurado" });
+        return reply.status(400).send({ error: "Sessão sem template configurado." });
       }
 
       const adapter = createAdapter(modelId);
@@ -638,7 +647,7 @@ const sessions: FastifyPluginAsync = async (fastify) => {
         },
       })
 
-      return reply.send({ session: updated })
+      return reply.send({ session: { ...updated, prompt: updated.prompt ? templateResponse(updated.prompt, ownerId) : null } })
     }
   )
   // DELETE /sessions/:id - excluir sessao

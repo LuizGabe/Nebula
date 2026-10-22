@@ -8,7 +8,7 @@ async function main() {
   let generationError = null
   let generated = 0
   const events = [], saved = []
-  const session = { id: 's1', status: 'ENDED', isDeleted: false, owner: { config: {} }, prompt: { id: 'p1', name: 'Resumo', instructions: 'Resuma os fatos.' } }
+  const session = { id: 's1', ownerId: 'user', status: 'ENDED', isDeleted: false, owner: { config: {} }, prompt: { ownerId: 'user', id: 'p1', name: 'Resumo', instructions: 'Resuma os fatos.' } }
   const prisma = {
     recordingSession: { findUnique: async () => session },
     transcript: { findMany: async () => [{ text: 'Fato transcrito.', timestampStart: 0 }] },
@@ -22,7 +22,7 @@ async function main() {
     '@/lib/insights': { generateInsights: async () => ({}) },
     '@/lib/prisma': { prisma },
     '@/lib/llm': { DEFAULT_MODEL: 'groq/openai/gpt-oss-20b', createAdapter: () => ({}) },
-    '@/lib/prompts': { ensureDocumentTemplateSchema: async () => {} },
+    '@/lib/prompts': { ...require('./templatePolicyHarness.cjs').loadPolicy(prisma), ensureDocumentTemplateSchema: async () => {} },
     '@/lib/documentGeneration': { generateDocument: async () => {
       generated++
       if (generationError) throw generationError
@@ -54,6 +54,15 @@ async function main() {
   assert.equal(events.at(-1)[1], 'DOCUMENT_FAILED')
   assert.ok(!events.some(event => event[1] === 'DOCUMENT_SKIPPED'), 'A provider failure must never become a completed/skipped job')
   assert.equal(saved.length, 1, 'Failed generation must preserve the prior version')
+  const beforeUnavailable = generated
+  generationError = null
+  session.prompt.deletedAt = new Date()
+  await assert.rejects(handler(job('user_reprocess')), /Template indisponível/)
+  session.prompt.deletedAt = null
+  session.prompt.ownerId = 'another-user'
+  await assert.rejects(handler(job('user_reprocess')), /Template indisponível/)
+  assert.equal(generated, beforeUnavailable, 'Deleted/private references never fall back to a different template')
+  assert.equal(saved.length, 1)
   console.log('Post-processing version and failure regression tests passed')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

@@ -436,8 +436,8 @@ export function buildTranscriptQuestionMessages(input: {
   ];
 }
 
-export async function ensureDocumentTemplateSchema() {
-  await prisma.$executeRawUnsafe(`
+export async function ensureDocumentTemplateSchema(db = prisma) {
+  await db.$executeRawUnsafe(`
     ALTER TABLE "prompts"
       ADD COLUMN IF NOT EXISTS "description" TEXT,
       ADD COLUMN IF NOT EXISTS "instructions" TEXT,
@@ -453,7 +453,7 @@ export async function ensureDocumentTemplateSchema() {
       ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `);
 
-  await prisma.$executeRawUnsafe(`
+  await db.$executeRawUnsafe(`
     DO $$
     BEGIN
       IF EXISTS (
@@ -461,18 +461,8 @@ export async function ensureDocumentTemplateSchema() {
         WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'user_template'
       ) THEN
         UPDATE "prompts"
-        SET "instructions" = btrim(regexp_replace(
-          regexp_replace(
-            regexp_replace("user_template", '<dados_usuario_input[\\s\\S]*?</dados_usuario_input>', '', 'gi'),
-            '\\{\\{\\s*(transcricao|contexto_sessao|sessionTitle|promptName|createdAt)\\s*\\}\\}',
-            '',
-            'gi'
-          ),
-          '</?[^>]+>',
-          '',
-          'g'
-        ))
-        WHERE "instructions" IS NULL OR btrim("instructions") = '';
+        SET "instructions" = "user_template"
+        WHERE "instructions" IS NULL;
       END IF;
 
       IF EXISTS (
@@ -481,31 +471,33 @@ export async function ensureDocumentTemplateSchema() {
       ) THEN
         UPDATE "prompts"
         SET "instructions" = "content"
-        WHERE ("instructions" IS NULL OR btrim("instructions") = '') AND "content" IS NOT NULL;
+        WHERE "instructions" IS NULL AND "content" IS NOT NULL;
       END IF;
     END $$;
   `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE "prompts"
-      DROP COLUMN IF EXISTS "system_prompt",
-      DROP COLUMN IF EXISTS "user_template",
-      DROP COLUMN IF EXISTS "available_variables",
-      DROP COLUMN IF EXISTS "content",
-      DROP COLUMN IF EXISTS "template";
-  `);
-
-  await prisma.$executeRawUnsafe(
-    `UPDATE "prompts" SET "instructions" = $1 WHERE "instructions" IS NULL OR btrim("instructions") = ''`,
+  await db.$executeRawUnsafe(
+    `UPDATE "prompts" SET "instructions" = $1 WHERE "instructions" IS NULL`,
     DEFAULT_TEMPLATE_INSTRUCTIONS,
   );
 
-  await prisma.$executeRawUnsafe(`
+  await db.$executeRawUnsafe(`
     ALTER TABLE "prompts"
       ALTER COLUMN "instructions" SET NOT NULL;
   `);
 
-  await prisma.$executeRawUnsafe(`
+  // Copy the historical session field only when introducing its replacement.
+  // A later explicit reset to inheritance must never resurrect legacy overrides.
+  await db.$executeRawUnsafe(`DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'instructionsOverride') THEN
+      ALTER TABLE "recording_sessions" ADD COLUMN "instructionsOverride" TEXT;
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'userInstructions') THEN
+        UPDATE "recording_sessions" SET "instructionsOverride" = "userInstructions";
+      END IF;
+    END IF;
+  END $$`);
+
+  await db.$executeRawUnsafe(`
     ALTER TABLE "recording_sessions"
       ADD COLUMN IF NOT EXISTS "sessionContext" TEXT,
       ADD COLUMN IF NOT EXISTS "formalityOverride" TEXT,
@@ -520,61 +512,67 @@ export async function ensureDocumentTemplateSchema() {
       ADD COLUMN IF NOT EXISTS "transcriptionModeOverride" TEXT;
   `);
 
-  await prisma.$executeRawUnsafe(`
-    DO $$
-    BEGIN
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'userInstructions'
-      ) THEN
-        UPDATE "recording_sessions"
-        SET "instructionsOverride" = "userInstructions"
-        WHERE ("instructionsOverride" IS NULL OR btrim("instructionsOverride") = '')
-          AND "userInstructions" IS NOT NULL
-          AND btrim("userInstructions") <> '';
-      END IF;
-    END $$;
-  `);
 
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE "recording_sessions"
-      DROP COLUMN IF EXISTS "writingStyle",
-      DROP COLUMN IF EXISTS "userInstructions";
-  `);
 }
 
-export async function ensureDefaultDocumentTemplates() {
-  await ensureDocumentTemplateSchema();
+// Stable keys are assigned only to newly provisioned platform records. Existing
+// records are never classified by name or assigned an arbitrary owner.
+export const PLATFORM_TEMPLATE_KEYS = ['briefing-v1', 'article-v1', 'guide-v1', 'action-plan-v1', 'study-v1', 'ideas-v1', 'script-v1'] as const;
 
-  await prisma.$transaction(async (tx) => {
-    for (const template of DEFAULT_TEMPLATES) {
-      await tx.prompt.upsert({
-        where: { name: template.name },
-        create: {
-          ...template,
-          isPublic: true,
-        },
-        update: {
-          description: template.description,
-          instructions: template.instructions,
-          formality: template.formality,
-          detailLevel: template.detailLevel,
-          useTitle: template.useTitle,
-          useHeadings: template.useHeadings,
-          useSubheadings: template.useSubheadings,
-          preferLists: template.preferLists,
-          preferTables: template.preferTables,
-          includeAudioCitations: template.includeAudioCitations,
-          transcriptionMode: template.transcriptionMode,
-          isPublic: true,
-        },
-      });
+export const TEMPLATE_POLICY_SQL = [
+  `ALTER TABLE "prompts" ADD COLUMN IF NOT EXISTS "platformKey" TEXT, ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS "prompts_platformKey_key" ON "prompts"("platformKey")`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "defaultPromptId" TEXT`,
+  `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_defaultPromptId_fkey') THEN
+    ALTER TABLE "users" ADD CONSTRAINT "users_defaultPromptId_fkey" FOREIGN KEY ("defaultPromptId") REFERENCES "prompts"(id) ON DELETE SET NULL;
+  END IF; END $$`,
+];
+
+export async function ensureTemplatePolicySchema(db = prisma) {
+  for (const statement of TEMPLATE_POLICY_SQL) await db.$executeRawUnsafe(statement);
+}
+
+export async function ensureDefaultDocumentTemplates(db = prisma) {
+  await ensureDocumentTemplateSchema(db);
+  await ensureTemplatePolicySchema(db);
+  await db.$transaction(async (tx) => {
+    // Serialize provisioning across local API/worker instances.
+    await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(20331022)::text`);
+    for (const [index, { isDefault: _legacyDefault, ...template }] of DEFAULT_TEMPLATES.entries()) {
+      const platformKey = PLATFORM_TEMPLATE_KEYS[index];
+      if (await tx.prompt.findUnique({ where: { platformKey }, select: { id: true } })) continue;
+      let name: string = template.name;
+      if (await tx.prompt.findUnique({ where: { name }, select: { id: true } })) name = `${template.name} · Nebula`;
+      // The fallback name is reserved for provisioning; retain any colliding legacy record too.
+      while (await tx.prompt.findUnique({ where: { name }, select: { id: true } })) name += '·';
+      await tx.prompt.create({ data: { ...template, name, platformKey, isPublic: true } });
     }
-
-    await tx.prompt.updateMany({
-      where: { name: { not: "Briefing executivo" }, isDefault: true },
-      data: { isDefault: false },
-    });
-    await tx.prompt.update({ where: { name: "Briefing executivo" }, data: { isDefault: true } });
   });
+}
+
+export type TemplateAccess = { ownerId?: string | null; isPublic?: boolean; deletedAt?: Date | string | null; platformKey?: string | null };
+export function canUseTemplate(template: TemplateAccess | null | undefined, userId: string) {
+  return !!template && !template.deletedAt && (template.isPublic === true || template.ownerId === userId);
+}
+export function usableTemplateWhere(ownerId: string) {
+  return { deletedAt: null, OR: [{ isPublic: true }, { ownerId }] };
+}
+export function templateResponse<T extends TemplateAccess & { id: string; name?: string; instructions?: string | null; description?: string | null }>(template: T, userId: string, defaultId?: string | null) {
+  const canUse = canUseTemplate(template, userId);
+  const own = template.ownerId === userId && !template.platformKey && !template.deletedAt;
+  const native = DEFAULT_TEMPLATES[PLATFORM_TEMPLATE_KEYS.indexOf(template.platformKey as typeof PLATFORM_TEMPLATE_KEYS[number])];
+  // Hide provisioning-only disambiguation without changing the persisted record.
+  const name = native && [`${native.name} · Nebula`, `${native.name} · Nebula (${template.platformKey})`].includes(template.name ?? '') ? native.name : template.name;
+  return { ...template, name, instructions: canUse ? template.instructions : '', description: canUse ? template.description : null,
+    isDefault: template.id === defaultId,
+    origin: template.platformKey ? 'platform' as const : template.ownerId ? (template.ownerId === userId ? 'own' as const : 'shared' as const) : 'legacy' as const,
+    capabilities: { canUse, canEdit: own, canDelete: own, canDuplicate: canUse, canSetDefault: canUse },
+  };
+}
+export function effectiveDefaultTemplate<T extends { id: string; platformKey?: string | null; createdAt?: Date | string }>(templates: T[], preferredId?: string | null) {
+  return templates.find(item => item.id === preferredId) ?? [...templates].sort((a, b) => {
+    const rank = (item: T) => item.platformKey === 'briefing-v1' ? 0 : item.platformKey ? 1 : 2;
+    const time = (item: T) => item.createdAt instanceof Date ? item.createdAt.getTime() : Date.parse(item.createdAt ?? '') || 0;
+    return rank(a) - rank(b) || time(a) - time(b) || a.id.localeCompare(b.id);
+  })[0] ?? null;
 }

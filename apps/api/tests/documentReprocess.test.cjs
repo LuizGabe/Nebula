@@ -10,8 +10,9 @@ async function main() {
   const events = []
   let status = 'ENDED'
   let transcripts = 4
+  const prompt = { isPublic: true, deletedAt: null }
   const prisma = {
-    recordingSession: { findFirst: async ({ where }) => where.id === 'own' && where.ownerId === 'user' && where.isDeleted === false ? { id: 'own', status } : null },
+    recordingSession: { findFirst: async ({ where }) => where.id === 'own' && where.ownerId === 'user' && where.isDeleted === false ? { id: 'own', status, prompt } : null },
     transcript: { count: async () => transcripts },
   }
   const queue = {
@@ -27,6 +28,7 @@ async function main() {
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/routes/documents.ts'), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText, { exports, require: id => {
+    if (id === '@/lib/prompts') return require('./templatePolicyHarness.cjs').loadPolicy(prisma)
     if (id.includes('prisma')) return { prisma }
     if (id.includes('requireAuth')) return { requireAuth: async request => { request.session = { get: () => 'user' } } }
     if (id.includes('queues')) return { postProcessQueue: queue }
@@ -58,6 +60,10 @@ async function main() {
     assert.equal((await reprocess()).statusCode, 409)
     transcripts = 4
     assert.equal((await reprocess()).statusCode, 202)
+    jobs.clear()
+    prompt.deletedAt = new Date()
+    assert.equal((await reprocess()).statusCode, 409)
+    assert.equal(jobs.size, 0, 'Unavailable template must not enqueue generation')
     console.log('Document reprocess API tests passed')
   } finally { await app.close() }
 }

@@ -5,7 +5,7 @@ import { createAdapter, DEFAULT_MODEL } from "@/lib/llm";
 import type { PostProcessJobData } from "../queues";
 import { postProcessQueue } from '../queues';
 import type { UserConfig } from "@/config";
-import { ensureDocumentTemplateSchema } from "@/lib/prompts";
+import { canUseTemplate, ensureDocumentTemplateSchema } from "@/lib/prompts";
 import { generateDocument } from "@/lib/documentGeneration";
 import { formatAudioTag } from "@/lib/audioTimestamps";
 import { generateInsights } from '@/lib/insights';
@@ -103,8 +103,8 @@ export async function postProcessHandler(job: Job<PostProcessJobData>) {
     .join("\n\n");
 
   const prompt = session.prompt;
-  if (!prompt) {
-    const reason = "Sessao sem prompt associado para gerar o documento";
+  if (!prompt || !canUseTemplate(prompt, session.ownerId)) {
+    const reason = "Template indisponível. Selecione outro template para futuras gerações.";
     await publisher.emit(sessionId, "DOCUMENT_FAILED", payloads.documentFailed(reason, nextVersion));
     throw new Error(reason);
   }

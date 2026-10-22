@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { canUseTemplate } from '@/lib/prompts';
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../hooks/requireAuth.js";
 import { postProcessQueue } from "../jobs/queues.js";
@@ -127,11 +128,13 @@ const documents: FastifyPluginAsync = async (fastify) => {
 
       const session = await prisma.recordingSession.findFirst({
         where: { id: request.params.id, ownerId, isDeleted: false },
+        include: { prompt: true },
       });
       if (!session) {
         return reply.status(404).send({ error: "Sessao nao encontrada" });
       }
 
+      if (!canUseTemplate(session.prompt, ownerId)) return reply.status(409).send({ error: 'Template indisponível. Selecione outro template antes de gerar.' });
       if (!['ENDED', 'ERROR'].includes(session.status)) return reply.status(409).send({ error: 'Aguarde a transcricao terminar antes de gerar o documento' });
       const transcripts = await prisma.transcript.count({ where: { sessionId: session.id, text: { not: '' } } });
       if (!transcripts) return reply.status(409).send({ error: 'Nenhuma transcricao disponivel para gerar o documento' });

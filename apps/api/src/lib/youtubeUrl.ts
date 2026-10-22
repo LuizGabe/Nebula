@@ -16,3 +16,5 @@ export function normalizeYouTubeUrl(value: string): string | null {
     return null;
   }
 }
+
+export const youtubeDurationLimit = (username: string) => username === 'luizgabe' ? 300 : 30;

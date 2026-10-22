@@ -35,53 +35,17 @@ ALTER TABLE "prompts"
   ADD COLUMN IF NOT EXISTS "ownerId" TEXT,
   ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
--- Best-effort migration from the short-lived placeholder template model.
--- We intentionally remove old placeholders and transcript/context blocks because
--- the Nebula backend now injects transcript and session context automatically.
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'user_template'
-  ) THEN
-    UPDATE "prompts"
-    SET "instructions" = btrim(regexp_replace(
-      regexp_replace(
-        regexp_replace("user_template", '<dados_usuario_input[\s\S]*?</dados_usuario_input>', '', 'gi'),
-        '\{\{\s*(transcricao|contexto_sessao|sessionTitle|promptName|createdAt)\s*\}\}',
-        '',
-        'gi'
-      ),
-      '</?[^>]+>',
-      '',
-      'g'
-    ))
-    WHERE "instructions" IS NULL OR btrim("instructions") = '';
+-- Preserve original legacy columns, content and non-null instructions.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'user_template') THEN
+    UPDATE "prompts" SET instructions = user_template WHERE instructions IS NULL;
   END IF;
-
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content'
-  ) THEN
-    UPDATE "prompts"
-    SET "instructions" = "content"
-    WHERE ("instructions" IS NULL OR btrim("instructions") = '') AND "content" IS NOT NULL;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'prompts' AND column_name = 'content') THEN
+    UPDATE "prompts" SET instructions = content WHERE instructions IS NULL;
   END IF;
 END $$;
-
-UPDATE "prompts"
-SET "instructions" = 'Gere um documento claro, organizado e util em portugues brasileiro com base na transcricao da sessao.'
-WHERE "instructions" IS NULL OR btrim("instructions") = '';
-
-ALTER TABLE "prompts"
-  ALTER COLUMN "instructions" SET NOT NULL;
-
-ALTER TABLE "prompts"
-  DROP COLUMN IF EXISTS "system_prompt",
-  DROP COLUMN IF EXISTS "user_template",
-  DROP COLUMN IF EXISTS "available_variables",
-  DROP COLUMN IF EXISTS "content",
-  DROP COLUMN IF EXISTS "template";
+UPDATE "prompts" SET instructions = 'Gere um documento claro, organizado e util em portugues brasileiro com base na transcricao da sessao.' WHERE instructions IS NULL;
+ALTER TABLE "prompts" ALTER COLUMN instructions SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS "folders" (
   "id" TEXT PRIMARY KEY,
@@ -93,6 +57,15 @@ CREATE TABLE IF NOT EXISTS "folders" (
 );
 
 ALTER TABLE "folders" ADD COLUMN IF NOT EXISTS "color" TEXT NOT NULL DEFAULT 'neutral';
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'instructionsOverride') THEN
+    ALTER TABLE "recording_sessions" ADD COLUMN "instructionsOverride" TEXT;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'userInstructions') THEN
+      UPDATE "recording_sessions" SET "instructionsOverride" = "userInstructions";
+    END IF;
+  END IF;
+END $$;
 
 ALTER TABLE "recording_sessions"
   ADD COLUMN IF NOT EXISTS "promptId" TEXT,
@@ -109,23 +82,9 @@ ALTER TABLE "recording_sessions"
   ADD COLUMN IF NOT EXISTS "instructionsOverride" TEXT,
   ADD COLUMN IF NOT EXISTS "transcriptionModeOverride" TEXT;
 
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'recording_sessions' AND column_name = 'userInstructions'
-  ) THEN
-    UPDATE "recording_sessions"
-    SET "instructionsOverride" = "userInstructions"
-    WHERE ("instructionsOverride" IS NULL OR btrim("instructionsOverride") = '')
-      AND "userInstructions" IS NOT NULL
-      AND btrim("userInstructions") <> '';
-  END IF;
-END $$;
 
-ALTER TABLE "recording_sessions"
-  DROP COLUMN IF EXISTS "writingStyle",
-  DROP COLUMN IF EXISTS "userInstructions";
+
+
 
 ALTER TABLE "documents"
   ADD COLUMN IF NOT EXISTS "promptId" TEXT;
@@ -236,3 +195,11 @@ CREATE INDEX IF NOT EXISTS "documents_promptId_idx" ON "documents"("promptId");
 CREATE INDEX IF NOT EXISTS "prompts_ownerId_idx" ON "prompts"("ownerId");
 CREATE INDEX IF NOT EXISTS "folders_ownerId_idx" ON "folders"("ownerId");
 CREATE INDEX IF NOT EXISTS "folders_parentId_idx" ON "folders"("parentId");
+
+-- Additive template policy migration. Does not claim legacy origin or infer preferences.
+ALTER TABLE "prompts" ADD COLUMN IF NOT EXISTS "platformKey" TEXT, ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+CREATE UNIQUE INDEX IF NOT EXISTS "prompts_platformKey_key" ON "prompts"("platformKey");
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "defaultPromptId" TEXT;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_defaultPromptId_fkey') THEN
+  ALTER TABLE "users" ADD CONSTRAINT "users_defaultPromptId_fkey" FOREIGN KEY ("defaultPromptId") REFERENCES "prompts"(id) ON DELETE SET NULL;
+END IF; END $$;

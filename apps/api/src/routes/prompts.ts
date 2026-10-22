@@ -1,15 +1,10 @@
-import { FastifyPluginAsync } from "fastify";
-import { z } from "zod";
-
-import { requireAuth } from "@/hooks/requireAuth";
-import { prisma } from "@/lib/prisma";
-import {
-  DETAIL_LEVEL_VALUES,
-  FORMALITY_VALUES,
-  TRANSCRIPTION_MODE_VALUES,
-  ensureDefaultDocumentTemplates,
-  ensureDocumentTemplateSchema,
-} from "@/lib/prompts";
+import { FastifyPluginAsync } from 'fastify';
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import { requireAuth } from '@/hooks/requireAuth';
+import { prisma } from '@/lib/prisma';
+import { DETAIL_LEVEL_VALUES, FORMALITY_VALUES, TRANSCRIPTION_MODE_VALUES,
+  usableTemplateWhere, templateResponse, effectiveDefaultTemplate } from '@/lib/prompts';
 
 const templateFields = {
   name: z.string().trim().min(1).max(80),
@@ -39,12 +34,10 @@ const paramsSchema = z.object({
   id: z.string().min(1),
 });
 
-function visibleTemplateWhere(ownerId: string) {
-  return { OR: [{ isPublic: true }, { ownerId }] };
-}
-
 const templateSelect = {
   id: true,
+  platformKey: true,
+  deletedAt: true,
   name: true,
   description: true,
   instructions: true,
@@ -66,155 +59,91 @@ const templateSelect = {
 } as const;
 
 const prompts: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook("preHandler", requireAuth);
+  fastify.addHook('preHandler', requireAuth);
 
-  fastify.get("/prompts", async (request) => {
-    const ownerId = request.session.get("userId")!;
-    await ensureDefaultDocumentTemplates();
-
-    const prompts = await prisma.prompt.findMany({
-      where: visibleTemplateWhere(ownerId),
-      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-      select: templateSelect,
-    });
-
-    return { prompts };
+  // Reads never initialize, repair templates or change account preferences.
+  fastify.get('/prompts', async (request) => {
+    const ownerId = request.session.get('userId')!;
+    const [list, user] = await Promise.all([
+      prisma.prompt.findMany({ where: usableTemplateWhere(ownerId), orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: templateSelect }),
+      prisma.user.findUnique({ where: { id: ownerId }, select: { defaultPromptId: true } }),
+    ]);
+    const defaultPromptId = effectiveDefaultTemplate(list, user?.defaultPromptId)?.id ?? null;
+    return { prompts: list.map(item => templateResponse(item, ownerId, defaultPromptId)), defaultPromptId };
   });
 
-  fastify.post("/prompts", async (request, reply) => {
-    const ownerId = request.session.get("userId")!;
-    await ensureDocumentTemplateSchema();
-
-    const parsed = createBody.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.flatten() });
+  fastify.put('/prompts/default', async (request, reply) => {
+    const ownerId = request.session.get('userId')!;
+    const parsed = z.object({ promptId: z.string().min(1).nullable() }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'Template inválido' });
+    if (parsed.data.promptId && !await prisma.prompt.findFirst({ where: { id: parsed.data.promptId, ...usableTemplateWhere(ownerId) }, select: { id: true } })) {
+      return reply.status(404).send({ error: 'Template indisponível' });
     }
-
-    const prompt = await prisma.$transaction(async (tx) => {
-      if (parsed.data.isDefault) {
-        await tx.prompt.updateMany({
-          where: { isDefault: true, ...visibleTemplateWhere(ownerId) },
-          data: { isDefault: false },
-        });
-      }
-
-      return tx.prompt.create({
-        data: {
-          name: parsed.data.name,
-          description: parsed.data.description?.trim() || null,
-          instructions: parsed.data.instructions,
-          formality: parsed.data.formality ?? "neutral",
-          detailLevel: parsed.data.detailLevel ?? "balanced",
-          useTitle: parsed.data.useTitle ?? true,
-          useHeadings: parsed.data.useHeadings ?? true,
-          useSubheadings: parsed.data.useSubheadings ?? true,
-          preferLists: parsed.data.preferLists ?? true,
-          preferTables: parsed.data.preferTables ?? false,
-          includeAudioCitations: parsed.data.includeAudioCitations ?? true,
-          transcriptionMode: parsed.data.transcriptionMode ?? "MEETING",
-          isDefault: parsed.data.isDefault ?? false,
-          isPublic: parsed.data.isPublic ?? false,
-          ownerId,
-        },
-        select: templateSelect,
-      });
-    });
-
-    return reply.status(201).send({ prompt });
+    await prisma.user.update({ where: { id: ownerId }, data: { defaultPromptId: parsed.data.promptId } });
+    return { defaultPromptId: parsed.data.promptId };
   });
 
-  fastify.put<{ Params: { id: string } }>("/prompts/:id", async (request, reply) => {
-    const ownerId = request.session.get("userId")!;
-    await ensureDocumentTemplateSchema();
+  fastify.post('/prompts', async (request, reply) => {
+    const ownerId = request.session.get('userId')!;
+    const parsed = createBody.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'Confira os campos e seus limites: nome 80, descrição 500 e instruções 8000 caracteres.' });
+    const { isDefault, ...data } = parsed.data;
+    try {
+      const prompt = await prisma.$transaction(async tx => {
+        const created = await tx.prompt.create({ data: { ...data, description: data.description?.trim() || null, ownerId, isPublic: data.isPublic ?? false }, select: templateSelect });
+        if (isDefault) await tx.user.update({ where: { id: ownerId }, data: { defaultPromptId: created.id } });
+        return created;
+      });
+      return reply.status(201).send({ prompt: templateResponse(prompt, ownerId, isDefault ? prompt.id : null) });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') return reply.status(409).send({ error: 'Este nome já está em uso. Escolha outro nome para o template.' });
+      throw error;
+    }
+  });
 
+  fastify.post<{ Params: { id: string } }>('/prompts/:id/duplicate', async (request, reply) => {
+    const ownerId = request.session.get('userId')!;
+    const params = paramsSchema.safeParse(request.params);
+    if (!params.success) return reply.status(400).send({ error: 'Template inválido' });
+    const original = await prisma.prompt.findFirst({ where: { id: params.data.id, ...usableTemplateWhere(ownerId) }, select: templateSelect });
+    if (!original) return reply.status(404).send({ error: 'Template indisponível' });
+    const baseName = templateResponse(original, ownerId).name ?? original.name;
+    const { id: _id, owner: _owner, ownerId: _ownerId, platformKey: _key, deletedAt: _deleted, createdAt: _created, updatedAt: _updated, isDefault: _default, ...content } = original;
+    const prompt = await prisma.prompt.create({ data: { ...content, name: `${baseName.slice(0, 55)} (cópia ${randomUUID().slice(0, 8)})`, ownerId, isPublic: false }, select: templateSelect });
+    return reply.status(201).send({ prompt: templateResponse(prompt, ownerId) });
+  });
+
+  fastify.put<{ Params: { id: string } }>('/prompts/:id', async (request, reply) => {
+    const ownerId = request.session.get('userId')!;
     const params = paramsSchema.safeParse(request.params);
     const parsed = updateBody.safeParse(request.body);
-    if (!params.success || !parsed.success) {
-      return reply.status(400).send({ error: "Dados invalidos" });
-    }
-
-    const existing = await prisma.prompt.findUnique({ where: { id: params.data.id } });
-    if (!existing) return reply.status(404).send({ error: "Template nao encontrado" });
-    if (existing.ownerId && existing.ownerId !== ownerId) {
-      return reply.status(403).send({ error: "Voce nao pode editar este template" });
-    }
-
-    const prompt = await prisma.$transaction(async (tx) => {
-      if (parsed.data.isDefault) {
-        await tx.prompt.updateMany({
-          where: {
-            isDefault: true,
-            id: { not: params.data.id },
-            ...visibleTemplateWhere(ownerId),
-          },
-          data: { isDefault: false },
-        });
-      }
-
-      return tx.prompt.update({
-        where: { id: params.data.id },
-        data: {
-          ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-          ...(parsed.data.description !== undefined ? { description: parsed.data.description?.trim() || null } : {}),
-          ...(parsed.data.instructions !== undefined ? { instructions: parsed.data.instructions } : {}),
-          ...(parsed.data.formality !== undefined ? { formality: parsed.data.formality } : {}),
-          ...(parsed.data.detailLevel !== undefined ? { detailLevel: parsed.data.detailLevel } : {}),
-          ...(parsed.data.useTitle !== undefined ? { useTitle: parsed.data.useTitle } : {}),
-          ...(parsed.data.useHeadings !== undefined ? { useHeadings: parsed.data.useHeadings } : {}),
-          ...(parsed.data.useSubheadings !== undefined ? { useSubheadings: parsed.data.useSubheadings } : {}),
-          ...(parsed.data.preferLists !== undefined ? { preferLists: parsed.data.preferLists } : {}),
-          ...(parsed.data.preferTables !== undefined ? { preferTables: parsed.data.preferTables } : {}),
-          ...(parsed.data.includeAudioCitations !== undefined ? { includeAudioCitations: parsed.data.includeAudioCitations } : {}),
-          ...(parsed.data.transcriptionMode !== undefined ? { transcriptionMode: parsed.data.transcriptionMode } : {}),
-          ...(parsed.data.isDefault !== undefined ? { isDefault: parsed.data.isDefault } : {}),
-          ...(parsed.data.isPublic !== undefined ? { isPublic: parsed.data.isPublic } : {}),
-        },
-        select: templateSelect,
+    if (!params.success || !parsed.success) return reply.status(400).send({ error: 'Dados inválidos. Confira os limites dos campos.' });
+    const existing = await prisma.prompt.findFirst({ where: { id: params.data.id, ownerId, platformKey: null, deletedAt: null }, select: { id: true } });
+    if (!existing) return reply.status(404).send({ error: 'Template próprio não encontrado ou somente leitura' });
+    const { isDefault, ...data } = parsed.data;
+    try {
+      const prompt = await prisma.$transaction(async tx => {
+        const updated = await tx.prompt.update({ where: { id: existing.id }, data, select: templateSelect });
+        if (isDefault === true) await tx.user.update({ where: { id: ownerId }, data: { defaultPromptId: existing.id } });
+        if (isDefault === false) await tx.user.updateMany({ where: { id: ownerId, defaultPromptId: existing.id }, data: { defaultPromptId: null } });
+        return updated;
       });
-    });
-
-    return reply.send({ prompt });
+      return { prompt: templateResponse(prompt, ownerId, isDefault ? prompt.id : null) };
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') return reply.status(409).send({ error: 'Este nome já está em uso. Escolha outro nome para o template.' });
+      throw error;
+    }
   });
 
-  fastify.delete<{ Params: { id: string } }>("/prompts/:id", async (request, reply) => {
-    const ownerId = request.session.get("userId")!;
+  fastify.delete<{ Params: { id: string } }>('/prompts/:id', async (request, reply) => {
+    const ownerId = request.session.get('userId')!;
     const params = paramsSchema.safeParse(request.params);
-    if (!params.success) {
-      return reply.status(400).send({ error: "Template invalido" });
-    }
-
-    const [existing, total] = await Promise.all([
-      prisma.prompt.findUnique({ where: { id: params.data.id } }),
-      prisma.prompt.count({ where: visibleTemplateWhere(ownerId) }),
-    ]);
-
-    if (!existing) return reply.status(404).send({ error: "Template nao encontrado" });
-    if (existing.ownerId && existing.ownerId !== ownerId) {
-      return reply.status(403).send({ error: "Voce nao pode remover este template" });
-    }
-    if (total <= 1) {
-      return reply.status(400).send({ error: "Mantenha pelo menos um template cadastrado" });
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.prompt.delete({ where: { id: params.data.id } });
-
-      if (existing.isDefault) {
-        const nextDefault = await tx.prompt.findFirst({
-          where: visibleTemplateWhere(ownerId),
-          orderBy: { createdAt: "asc" },
-        });
-        if (nextDefault) {
-          await tx.prompt.update({
-            where: { id: nextDefault.id },
-            data: { isDefault: true },
-          });
-        }
-      }
-    });
-
+    if (!params.success) return reply.status(400).send({ error: 'Template inválido' });
+    const existing = await prisma.prompt.findFirst({ where: { id: params.data.id, ownerId, platformKey: null, deletedAt: null }, select: { id: true } });
+    if (!existing) return reply.status(404).send({ error: 'Template próprio não encontrado ou somente leitura' });
+    // Retain the record, IDs and all document/session references for history.
+    await prisma.prompt.update({ where: { id: existing.id }, data: { deletedAt: new Date() } });
     return reply.status(204).send();
   });
 };
-
 export default prompts;
