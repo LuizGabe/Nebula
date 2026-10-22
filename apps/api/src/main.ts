@@ -11,6 +11,7 @@ import { getReadinessStatus } from "@/lib/system/status";
 import { ensureDefaultDocumentTemplates } from "@/lib/prompts";
 import { ensureSessionStatusSchema } from "@/lib/sessionSchema";
 import { ensureTranscriptSchema } from '@/lib/transcriptSchema';
+import { ensureFolderColorSchema } from '@/lib/folderSchema';
 
 import { startWorkers } from "@/workers";
 
@@ -86,6 +87,7 @@ await app.register(insightsRoutes);
 await app.register(exportRoutes);
 
 try {
+  await ensureFolderColorSchema();
   await ensureSessionStatusSchema();
   await ensureTranscriptSchema();
   await ensureDefaultDocumentTemplates();

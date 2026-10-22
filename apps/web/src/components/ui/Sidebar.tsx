@@ -1,10 +1,12 @@
 import { IconButton } from './Button'
+import { NotebookDialog } from '../NotebookDialog'
+import { notebookColor, openNotebook, type NotebookRequest } from '../../utils/library'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAppearanceStore } from '../../store/appearance'
 import { useDialogFocus } from '../../hooks/useDialogFocus'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Moon, Sun, PanelLeftClose, PanelLeftOpen, UserRound, Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Menu, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
+import { Moon, Sun, PanelLeftClose, PanelLeftOpen, UserRound, Activity, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Menu, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
 import nebulaIcon from '../../assets/nebula-icon.svg'
 import { NebulaWordmark } from './NebulaWordmark'
 import clsx from 'clsx'
@@ -52,7 +54,7 @@ function countFolderContents(node: FolderNode): { folders: number; sessions: num
       const childTotals = countFolderContents(child)
       return {
         folders: totals.folders + 1 + childTotals.folders,
-        sessions: totals.sessions + child.sessions.length + childTotals.sessions,
+        sessions: totals.sessions + childTotals.sessions,
       }
     },
     { folders: 0, sessions: node.sessions.length }
@@ -62,49 +64,18 @@ function countFolderContents(node: FolderNode): { folders: number; sessions: num
 function TreeFolder({
   node,
   depth,
-  onChanged,
   onMoveSession,
   onDeleteFolder,
 }: {
   node: FolderNode
   depth: number
-  onChanged: () => Promise<void>
   onMoveSession: (sessionId: string, folderId: string) => Promise<void>
   onDeleteFolder: (target: DeleteFolderTarget) => void
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
-  const [creatingChild, setCreatingChild] = useState(false)
-  const [childName, setChildName] = useState('')
   const [dropActive, setDropActive] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [editName, setEditName] = useState(node.name)
   const hasChildren = node.children.length > 0 || node.sessions.length > 0
-
-  useEffect(() => {
-    setEditName(node.name)
-  }, [node.name])
-
-  const createChild = async () => {
-    if (!childName.trim()) return
-    await folders.create({ name: childName.trim(), parentId: node.id })
-    setChildName('')
-    setCreatingChild(false)
-    setOpen(true)
-    await onChanged()
-  }
-
-  const saveName = async () => {
-    const nextName = editName.trim()
-    if (!nextName || nextName === node.name) {
-      setEditName(node.name)
-      setEditing(false)
-      return
-    }
-    await folders.update(node.id, { name: nextName })
-    setEditing(false)
-    await onChanged()
-  }
 
   const requestDelete = () => {
     const totals = countFolderContents(node)
@@ -146,66 +117,28 @@ function TreeFolder({
         >
           {hasChildren ? (open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />) : null}
         </button>
-        {editing ? (
-          <div className="min-w-0 flex-1 h-7 flex items-center gap-1">
-            <input
-              autoFocus
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') saveName()
-                if (e.key === 'Escape') {
-                  setEditName(node.name)
-                  setEditing(false)
-                }
-              }}
-              className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-line text-xs outline-none focus:border-line"
-            />
-            <button
-              onClick={saveName}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-jade-700 hover:bg-jade-50"
-              title="Salvar"
-            >
-              <Check className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                setEditName(node.name)
-                setEditing(false)
-              }}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted"
-              title="Cancelar"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => navigate(`/?folder=${node.id}`)}
-            className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-secondary hover:text-primary hover:bg-muted"
-          >
-            <Folder className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{node.name}</span>
-          </button>
-        )}
+        <button onClick={() => navigate(`/?folder=${node.id}`)} className="min-w-0 flex-1 min-h-9 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-secondary hover:text-primary hover:bg-muted">
+          <Folder className="w-3.5 h-3.5 shrink-0" style={{ color: notebookColor(node.color) }} />
+          <span className="truncate">{node.name}</span>
+        </button>
         <button
-          onClick={() => setCreatingChild(true)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted opacity-0 group-hover/folder:opacity-100 transition-opacity"
-          title="Nova subpasta"
+          onClick={() => openNotebook({ parentId: node.id })}
+          className="w-8 min-h-9 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted"
+          title={`Novo subcaderno em ${node.name}`}
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
         <button
-          onClick={() => setEditing(true)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted opacity-0 group-hover/folder:opacity-100 transition-opacity"
-          title="Editar pasta"
+          onClick={() => openNotebook({ folder: node })}
+          className="w-8 min-h-9 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted"
+          title={`Editar caderno ${node.name}`}
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={requestDelete}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-subtle hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
-          title="Excluir pasta"
+          className="w-8 min-h-9 flex items-center justify-center rounded-md text-subtle hover:text-rose-700 hover:bg-rose-50"
+          title={`Excluir caderno ${node.name}`}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -213,35 +146,11 @@ function TreeFolder({
 
       {open && (
         <div>
-          {creatingChild && (
-            <div className="mb-1 flex items-center gap-1" style={{ paddingLeft: depth * 10 + 31 }}>
-              <input
-                autoFocus
-                value={childName}
-                onChange={(e) => setChildName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') createChild()
-                  if (e.key === 'Escape') setCreatingChild(false)
-                }}
-                placeholder="Subpasta"
-                className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-line text-xs outline-none focus:border-line"
-              />
-              <button
-                onClick={createChild}
-                className="w-7 h-7 rounded-lg flex items-center justify-center bg-action text-on-action disabled:opacity-40"
-                disabled={!childName.trim()}
-                title="Criar subpasta"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
           {node.children.map((child) => (
             <TreeFolder
               key={child.id}
               node={child}
               depth={depth + 1}
-              onChanged={onChanged}
               onMoveSession={onMoveSession}
               onDeleteFolder={onDeleteFolder}
             />
@@ -354,8 +263,12 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   const navigate = useNavigate()
   const [folderList, setFolderList] = useState<FolderItem[]>([])
   const [sessionList, setSessionList] = useState<Session[]>([])
-  const [creating, setCreating] = useState(false)
-  const [folderName, setFolderName] = useState('')
+  const [notebookTarget, setNotebookTarget] = useState<NotebookRequest | null>(null)
+  useEffect(() => {
+    const open = (event: Event) => { setNotebookTarget((event as CustomEvent<NotebookRequest>).detail) }
+    window.addEventListener('nebula:edit-notebook', open)
+    return () => window.removeEventListener('nebula:edit-notebook', open)
+  }, [])
   const [deleteTarget, setDeleteTarget] = useState<DeleteFolderTarget | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
@@ -392,17 +305,9 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   const tree = useMemo(() => buildTree(folderList, sessionList), [folderList, sessionList])
   const looseSessions = sessionList.filter((session) => !session.folderId)
 
-  const createFolder = async () => {
-    if (!folderName.trim()) return
-    await folders.create({ name: folderName.trim() })
-    setFolderName('')
-    setCreating(false)
-    await loadTree()
-  }
-
   const moveSessionToFolder = async (sessionId: string, folderId: string | null) => {
     await sessions.update(sessionId, { folderId })
-    await loadTree()
+    window.dispatchEvent(new Event('nebula:sessions-changed'))
   }
 
   const deleteFolder = async (sessionAction: 'moveToRoot' | 'delete') => {
@@ -446,32 +351,8 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         <div className="nebula-folders">
           <div className="mb-2 flex items-center justify-between gap-2 px-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Cadernos</p>
-            <button type="button" onClick={() => setCreating(true)} className="nebula-icon-button text-secondary" aria-label="Novo caderno" title="Novo caderno"><FolderPlus className="h-4 w-4" /></button>
+            <button type="button" onClick={() => openNotebook({ parentId: null })} className="nebula-icon-button text-secondary" aria-label="Novo caderno" title="Novo caderno"><FolderPlus className="h-4 w-4" /></button>
           </div>
-        {creating && (
-          <div className="mb-3 flex items-center gap-1">
-            <input
-              autoFocus
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') createFolder()
-                if (e.key === 'Escape') setCreating(false)
-              }}
-              placeholder="Nome da pasta"
-              className="min-w-0 flex-1 h-8 px-2 rounded-lg border border-line text-xs outline-none focus:border-line"
-            />
-            <button
-              onClick={createFolder}
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-action text-on-action disabled:opacity-40"
-              disabled={!folderName.trim()}
-              title="Criar"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         <div className="flex flex-col gap-0.5">
           <RootFolder
             sessions={looseSessions}
@@ -482,7 +363,6 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
               key={node.id}
               node={node}
               depth={0}
-              onChanged={loadTree}
               onMoveSession={moveSessionToFolder}
               onDeleteFolder={setDeleteTarget}
             />
@@ -499,14 +379,15 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         </nav>
       </div>
 
+      {notebookTarget && <NotebookDialog target={notebookTarget} onClose={() => setNotebookTarget(null)} />}
       {deleteTarget && createPortal(
         <div className="fixed inset-0 z-overlay flex items-center justify-center bg-overlay/40 px-4">
           <div ref={deleteRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Excluir caderno" className="nebula-surface w-full max-w-md rounded-2xl bg-surface p-5 shadow-float border border-line">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-primary">Excluir pasta</h2>
+                <h2 className="text-lg font-semibold text-primary">Excluir caderno</h2>
                 <p className="mt-1 text-sm text-subtle">
-                  Escolha o que fazer com as sessoes dentro de "{deleteTarget.name}".
+                  O caderno e todos os descendentes serão excluídos. Escolha o que fazer com as sessões de "{deleteTarget.name}".
                 </p>
               </div>
               <button
@@ -537,7 +418,7 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
                 disabled={deleting}
                 className="w-full rounded-xl border border-rose-100 px-4 py-3 text-left text-sm font-medium text-rose-700 hover:border-rose-300 hover:bg-rose-50 disabled:opacity-50"
               >
-                Excluir pasta e sessoes
+                Excluir caderno, descendentes e sessões
               </button>
             </div>
           </div>

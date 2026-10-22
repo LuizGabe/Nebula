@@ -21,7 +21,7 @@ export function AppLayout() {
   }
 
   return (
-    <div data-collapsed={collapsed} className="nebula-shell flex min-h-screen">
+    <div data-collapsed={collapsed} className="nebula-shell min-h-screen md:flex">
       <CaptureNavigationGuard />
       <Sidebar onNewSession={openNewSession} />
       <RecordingRecovery />

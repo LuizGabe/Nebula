@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS "folders" (
   "parentId" TEXT
 );
 
+ALTER TABLE "folders" ADD COLUMN IF NOT EXISTS "color" TEXT NOT NULL DEFAULT 'neutral';
+
 ALTER TABLE "recording_sessions"
   ADD COLUMN IF NOT EXISTS "promptId" TEXT,
   ADD COLUMN IF NOT EXISTS "folderId" TEXT,

@@ -3,9 +3,11 @@ import { z } from "zod";
 
 import { requireAuth } from "@/hooks/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { FOLDER_COLORS, normalizeFolderColor } from '@/lib/folderColors';
 
 const folderBody = z.object({
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1).max(80),
+  color: z.enum(FOLDER_COLORS).optional(),
   parentId: z.string().nullable().optional(),
 });
 
@@ -32,6 +34,7 @@ const folders: FastifyPluginAsync = async (fastify) => {
       select: {
         id: true,
         name: true,
+        color: true,
         parentId: true,
         createdAt: true,
         updatedAt: true,
@@ -39,7 +42,7 @@ const folders: FastifyPluginAsync = async (fastify) => {
       },
     });
 
-    return reply.send({ folders: list });
+    return reply.send({ folders: list.map(folder => ({ ...folder, color: normalizeFolderColor(folder.color) })) });
   });
 
   fastify.post("/folders", async (request, reply) => {
@@ -58,11 +61,12 @@ const folders: FastifyPluginAsync = async (fastify) => {
       data: {
         ownerId,
         name: parsed.data.name.trim(),
+        color: parsed.data.color ?? 'neutral',
         parentId: parent?.id ?? null,
       },
     });
 
-    return reply.status(201).send({ folder });
+    return reply.status(201).send({ folder: { ...folder, color: normalizeFolderColor(folder.color) } });
   });
 
   fastify.put<{ Params: { id: string } }>("/folders/:id", async (request, reply) => {
@@ -91,11 +95,12 @@ const folders: FastifyPluginAsync = async (fastify) => {
       where: { id: current.id },
       data: {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
+        ...(parsed.data.color !== undefined ? { color: parsed.data.color } : {}),
         ...(parsed.data.parentId !== undefined ? { parentId: parent?.id ?? null } : {}),
       },
     });
 
-    return reply.send({ folder });
+    return reply.send({ folder: { ...folder, color: normalizeFolderColor(folder.color) } });
   });
 
   fastify.delete<{ Params: { id: string } }>("/folders/:id", async (request, reply) => {

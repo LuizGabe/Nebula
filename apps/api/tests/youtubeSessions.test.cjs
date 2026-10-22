@@ -19,6 +19,7 @@ async function main() {
   const created = [], jobs = [], events = [], updates = []
   let username = 'common'
   let queueFailure = false
+  let listQueries = 0
   const prisma = {
     prompt: { findFirst: async ({ where }) => where.id === 'public-prompt' ? { id: 'public-prompt', transcriptionMode: 'CLASS' } : null },
     folder: { findFirst: async ({ where }) => where.id === 'owned-folder' ? { id: 'owned-folder' } : null },
@@ -26,6 +27,16 @@ async function main() {
       create: async ({ data }) => { created.push(data); return { ...data, id: `s${created.length}`, owner: { id: 'owner', username } } },
       update: async ({ data }) => updates.push(data),
       findFirst: async () => null,
+      updateMany: async () => ({ count: 0 }),
+      findMany: async ({ where, select }) => {
+        listQueries++
+        assert.equal(where.ownerId, 'owner')
+        assert.equal(where.isDeleted, false)
+        assert.equal(select.transcripts, undefined, 'library must not expose transcript text')
+        assert.equal(select.sessionEvents.take, 1)
+        return [{ id: 'ended-no-document', status: 'ENDED', _count: { documents: 0, transcripts: 1 }, audioMedias: [{ status: 'TRANSCRIBED' }], sessionEvents: [{ type: 'DOCUMENT_SKIPPED' }] },
+          { id: 'regenerating', status: 'ENDED', _count: { documents: 1, transcripts: 2 }, audioMedias: [{ status: 'PROCESSING' }, { status: 'FAILED' }], sessionEvents: [{ type: 'DOCUMENT_GENERATING' }] }]
+      },
     },
   }
   const route = transpile('routes/sessions.ts', {
@@ -79,6 +90,17 @@ async function main() {
     assert.equal(updates.at(-1).status, 'ERROR')
     assert.equal(events.at(-1)[1], 'UPLOAD_FAILED')
     assert.equal((await app.inject({ method: 'GET', url: '/sessions/other/status/stream', headers: { 'x-test-auth': 'yes' } })).statusCode, 404)
+    const library = await app.inject({ method: 'GET', url: '/sessions', headers: { 'x-test-auth': 'yes' } })
+    assert.equal(library.statusCode, 200)
+    assert.equal(listQueries, 1, 'one listing query, with no individual session queries')
+    const listed = library.json().sessions
+    assert.deepEqual(listed[0].processing, { hasDocument: false, hasTranscript: true, pendingAudio: 0, failedAudio: 0, documentEvent: 'DOCUMENT_SKIPPED' })
+    assert.equal(listed[1].processing.pendingAudio, 1)
+    assert.equal(listed[1].processing.failedAudio, 1)
+    assert.equal(listed[1].processing.hasDocument, true)
+    assert.equal(listed[0]._count, undefined)
+    assert.equal(listed[0].audioMedias, undefined)
+    assert.equal(listed[0].sessionEvents, undefined)
     console.log('YouTube session API regression tests passed')
   } finally { await app.close() }
 }

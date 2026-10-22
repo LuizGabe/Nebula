@@ -326,7 +326,6 @@ const sessions: FastifyPluginAsync = async (fastify) => {
   // GET /sessions - lista sessoes do usuario
   fastify.get("/sessions", async (request, reply) => {
     // TODO: paginacao, filtros, etc
-    // TODO: quando listar sessoes, trazer tambem o numero de transcricoes, documentos, etc para evitar multiplas queries na UI
     const ownerId = request.session.get("userId")!;
 
     await reconcileCompletedSessions(ownerId);
@@ -335,6 +334,14 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       where: { ownerId, isDeleted: false },
       orderBy: { createdAt: "desc" },
       select: {
+        _count: { select: { documents: true, transcripts: true } },
+        audioMedias: { select: { status: true } },
+        sessionEvents: {
+          where: { type: { in: ['DOCUMENT_QUEUED', 'DOCUMENT_GENERATING', 'DOCUMENT_READY', 'DOCUMENT_FAILED', 'DOCUMENT_SKIPPED'] } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: { type: true },
+        },
         id: true,
         promptId: true,
         prompt: { select: promptSelect },
@@ -359,7 +366,16 @@ const sessions: FastifyPluginAsync = async (fastify) => {
       },
     });
 
-    return reply.send({ sessions: list });
+    return reply.send({ sessions: list.map(({ _count, audioMedias, sessionEvents, ...session }) => ({
+      ...session,
+      processing: {
+        hasDocument: _count.documents > 0,
+        hasTranscript: _count.transcripts > 0,
+        pendingAudio: audioMedias.filter(audio => ['PENDING_UPLOAD', 'UPLOADED', 'PROCESSING'].includes(audio.status)).length,
+        failedAudio: audioMedias.filter(audio => audio.status === 'FAILED').length,
+        documentEvent: sessionEvents[0]?.type ?? null,
+      },
+    })) });
   });
   // GET /sessions/:id - detalhes da sessao
   fastify.get<{ Params: { id: string } }>(

@@ -18,6 +18,7 @@ export default {
         'primary': 'rgb(var(--primary) / <alpha-value>)',
         'secondary': 'rgb(var(--secondary) / <alpha-value>)',
         'line': 'rgb(var(--line) / <alpha-value>)',
+        'control-line': 'rgb(var(--control-line) / <alpha-value>)',
         'focus': 'rgb(var(--focus) / <alpha-value>)',
         'selection': 'rgb(var(--selection) / <alpha-value>)',
         'overlay': 'rgb(var(--overlay) / <alpha-value>)',

@@ -54,10 +54,12 @@ export type SessionInputSource = 'microphone' | 'upload' | 'youtube'
 export type DocumentFormality = 'informal' | 'neutral' | 'formal'
 export type DocumentDetailLevel = 'concise' | 'balanced' | 'detailed'
 export type DocumentTranscriptionMode = 'MEETING' | 'CLASS'
+export type FolderColor = 'neutral' | 'violet' | 'sage' | 'sand' | 'blue'
 
 export interface Folder {
   id: string
   name: string
+  color?: FolderColor
   parentId: string | null
   createdAt: string
   updatedAt: string
@@ -93,6 +95,13 @@ export interface Session {
   folderId: string | null
   folder: Folder | null
   status: SessionStatus
+  processing?: {
+    hasDocument: boolean
+    hasTranscript: boolean
+    pendingAudio: number
+    failedAudio: number
+    documentEvent: string | null
+  }
   title: string | null
   sessionContext: string | null
   instructionsOverride: string | null
@@ -261,13 +270,13 @@ export const system = {
 export const folders = {
   list: () => request<{ folders: Folder[] }>('/folders'),
 
-  create: (data: { name: string; parentId?: string | null }) =>
+  create: (data: { name: string; parentId?: string | null; color?: FolderColor }) =>
     request<{ folder: Folder }>('/folders', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: { name?: string; parentId?: string | null }) =>
+  update: (id: string, data: { name?: string; parentId?: string | null; color?: FolderColor }) =>
     request<{ folder: Folder }>(`/folders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

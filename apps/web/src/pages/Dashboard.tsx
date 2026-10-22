@@ -1,197 +1,60 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom'
-import { Activity, AlertCircle, ArrowRight, Calendar, Clock, FilePlus2, Folder, Layers, Mic, Plus, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom'
+import { ChevronRight, FilePlus2, Folder, FolderPlus, Mic, Pencil, Plus, Search, X } from 'lucide-react'
 import { folders as foldersApi, sessions as sessionsApi, type Folder as FolderItem, type Session } from '../api/client'
 import type { AppLayoutContext } from '../components/layout/AppLayout'
-import { Button } from '../components/ui/Button'
+import { Button, IconButton } from '../components/ui/Button'
 import { Badge } from '../components/ui/misc'
 import { Skeleton } from '../components/ui/Skeleton'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { safeDate } from '@/utils/SafeDate'
+import { folderPath, librarySessions, normalizeSearch, notebookColor, openNotebook, sessionLabels, sessionPending } from '../utils/library'
 
-function childFolderIds(folderId: string, folderList: FolderItem[]) {
-  const ids = new Set<string>([folderId])
-  let changed = true
-
-  while (changed) {
-    changed = false
-    folderList.forEach((folder) => {
-      if (folder.parentId && ids.has(folder.parentId) && !ids.has(folder.id)) {
-        ids.add(folder.id)
-        changed = true
-      }
-    })
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const sessionCount = (count: number) => `${count} ${count === 1 ? 'sessão' : 'sessões'}`
+function formatDate(value: string) {
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) ? dateFormatter.format(date) : 'Data indisponível'
+}
+function SessionRow({ session, folders, onChanged }: { session: Session; folders: FolderItem[]; onChanged: () => void }) {
+  const [moving, setMoving] = useState(false)
+  const [error, setError] = useState('')
+  const labels = sessionLabels(session)
+  const path = folderPath(session.folderId, folders).map(folder => folder.name).join(' / ') || 'Sem caderno'
+  const move = async (folderId: string) => {
+    setMoving(true); setError('')
+    try { await sessionsApi.update(session.id, { folderId: folderId || null }); onChanged() }
+    catch (error) { setError(error instanceof Error ? error.message : 'Não foi possível mover a sessão.') }
+    finally { setMoving(false) }
   }
-
-  return ids
-}
-
-function sessionsInFolder(folderId: string, sessionList: Session[], folderList: FolderItem[]) {
-  const ids = childFolderIds(folderId, folderList)
-  return sessionList.filter((session) => session.folderId && ids.has(session.folderId))
-}
-
-function latestSession(sessionList: Session[]) {
-  return [...sessionList].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]
-}
-
-function formatSessionDate(value: string) {
-  const date = safeDate(value)
-  if (!date) return '-'
-  return format(date, 'd MMM, HH:mm', { locale: ptBR })
-}
-
-function statusBadge(session: Session) {
-  if (session.status === 'ERROR') return <Badge variant="rose">Erro</Badge>
-  if (session.status === 'IN_PROGRESS') return <Badge variant="amber">Processando</Badge>
-  if (session.status === 'ACTIVE') return <Badge variant="rose">Ativa</Badge>
-  if (session.status === 'ENDED') return <Badge variant="ink">Encerrada</Badge>
-  return <Badge>Estado desconhecido</Badge>
-}
-
-function MetricCard({
-  label,
-  value,
-  icon: Icon,
-  detail,
-}: {
-  label: string
-  value: number
-  icon: typeof Activity
-  detail: string
-}) {
-  return (
-    <div className="nebula-surface bg-surface border border-line rounded-2xl p-4 shadow-soft">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-subtle">{label}</p>
-        <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-subtle">
-          <Icon className="w-4 h-4" />
+  return <li className="border-b border-line last:border-b-0">
+    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:gap-5">
+      <Link to={`/sessions/${session.id}`} draggable onDragStart={event => { event.dataTransfer.setData('application/x-nebula-session', session.id); event.dataTransfer.effectAllowed = 'move' }} className="min-w-0 flex-1 rounded-lg p-2 -m-2 hover:bg-hover">
+        <h3 className="break-words text-base font-medium text-primary">{session.title || `${session.prompt?.name ?? 'Sessão'} sem título`}</h3>
+        <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs text-secondary">
+          <Folder aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: notebookColor(session.folder?.color ?? folders.find(folder => folder.id === session.folderId)?.color) }} />
+          <span className="break-words">{path}</span>
         </div>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-subtle">
+          <time dateTime={session.createdAt}>{formatDate(session.createdAt)}</time>
+          <span>Template: {session.prompt?.name ?? 'Não informado'}</span>
+        </div>
+      </Link>
+      <div className="flex shrink-0 flex-col gap-1 text-xs text-secondary sm:w-52">
+        <div>
+          <Badge variant={session.status === 'ERROR' ? 'rose' : sessionPending(session) ? 'amber' : 'ink'}>{labels.capture}</Badge>
+        </div>
+        <span>{labels.transcript}</span>
+        <span>{labels.document}</span>
       </div>
-      <p className="text-2xl font-display font-semibold text-primary mt-3">{value}</p>
-      <p className="text-xs text-subtle mt-1">{detail}</p>
+      <details className="w-full shrink-0 text-xs sm:w-32">
+        <summary className="min-h-11 cursor-pointer rounded-lg border border-line px-3 py-3 text-secondary hover:bg-hover">Organizar<span className="sr-only"> {session.title || 'sessão'}</span>
+        </summary>
+        <label className="mt-2 block text-secondary">Mover para<select aria-label={`Mover ${session.title || 'sessão'} para caderno`} disabled={moving} value={session.folderId ?? ''} onChange={event => void move(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-line bg-surface p-2 text-primary">
+          <option value="">Sem caderno</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folderPath(folder.id, folders).map(item => item.name).join(' / ')}</option>)}</select>
+        </label>
+      </details>
     </div>
-  )
-}
-
-function SessionCard({ session }: { session: Session }) {
-  const navigate = useNavigate()
-  const promptName = session.prompt?.name ?? 'Documento'
-
-  return (
-    <button
-      onClick={() => navigate(`/sessions/${session.id}`)}
-      className="nebula-surface group w-full text-left bg-surface rounded-2xl border border-line shadow-soft hover:shadow-card hover:border-line transition-all duration-200 p-5 flex flex-col gap-3"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-primary truncate">
-            {session.title || `${promptName} sem titulo`}
-          </p>
-          <p className="text-xs text-subtle mt-0.5 flex items-center gap-1.5">
-            <Calendar className="w-3 h-3" />
-            {formatSessionDate(session.createdAt)}
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <Badge variant="ink">{promptName}</Badge>
-          {statusBadge(session)}
-        </div>
-      </div>
-
-      <div className="h-10 rounded-lg bg-muted flex items-center px-3">
-        <p className="text-xs text-subtle line-clamp-2">
-          {session.status === 'IN_PROGRESS'
-            ? 'Audio recebido e aguardando atualizacoes do processamento.'
-            : 'Abra para ver transcricao, documento e historico.'}
-        </p>
-      </div>
-    </button>
-  )
-}
-
-function NotebookRow({
-  name,
-  sessions,
-  childCount,
-  onOpen,
-  onNewSession,
-}: {
-  name: string
-  sessions: Session[]
-  childCount: number
-  onOpen: () => void
-  onNewSession: () => void
-}) {
-  const latest = latestSession(sessions)
-
-  return (
-    <div className="group flex items-center gap-3 px-3 py-2.5 border-b border-line last:border-b-0 hover:bg-muted transition-colors">
-      <button onClick={onOpen} className="min-w-0 flex-1 flex items-center gap-3 text-left">
-        <div className="w-8 h-8 rounded-lg bg-jade-50 text-jade-700 flex items-center justify-center shrink-0">
-          <Folder className="w-4 h-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-primary truncate">{name}</p>
-          <p className="text-xs text-subtle truncate">
-            {sessions.length} sessao{sessions.length !== 1 ? 'es' : ''} - {childCount} subpasta{childCount !== 1 ? 's' : ''}
-          </p>
-        </div>
-      </button>
-
-      <div className="hidden md:block w-40 text-xs text-subtle truncate">
-        {latest ? `Ultima: ${formatSessionDate(latest.createdAt)}` : 'Sem atividade'}
-      </div>
-
-      <button
-        onClick={onNewSession}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-surface border border-transparent hover:border-line transition-all"
-        title="Nova sessao neste caderno"
-      >
-        <FilePlus2 className="w-4 h-4" />
-      </button>
-      <button
-        onClick={onOpen}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-surface border border-transparent hover:border-line transition-all"
-        title="Abrir caderno"
-      >
-        <ArrowRight className="w-4 h-4" />
-      </button>
-    </div>
-  )
-}
-
-function AlertPanel({
-  active,
-  processing,
-  root,
-}: {
-  active: number
-  processing: number
-  root: number
-}) {
-  const items = [
-    active > 0 ? `${active} sessao${active !== 1 ? 'es' : ''} ainda ativa${active !== 1 ? 's' : ''}` : null,
-    processing > 0 ? `${processing} audio${processing !== 1 ? 's' : ''} em processamento` : null,
-    root > 0 ? `${root} sessao${root !== 1 ? 'es' : ''} em Sem caderno` : null,
-  ].filter(Boolean)
-
-  if (items.length === 0) return null
-
-  return (
-    <div className="nebula-surface bg-surface border border-amber-100 rounded-2xl p-4 shadow-soft">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-          <AlertCircle className="w-4 h-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="font-medium text-primary">Pontos que merecem atencao</p>
-          <p className="text-sm text-subtle mt-1">{items.join(' - ')}</p>
-        </div>
-      </div>
-    </div>
-  )
+    {error && <p role="alert" className="pb-3 text-sm text-rose-700">{error}</p>}
+  </li>
 }
 
 export function DashboardPage() {
@@ -200,194 +63,125 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
-  const navigate = useNavigate()
+  const [loaded, setLoaded] = useState(false)
+  const inFlight = useRef(false)
+  const queued = useRef(false)
+  const alive = useRef(false)
   const { openNewSession } = useOutletContext<AppLayoutContext>()
   const [searchParams] = useSearchParams()
-  const selectedFolderId = searchParams.get('folder')
-  const isRootFolder = selectedFolderId === 'root'
-
-  const load = async () => {
-    setLoadError('')
-    const [sessionRes, folderRes] = await Promise.all([sessionsApi.list(), foldersApi.list()])
-    setSessionList(sessionRes.sessions ?? [])
-    setFolderList(folderRes.folders ?? [])
-  }
-
-  useEffect(() => {
-    load()
-      .catch(() => {
-        setLoadError('Não foi possível carregar suas sessões. Tente novamente.')
-      })
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    const refresh = () => {
-      load().catch(() => undefined)
+  const selectedId = searchParams.get('folder')
+  const isRoot = selectedId === 'root'
+  const selected = folderList.find(folder => folder.id === selectedId)
+  const missing = !!selectedId && !isRoot && !selected
+  const path = folderPath(selected?.id ?? null, folderList)
+  const scopeName = isRoot ? 'Sem caderno' : selected?.name ?? 'Biblioteca'
+  const scopeText = isRoot ? 'Sem caderno' : selected ? `${selected.name} e subcadernos` : 'Toda a biblioteca'
+  const destination = selected?.id ?? null
+  const load = useCallback(async () => {
+    if (inFlight.current) { queued.current = true; return }
+    inFlight.current = true
+    try {
+      const [sessionRes, folderRes] = await Promise.allSettled([sessionsApi.list(), foldersApi.list()])
+      if (sessionRes.status === 'rejected' || folderRes.status === 'rejected') throw new Error('Library refresh failed')
+      if (!alive.current) return
+      setSessionList(sessionRes.value.sessions ?? []); setFolderList(folderRes.value.folders ?? [])
+      setLoadError(''); setLoaded(true)
+    } catch { if (alive.current) setLoadError('Não foi possível atualizar a biblioteca. Os dados exibidos podem estar desatualizados.') }
+    finally {
+      inFlight.current = false
+      if (alive.current) {
+        setLoading(false)
+        if (queued.current) { queued.current = false; void load() }
+      }
     }
-    window.addEventListener('nebula:sessions-changed', refresh)
-    return () => window.removeEventListener('nebula:sessions-changed', refresh)
   }, [])
+  useEffect(() => {
+    alive.current = true
+    void load()
+    const refresh = () => { void load() }
+    window.addEventListener('nebula:sessions-changed', refresh)
+    return () => { alive.current = false; window.removeEventListener('nebula:sessions-changed', refresh) }
+  }, [load])
+  const pending = sessionList.some(sessionPending)
+  useEffect(() => {
+    if (!pending) return
+    const timer = window.setInterval(() => { if (!document.hidden && !inFlight.current) void load() }, 15000)
+    return () => window.clearInterval(timer)
+  }, [pending, load])
+  const shown = librarySessions(sessionList, folderList, selectedId, query)
+  const children = isRoot ? [] : folderList.filter(folder => folder.parentId === (selected?.id ?? null))
+  const searching = !!normalizeSearch(query)
+  const changed = () => window.dispatchEvent(new Event('nebula:sessions-changed'))
 
-  const selectedFolder = isRootFolder ? null : folderList.find((folder) => folder.id === selectedFolderId)
-  const selectedSessions = useMemo(() => {
-    if (isRootFolder) return sessionList.filter((session) => !session.folderId)
-    if (!selectedFolderId) return sessionList
-    return sessionsInFolder(selectedFolderId, sessionList, folderList)
-  }, [isRootFolder, selectedFolderId, sessionList, folderList])
-  const recentSessions = [...sessionList].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 4)
-  const rootFolders = folderList.filter((folder) => !folder.parentId)
-  const childFolders = selectedFolderId && !isRootFolder
-    ? folderList.filter((folder) => folder.parentId === selectedFolderId)
-    : rootFolders
-  const activeCount = sessionList.filter((session) => session.status === 'ACTIVE').length
-  const processingCount = sessionList.filter((session) => session.status === 'IN_PROGRESS').length
-  const readyCount = sessionList.filter((session) => session.status === 'ENDED').length
-  const rootSessions = sessionList.filter((session) => !session.folderId)
-  const selectedName = isRootFolder ? 'Sem caderno' : selectedFolder?.name
-  const selectedModalFolderId = isRootFolder ? null : selectedFolderId
-  const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR')
-  const scopedSessions = (normalizedQuery ? selectedSessions : selectedFolder || isRootFolder ? selectedSessions : rootSessions)
-    .filter(session => !normalizedQuery || [session.title, session.prompt?.name].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(normalizedQuery))
-
-  return (
-    <div className="nebula-page px-4 py-8 sm:px-8 sm:py-10 max-w-7xl mx-auto">
-      <div className="nebula-page-header flex flex-wrap items-start justify-between gap-4 mb-8">
-        <div>
-          {(selectedFolder || isRootFolder) && (
-            <button onClick={() => navigate('/')} className="text-sm text-subtle hover:text-primary mb-2">
-              Sessoes / {selectedName}
-            </button>
-          )}
-          <h1 className="font-display text-2xl font-semibold text-primary tracking-tight">
-            {selectedName ?? 'Sua biblioteca'}
-          </h1>
-          <p className="text-sm text-subtle mt-1">
-            {selectedFolder || isRootFolder
-              ? `${selectedSessions.length} sessao${selectedSessions.length !== 1 ? 'es' : ''} neste caderno`
-              : 'Suas conversas, ideias e documentos. Tudo em um só lugar.'}
-          </p>
-        </div>
-        <Button variant="primary" onClick={() => openNewSession(selectedModalFolderId)}>
-          <Plus className="w-4 h-4" />
-          Nova sessao
-        </Button>
+  return <div className="nebula-page mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-8">
+    <header className="mb-5 space-y-4">
+      {selectedId && <nav aria-label="Caminho do caderno">
+        <ol className="flex flex-wrap items-center gap-2 text-sm text-secondary">
+          <li>
+            <Link to="/" className="rounded hover:text-primary">Biblioteca</Link>
+          </li>{path.map(folder => <li key={folder.id} className="flex min-w-0 items-center gap-2">
+            <ChevronRight aria-hidden="true" className="h-3 w-3 shrink-0" />
+            <Link to={`/?folder=${folder.id}`} aria-current={folder.id === selectedId ? 'page' : undefined} className="break-words rounded hover:text-primary">{folder.name}</Link>
+          </li>)}{isRoot && <li aria-current="page">/ Sem caderno</li>}</ol>
+      </nav>}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">{selected && <Folder aria-hidden="true" className="h-6 w-6 shrink-0" style={{ color: notebookColor(selected.color) }} />}<h1 className="break-words text-2xl font-semibold tracking-tight text-primary">{missing && loaded ? 'Caderno indisponível' : scopeName}</h1>{selected && <IconButton label="Editar caderno" onClick={() => openNotebook({ folder: selected })}>
+          <Pencil className="h-4 w-4" />
+        </IconButton>}</div>
+        {!missing && <div className="flex flex-wrap gap-2">
+          <Button onClick={() => openNotebook({ parentId: selected?.id ?? null })}>
+            <FolderPlus className="h-4 w-4" />{selected ? 'Novo subcaderno' : 'Novo caderno'}</Button>
+          <Button variant="primary" onClick={() => openNewSession(destination)}>
+            <Plus className="h-4 w-4" />Nova sessão</Button>
+        </div>}
       </div>
-
-      {loadError && <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">{loadError}<Button size="sm" onClick={() => { setLoading(true); void load().catch(() => setLoadError('Não foi possível carregar suas sessões. Tente novamente.')).finally(() => setLoading(false)) }}>Tentar novamente</Button></div>}
-      {loading ? (
-        <div role="status" aria-label="Carregando sessões" className="grid gap-4 py-6 md:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-40" />)}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-8">
-          {!selectedFolder && !isRootFolder && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <MetricCard label="Sessoes" value={sessionList.length} icon={Mic} detail="Tudo que ja foi criado" />
-                <MetricCard label="Processando" value={processingCount} icon={Activity} detail="Audios aguardando resultado" />
-                <MetricCard label="Cadernos" value={folderList.length} icon={Layers} detail="Pastas e subpastas" />
-                <MetricCard label="Encerradas" value={readyCount} icon={Clock} detail="Sessões encerradas" />
-              </div>
-
-              <AlertPanel active={activeCount} processing={processingCount} root={rootSessions.length} />
-
-              {recentSessions.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between gap-4 mb-3">
-                    <h2 className="font-display font-semibold text-lg text-primary">Continuar de onde parou</h2>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {recentSessions.map((session) => (
-                      <SessionCard key={session.id} session={session} />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </>
-          )}
-
-          <section>
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <div>
-                <h2 className="font-display font-semibold text-lg text-primary">
-                  {selectedFolder || isRootFolder ? 'Subpastas' : 'Cadernos'}
-                </h2>
-                <p className="text-sm text-subtle">
-                  {selectedFolder || isRootFolder
-                    ? 'Entre nas divisoes deste caderno.'
-                    : 'Organize aulas e reunioes por tema, turma ou cliente.'}
-                </p>
-              </div>
-            </div>
-
-            {(!isRootFolder && (childFolders.length > 0 || (!selectedFolder && rootSessions.length > 0))) ? (
-              <div className="nebula-surface bg-surface border border-line rounded-2xl shadow-soft overflow-hidden">
-                {!selectedFolder && rootSessions.length > 0 && (
-                  <NotebookRow
-                    name="Sem caderno"
-                    sessions={rootSessions}
-                    childCount={0}
-                    onOpen={() => navigate('/?folder=root')}
-                    onNewSession={() => openNewSession(null)}
-                  />
-                )}
-                {childFolders.map((folder) => {
-                  const folderSessions = sessionsInFolder(folder.id, sessionList, folderList)
-                  const childCount = folderList.filter((item) => item.parentId === folder.id).length
-                  return (
-                    <NotebookRow
-                      key={folder.id}
-                      name={folder.name}
-                      sessions={folderSessions}
-                      childCount={childCount}
-                      onOpen={() => navigate(`/?folder=${folder.id}`)}
-                      onNewSession={() => openNewSession(folder.id)}
-                    />
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="nebula-surface bg-surface border border-line rounded-2xl p-8 text-center shadow-soft">
-                <Folder className="w-9 h-9 mx-auto text-subtle" />
-                <p className="font-medium text-secondary mt-3">{selectedFolder || isRootFolder ? 'Nenhuma subpasta' : 'Nenhum caderno ainda'}</p>
-                <p className="text-sm text-subtle mt-1">Use a barra lateral para criar a estrutura dos seus estudos e reunioes.</p>
-              </div>
-            )}
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <h2 className="font-display font-semibold text-lg text-primary">
-                {normalizedQuery ? 'Resultados da busca' : selectedFolder || isRootFolder ? 'Sessões deste caderno' : 'Sessões sem caderno'}
+      {!missing && <div>
+        <label htmlFor="library-search" className="mb-1.5 block text-xs text-secondary">Buscar por título ou template · {scopeText}</label>
+        <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 focus-within:border-focus">
+          <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-subtle" />
+          <input id="library-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={`Buscar em ${scopeText.toLocaleLowerCase('pt-BR')}…`} className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-primary outline-none" />{query && <IconButton label="Limpar busca" onClick={() => setQuery('')}>
+            <X className="h-4 w-4" />
+          </IconButton>}</div>
+      </div>}
+    </header>
+    {loadError && <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+      <span>{loadError}</span>
+      <Button onClick={() => void load()}>Tentar novamente</Button>
+    </div>}
+    {loading ? <div role="status" aria-label="Carregando biblioteca" className="space-y-3">{[0, 1, 2].map(id => <Skeleton key={id} className="h-20" />)}</div>
+      : missing && loaded ? <p className="text-secondary">Este caderno não existe ou foi removido. <Link to="/" className="underline">Voltar à biblioteca</Link>
+      </p>
+        : !loaded ? null : <>
+          {!searching && !isRoot && <section aria-labelledby="notebooks-heading" className="mb-7">
+            <h2 id="notebooks-heading" className="mb-3 text-sm font-semibold text-secondary">{selected ? 'Subcadernos diretos' : 'Cadernos'}</h2>
+            <div className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">{!selectedId && <Link to="/?folder=root" className="flex min-h-14 items-center gap-3 rounded-lg border-b border-line px-2 py-3 hover:bg-hover">
+              <Folder className="h-5 w-5 shrink-0 text-secondary" />
+              <span className="min-w-0 flex-1 text-sm text-primary">Sem caderno</span>
+              <span className="text-xs text-subtle">{sessionCount(librarySessions(sessionList, folderList, 'root').length)}</span>
+            </Link>}{children.map(folder => <div key={folder.id} className="flex items-center gap-1 border-b border-line">
+              <Link to={`/?folder=${folder.id}`} className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-3 hover:bg-hover">
+                <Folder aria-hidden="true" className="h-5 w-5 shrink-0" style={{ color: notebookColor(folder.color) }} />
+                <span className="min-w-0 flex-1 break-words text-sm text-primary">{folder.name}</span>
+                <span className="shrink-0 text-xs text-subtle">{sessionCount(librarySessions(sessionList, folderList, folder.id).length)}</span>
+              </Link>
+              <IconButton label={`Nova sessão em ${folder.name}`} onClick={() => openNewSession(folder.id)}>
+                <FilePlus2 className="h-4 w-4" />
+              </IconButton>
+            </div>)}</div>{children.length === 0 && <p className="mt-2 text-xs text-subtle">{selected ? 'Nenhum subcaderno direto.' : 'Crie cadernos para organizar reuniões e aulas.'}</p>}</section>}
+          <section aria-labelledby="sessions-heading">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="sessions-heading" className="text-base font-semibold text-primary">{searching ? 'Resultados da busca' : selected ? 'Sessões do ramo' : isRoot ? 'Sessões sem caderno' : 'Todas as sessões'} <span className="text-sm font-normal text-subtle">({shown.length})</span>
               </h2>
+              <span className="text-xs text-subtle">Mais recentes · por criação</span>
             </div>
-
-            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-line/70 bg-surface px-4 py-2.5 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
-              <Search className="h-4 w-4 shrink-0 text-subtle" />
-              <input aria-label="Buscar sessões por título ou template" placeholder={selectedFolder || isRootFolder ? 'Buscar neste caderno…' : 'Buscar em todas as sessões…'} value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm text-primary outline-none" />
-              {query && <button type="button" aria-label="Limpar busca" className="nebula-icon-button text-subtle" onClick={() => setQuery('')}><X className="h-4 w-4" /></button>}
-            </div>
-            {scopedSessions.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {scopedSessions.map((session) => (
-                  <SessionCard key={session.id} session={session} />
-                ))}
-              </div>
-            ) : (
-              <div className="nebula-surface bg-surface border border-line rounded-2xl p-8 text-center shadow-soft">
-                <Mic className="w-9 h-9 mx-auto text-subtle" />
-                <p className="font-medium text-secondary mt-3">{normalizedQuery ? 'Nenhuma sessão encontrada' : 'Nenhuma sessão aqui'}</p>
-                <p className="text-sm text-subtle mt-1">{normalizedQuery ? 'Tente outro título ou nome de template.' : 'Crie sua primeira sessão neste espaço.'}</p>
-                <Button variant="primary" className="mt-4" onClick={() => openNewSession(selectedModalFolderId)}>
-                  <Plus className="w-4 h-4" />
-                  Nova sessao
-                </Button>
-              </div>
-            )}
+            {selected && <p className="mb-3 text-xs text-secondary">Inclui sessões deste caderno e de todos os subcadernos. O caminho indica onde cada sessão está organizada.</p>}
+            {pending && <p className="mb-3 text-xs text-subtle">Há trabalho pendente. A biblioteca verifica atualizações a cada 15 segundos enquanto está visível.</p>}
+            {shown.length ? <ul>{shown.map(session => <SessionRow key={session.id} session={session} folders={folderList} onChanged={changed} />)}</ul> : <div className="rounded-xl border border-line py-10 text-center">
+              <Mic aria-hidden="true" className="mx-auto h-8 w-8 text-subtle" />
+              <h3 className="mt-3 font-medium text-primary">{searching ? 'Nenhuma sessão encontrada' : selected ? 'Este caderno ainda está vazio' : isRoot ? 'Nenhuma sessão sem caderno' : 'Sua biblioteca ainda está vazia'}</h3>
+              <p className="mt-1 text-sm text-secondary">{searching ? 'Tente outro título ou nome de template neste escopo.' : 'Crie uma sessão para começar.'}</p>{!searching && <Button variant="primary" className="mt-4" onClick={() => openNewSession(destination)}>
+                <Plus className="h-4 w-4" />Nova sessão</Button>}</div>}
           </section>
-        </div>
-      )}
-    </div>
-  )
+        </>}
+  </div>
 }

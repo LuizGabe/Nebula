@@ -25,6 +25,15 @@ try {
     define: { 'import.meta.env': JSON.stringify({ VITE_API_BASE_URL: 'http://localhost:3001' }) },
     logLevel: 'silent',
   })
+  // Components that use portals import react-dom during module initialization.
+  // Initialize DOM globals first so its input event support is detected correctly.
+  if (process.argv.includes('--dom')) {
+    const { Window } = await import('happy-dom')
+    const window = new Window({ url: 'http://localhost:5173' })
+    for (const [key, value] of Object.entries({ window, document: window.document, navigator: window.navigator })) {
+      Object.defineProperty(globalThis, key, { configurable: true, writable: true, value })
+    }
+  }
   await import(pathToFileURL(outfile).href)
 } finally {
   await rm(outfile, { force: true })
