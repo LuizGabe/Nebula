@@ -1,3 +1,4 @@
+import { Segmented } from './ui/Segmented'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Mic, Upload, Youtube } from 'lucide-react'
 import clsx from 'clsx'
@@ -32,35 +33,6 @@ const DETAIL_OPTIONS: Array<{ value: DocumentDetailLevel; label: string }> = [
   { value: 'balanced', label: 'Equilibrado' },
   { value: 'detailed', label: 'Detalhado' },
 ]
-
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T
-  options: Array<{ value: T; label: string }>
-  onChange: (value: T) => void
-}) {
-  return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl border border-ink-100 bg-ink-50 p-1">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
-          className={clsx(
-            'rounded-lg px-2 py-1.5 text-xs font-medium transition-all',
-            value === option.value ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500 hover:text-ink-900'
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function CheckboxRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (value: boolean) => void }) {
   return (
@@ -112,7 +84,7 @@ function FolderTreeItem({
           type="button"
           disabled={!hasChildren}
           onClick={() => setOpen((value) => !value)}
-          className="h-8 w-6 shrink-0 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-800 hover:bg-ink-50 disabled:hover:bg-transparent"
+          className="h-8 w-6 shrink-0 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-muted disabled:hover:bg-transparent"
           title={open ? 'Recolher' : 'Expandir'}
         >
           {hasChildren ? (open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />) : null}
@@ -122,7 +94,7 @@ function FolderTreeItem({
           onClick={() => onSelect(node.id)}
           className={clsx(
             'min-w-0 flex-1 h-8 px-2 rounded-lg flex items-center gap-2 text-left text-sm transition-all',
-            selected ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+            selected ? 'bg-action text-on-action' : 'text-secondary hover:text-primary hover:bg-muted'
           )}
         >
           {selected ? <FolderOpen className="w-4 h-4 shrink-0" /> : <Folder className="w-4 h-4 shrink-0" />}
@@ -255,21 +227,21 @@ export function NewSessionModal({
 
   return (
     <div
-      className="fixed inset-0 bg-ink-950/30 backdrop-blur-md flex items-center justify-center z-50 px-4"
+      className="fixed inset-0 bg-overlay/30 backdrop-blur-md flex items-center justify-center z-overlay px-4"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Nova sessão" className="nebula-modal bg-white/90 backdrop-blur-xl rounded-[32px] shadow-float border border-white/80 p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto fade-in">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Nova sessão" className="nebula-modal bg-surface backdrop-blur-xl rounded-3xl shadow-float border border-line/80 p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto fade-in">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div>
-            <h2 className="font-display font-semibold text-xl text-ink-900">Nova sessao</h2>
-            <p className="text-sm text-ink-400 mt-1">Escolha a fonte do audio, o prompt e o caderno.</p>
+            <h2 className="font-display font-semibold text-xl text-primary">Nova sessao</h2>
+            <p className="text-sm text-subtle mt-1">Escolha a fonte do audio, o prompt e o caderno.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
           <div className="flex flex-col gap-4">
             <fieldset disabled={loading}>
-              <legend className="mb-2 text-sm font-medium text-ink-700">Fonte do audio</legend>
+              <legend className="mb-2 text-sm font-medium text-secondary">Fonte do audio</legend>
               <div className="grid grid-cols-3 gap-2">
                 {([
                   { value: 'microphone', label: 'Microfone', Icon: Mic },
@@ -278,25 +250,25 @@ export function NewSessionModal({
                 ] as const).map(({ value, label, Icon }) => (
                   <button key={value} type="button" aria-pressed={source === value}
                     onClick={() => { setSource(value); setError('') }}
-                    className={clsx('flex items-center justify-center gap-2 rounded-xl border px-2 py-3 text-sm', source === value ? 'border-ink-900 bg-ink-900 text-white' : 'border-ink-200 text-ink-600 hover:bg-ink-50')}>
+                    className={clsx('flex items-center justify-center gap-2 rounded-xl border px-2 py-3 text-sm', source === value ? 'border-line bg-action text-on-action' : 'border-line text-secondary hover:bg-muted')}>
                     <Icon className="h-4 w-4" />{label}
                   </button>
                 ))}
               </div>
               {source === 'youtube' && (
-                <label className="mt-3 block text-sm text-ink-700">
+                <label className="mt-3 block text-sm text-secondary">
                   Link do video
                   <input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)}
                     placeholder="https://www.youtube.com/watch?v=..."
                     onKeyDown={(event) => event.key === 'Enter' && handleCreate()}
-                    className="mt-1 w-full rounded-xl border border-ink-200 px-3 py-2.5 text-sm outline-none focus:border-ink-400" />
-                  <span className="mt-1 block text-xs text-ink-400">Videos de ate {username === 'luizgabe' ? 300 : 30} minutos. O audio sera transcrito e o documento sera gerado automaticamente.</span>
+                    className="mt-1 w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-line" />
+                  <span className="mt-1 block text-xs text-subtle">Videos de ate {username === 'luizgabe' ? 300 : 30} minutos. O audio sera transcrito e o documento sera gerado automaticamente.</span>
                 </label>
               )}
-              {source === 'upload' && <p className="mt-2 text-xs text-ink-400">Selecione e envie seu arquivo na proxima etapa.</p>}
+              {source === 'upload' && <p className="mt-2 text-xs text-subtle">Selecione e envie seu arquivo na proxima etapa.</p>}
             </fieldset>
             <div>
-              <p className="text-sm font-medium text-ink-700 mb-2">Prompt</p>
+              <p className="text-sm font-medium text-secondary mb-2">Prompt</p>
               <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
                 {promptList.map((prompt) => (
                   <button
@@ -306,8 +278,8 @@ export function NewSessionModal({
                     className={clsx(
                       'flex items-center justify-between gap-3 py-2.5 px-4 rounded-xl border text-sm font-medium transition-all',
                       promptId === prompt.id
-                        ? 'border-ink-900 bg-ink-900 text-white'
-                        : 'border-ink-200 text-ink-600 hover:border-ink-400 hover:bg-ink-50'
+                        ? 'border-line bg-action text-on-action'
+                        : 'border-line text-secondary hover:border-line hover:bg-muted'
                     )}
                   >
                     <span className="flex items-center gap-2 min-w-0">
@@ -318,14 +290,14 @@ export function NewSessionModal({
                   </button>
                 ))}
                 {promptList.length === 0 && (
-                  <p className="text-sm text-ink-400">Nenhum prompt cadastrado.</p>
+                  <p className="text-sm text-subtle">Nenhum prompt cadastrado.</p>
                 )}
               </div>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-ink-700 mb-2">
-                Titulo <span className="text-ink-400 font-normal">(opcional)</span>
+              <p className="text-sm font-medium text-secondary mb-2">
+                Titulo <span className="text-subtle font-normal">(opcional)</span>
               </p>
               <input
                 autoFocus
@@ -333,37 +305,37 @@ export function NewSessionModal({
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="ex: Aula de arquitetura"
                 onKeyDown={(event) => event.key === 'Enter' && handleCreate()}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all"
               />
             </div>
 
             <div>
-              <p className="text-sm font-medium text-ink-700 mb-2">
-                Contexto da sessao <span className="text-ink-400 font-normal">(opcional)</span>
+              <p className="text-sm font-medium text-secondary mb-2">
+                Contexto da sessao <span className="text-subtle font-normal">(opcional)</span>
               </p>
               <textarea
                 value={sessionContext}
                 onChange={(event) => setSessionContext(event.target.value)}
                 placeholder="ex: reuniao semanal do produto, turma, cliente ou objetivo"
                 rows={3}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all resize-y"
               />
             </div>
 
             {selectedTemplate && (
-              <div className="rounded-2xl border border-ink-100 bg-ink-50/60 p-4">
+              <div className="rounded-2xl border border-line bg-muted/60 p-4">
                 <div className="mb-3">
-                  <p className="text-sm font-medium text-ink-700">Ajustes desta sessao</p>
-                  <p className="text-xs text-ink-400">Alteracoes aqui nao modificam o template original.</p>
+                  <p className="text-sm font-medium text-secondary">Ajustes desta sessao</p>
+                  <p className="text-xs text-subtle">Alteracoes aqui nao modificam o template original.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <p className="mb-1.5 text-xs font-medium text-ink-500">Formalidade</p>
+                    <p className="mb-1.5 text-xs font-medium text-subtle">Formalidade</p>
                     <Segmented value={effectiveFormality} options={FORMALITY_OPTIONS} onChange={setFormalityOverride} />
                   </div>
                   <div>
-                    <p className="mb-1.5 text-xs font-medium text-ink-500">Nivel de detalhe</p>
+                    <p className="mb-1.5 text-xs font-medium text-subtle">Nivel de detalhe</p>
                     <Segmented value={effectiveDetailLevel} options={DETAIL_OPTIONS} onChange={setDetailLevelOverride} />
                   </div>
                 </div>
@@ -378,11 +350,11 @@ export function NewSessionModal({
                 </div>
 
                 <div className="mt-3">
-                  <p className="mb-1.5 text-xs font-medium text-ink-500">Modo de transcricao</p>
+                  <p className="mb-1.5 text-xs font-medium text-subtle">Modo de transcricao</p>
                   <select
                     value={effectiveTranscriptionMode}
                     onChange={(event) => setTranscriptionModeOverride(event.target.value as DocumentTranscriptionMode)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus transition-all"
                   >
                     <option value="MEETING">Reuniao</option>
                     <option value="CLASS">Aula</option>
@@ -390,13 +362,13 @@ export function NewSessionModal({
                 </div>
 
                 <div className="mt-3">
-                  <p className="mb-1.5 text-xs font-medium text-ink-500">Instrucoes so para esta sessao</p>
+                  <p className="mb-1.5 text-xs font-medium text-subtle">Instrucoes so para esta sessao</p>
                   <textarea
                     value={instructionsOverride ?? ''}
                     onChange={(event) => setInstructionsOverride(event.target.value || null)}
                     placeholder={selectedTemplate.instructions}
                     rows={3}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-300 transition-all resize-y"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all resize-y"
                   />
                 </div>
               </div>
@@ -404,18 +376,18 @@ export function NewSessionModal({
 
           </div>
 
-          <div className="border border-ink-100 rounded-2xl p-3 bg-ink-50/60 min-h-[260px]">
-            <p className="text-sm font-medium text-ink-700 px-1 mb-2">Caderno</p>
+          <div className="border border-line rounded-2xl p-3 bg-muted/60 min-h-[260px]">
+            <p className="text-sm font-medium text-secondary px-1 mb-2">Caderno</p>
             <button
               type="button"
               onClick={() => setFolderId(null)}
               className={clsx(
                 'w-full h-8 px-2 rounded-lg flex items-center gap-2 text-left text-sm transition-all mb-1',
-                folderId === null ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-white'
+                folderId === null ? 'bg-action text-on-action' : 'text-secondary hover:text-primary hover:bg-surface'
               )}
             >
               <Folder className="w-4 h-4 shrink-0" />
-              <span className="truncate">/root</span>
+              <span className="truncate">Sem caderno</span>
             </button>
 
             <div className="max-h-64 overflow-y-auto pr-1">

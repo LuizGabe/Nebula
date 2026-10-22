@@ -1,3 +1,4 @@
+import { MenuSurface } from './ui/MenuSurface'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   FileText, RefreshCw, Download, Copy, ChevronDown, Check, Loader2, Pencil, Eye
@@ -208,14 +209,14 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
   }
 
   return (
-    <div className="nebula-surface bg-white rounded-2xl border border-ink-100 shadow-soft">
+    <div className="nebula-surface bg-surface rounded-2xl border border-line shadow-soft">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-ink-100">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-line">
         <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-ink-500" />
-          <h3 className="font-medium text-ink-800 text-sm">Documento</h3>
+          <FileText className="w-4 h-4 text-subtle" />
+          <h3 className="font-medium text-primary text-sm">Documento</h3>
           {current && (
-            <span className="text-xs text-ink-400">v{current.version}</span>
+            <span className="text-xs text-subtle">v{current.version}</span>
           )}
         </div>
 
@@ -225,13 +226,13 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
             <div className="relative">
               <button
                 onClick={() => setShowVersions(!showVersions)}
-                className="flex items-center gap-1.5 text-xs text-ink-600 hover:text-ink-900 border border-ink-200 rounded-lg px-2.5 py-1.5 hover:border-ink-300 transition-all"
+                className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary border border-line rounded-lg px-2.5 py-1.5 hover:border-line transition-all"
               >
                 v{current?.version ?? 1} de {versions.length} versões
                 <ChevronDown className="w-3 h-3" />
               </button>
               {showVersions && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-ink-100 rounded-xl shadow-float z-20 min-w-36 py-1">
+                <MenuSurface label="Versões do documento" onClose={() => setShowVersions(false)} className="absolute right-0 top-full mt-1 min-w-36 py-1">
                   {[...versions].reverse().map((v) => (
                     <button
                       key={v.id}
@@ -239,15 +240,15 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
                         loadContent(v.version)
                         setShowVersions(false)
                       }}
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-ink-50 flex items-center justify-between gap-4 ${
-                        selectedVersion === v.version ? 'text-ink-900 font-medium' : 'text-ink-600'
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-muted flex items-center justify-between gap-4 ${
+                        selectedVersion === v.version ? 'text-primary font-medium' : 'text-secondary'
                       }`}
                     >
                       <span>v{v.version}</span>
                       {selectedVersion === v.version && <Check className="w-3 h-3 text-jade-500" />}
                     </button>
                   ))}
-                </div>
+                </MenuSurface>
               )}
             </div>
           )}
@@ -294,13 +295,13 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
       </div>
 
       {actionError && <p role="alert" className="px-6 pt-3 text-sm text-rose-500">{actionError}</p>}
-      {reprocessing && <p role="status" className="px-6 pt-3 text-xs text-ink-500">Gerando nova versao. Transcricoes longas podem levar alguns minutos.</p>}
+      {reprocessing && <p role="status" className="px-6 pt-3 text-xs text-subtle">Gerando nova versao. Transcricoes longas podem levar alguns minutos.</p>}
 
       {/* Model badge */}
       {current?.modelUsed && (
         <div className="px-6 pt-3 pb-0">
-          <span className="text-xs text-ink-400">
-            Gerado por <span className="font-mono text-ink-600">{current.modelUsed}</span>
+          <span className="text-xs text-subtle">
+            Gerado por <span className="font-mono text-secondary">{current.modelUsed}</span>
           </span>
         </div>
       )}
@@ -309,10 +310,10 @@ export function DocumentEditor({ sessionId, reloadToken = 0, onReprocessed, onSe
       <div className="px-4 py-5 sm:px-6">
         {versions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-ink-50 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-ink-300" />
+            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
+              <FileText className="w-5 h-5 text-subtle" />
             </div>
-            <p className="text-sm text-ink-400">O documento será gerado automaticamente após o processamento.</p>
+            <p className="text-sm text-subtle">O documento será gerado automaticamente após o processamento.</p>
             <Button size="sm" variant="secondary" onClick={reprocess} disabled={reprocessing}>
               {reprocessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Gerar agora

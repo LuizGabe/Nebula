@@ -15,7 +15,7 @@ export function RecordingMilestones({ sessionId, media, complete }: { sessionId:
     return () => { cancelled = true }
   }, [sessionId, ownerId, media])
   const cloud = media.some(m => m.status !== 'PENDING_UPLOAD' && m.status !== 'FAILED')
-  return <div className="flex flex-wrap gap-3 rounded-xl border border-ink-100 bg-white px-4 py-3 text-xs" role="status" aria-label="Segurança e processamento da gravação">
-    {[[saved, 'Salvo no Dispositivo'], [cloud, 'Enviado para Nuvem'], [complete, 'Transcrição Concluída']].map(([done,label]) => <span key={String(label)} className={done ? 'text-jade-700' : 'text-ink-400'}>{done ? '✓ ' : '○ '}{label}</span>)}
+  return <div className="flex flex-wrap gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-xs" role="status" aria-label="Segurança e processamento da gravação">
+    {[[saved, 'Salvo no Dispositivo'], [cloud, 'Enviado para Nuvem'], [complete, 'Transcrição Concluída']].map(([done,label]) => <span key={String(label)} className={done ? 'text-jade-700' : 'text-subtle'}>{done ? '✓ ' : '○ '}{label}</span>)}
   </div>
 }

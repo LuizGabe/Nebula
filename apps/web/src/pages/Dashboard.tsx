@@ -44,9 +44,10 @@ function formatSessionDate(value: string) {
 
 function statusBadge(session: Session) {
   if (session.status === 'ERROR') return <Badge variant="rose">Erro</Badge>
-  if (session.status === 'IN_PROGRESS') return <Badge variant="amber">Transcrevendo</Badge>
+  if (session.status === 'IN_PROGRESS') return <Badge variant="amber">Processando</Badge>
   if (session.status === 'ACTIVE') return <Badge variant="rose">Ativa</Badge>
-  return <Badge variant="jade">Pronta</Badge>
+  if (session.status === 'ENDED') return <Badge variant="ink">Encerrada</Badge>
+  return <Badge>Estado desconhecido</Badge>
 }
 
 function MetricCard({
@@ -61,15 +62,15 @@ function MetricCard({
   detail: string
 }) {
   return (
-    <div className="nebula-surface bg-white border border-ink-100 rounded-2xl p-4 shadow-soft">
+    <div className="nebula-surface bg-surface border border-line rounded-2xl p-4 shadow-soft">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-ink-500">{label}</p>
-        <div className="w-9 h-9 rounded-xl bg-ink-50 flex items-center justify-center text-ink-500">
+        <p className="text-sm font-medium text-subtle">{label}</p>
+        <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-subtle">
           <Icon className="w-4 h-4" />
         </div>
       </div>
-      <p className="text-2xl font-display font-semibold text-ink-900 mt-3">{value}</p>
-      <p className="text-xs text-ink-400 mt-1">{detail}</p>
+      <p className="text-2xl font-display font-semibold text-primary mt-3">{value}</p>
+      <p className="text-xs text-subtle mt-1">{detail}</p>
     </div>
   )
 }
@@ -81,14 +82,14 @@ function SessionCard({ session }: { session: Session }) {
   return (
     <button
       onClick={() => navigate(`/sessions/${session.id}`)}
-      className="nebula-surface group w-full text-left bg-white rounded-2xl border border-ink-100 shadow-soft hover:shadow-card hover:border-ink-200 transition-all duration-200 p-5 flex flex-col gap-3"
+      className="nebula-surface group w-full text-left bg-surface rounded-2xl border border-line shadow-soft hover:shadow-card hover:border-line transition-all duration-200 p-5 flex flex-col gap-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-ink-900 truncate">
+          <p className="font-medium text-primary truncate">
             {session.title || `${promptName} sem titulo`}
           </p>
-          <p className="text-xs text-ink-400 mt-0.5 flex items-center gap-1.5">
+          <p className="text-xs text-subtle mt-0.5 flex items-center gap-1.5">
             <Calendar className="w-3 h-3" />
             {formatSessionDate(session.createdAt)}
           </p>
@@ -99,8 +100,8 @@ function SessionCard({ session }: { session: Session }) {
         </div>
       </div>
 
-      <div className="h-10 rounded-lg bg-ink-50 flex items-center px-3">
-        <p className="text-xs text-ink-400 line-clamp-2">
+      <div className="h-10 rounded-lg bg-muted flex items-center px-3">
+        <p className="text-xs text-subtle line-clamp-2">
           {session.status === 'IN_PROGRESS'
             ? 'Audio recebido e aguardando atualizacoes do processamento.'
             : 'Abra para ver transcricao, documento e historico.'}
@@ -126,33 +127,33 @@ function NotebookRow({
   const latest = latestSession(sessions)
 
   return (
-    <div className="group flex items-center gap-3 px-3 py-2.5 border-b border-ink-100 last:border-b-0 hover:bg-ink-50 transition-colors">
+    <div className="group flex items-center gap-3 px-3 py-2.5 border-b border-line last:border-b-0 hover:bg-muted transition-colors">
       <button onClick={onOpen} className="min-w-0 flex-1 flex items-center gap-3 text-left">
         <div className="w-8 h-8 rounded-lg bg-jade-50 text-jade-700 flex items-center justify-center shrink-0">
           <Folder className="w-4 h-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-ink-900 truncate">{name}</p>
-          <p className="text-xs text-ink-400 truncate">
+          <p className="text-sm font-medium text-primary truncate">{name}</p>
+          <p className="text-xs text-subtle truncate">
             {sessions.length} sessao{sessions.length !== 1 ? 'es' : ''} - {childCount} subpasta{childCount !== 1 ? 's' : ''}
           </p>
         </div>
       </button>
 
-      <div className="hidden md:block w-40 text-xs text-ink-400 truncate">
+      <div className="hidden md:block w-40 text-xs text-subtle truncate">
         {latest ? `Ultima: ${formatSessionDate(latest.createdAt)}` : 'Sem atividade'}
       </div>
 
       <button
         onClick={onNewSession}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-white border border-transparent hover:border-ink-200 transition-all"
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-surface border border-transparent hover:border-line transition-all"
         title="Nova sessao neste caderno"
       >
         <FilePlus2 className="w-4 h-4" />
       </button>
       <button
         onClick={onOpen}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-300 hover:text-ink-900 hover:bg-white border border-transparent hover:border-ink-200 transition-all"
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-surface border border-transparent hover:border-line transition-all"
         title="Abrir caderno"
       >
         <ArrowRight className="w-4 h-4" />
@@ -173,20 +174,20 @@ function AlertPanel({
   const items = [
     active > 0 ? `${active} sessao${active !== 1 ? 'es' : ''} ainda ativa${active !== 1 ? 's' : ''}` : null,
     processing > 0 ? `${processing} audio${processing !== 1 ? 's' : ''} em processamento` : null,
-    root > 0 ? `${root} sessao${root !== 1 ? 'es' : ''} em /root` : null,
+    root > 0 ? `${root} sessao${root !== 1 ? 'es' : ''} em Sem caderno` : null,
   ].filter(Boolean)
 
   if (items.length === 0) return null
 
   return (
-    <div className="nebula-surface bg-white border border-amber-100 rounded-2xl p-4 shadow-soft">
+    <div className="nebula-surface bg-surface border border-amber-100 rounded-2xl p-4 shadow-soft">
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
           <AlertCircle className="w-4 h-4" />
         </div>
         <div className="min-w-0">
-          <p className="font-medium text-ink-900">Pontos que merecem atencao</p>
-          <p className="text-sm text-ink-500 mt-1">{items.join(' - ')}</p>
+          <p className="font-medium text-primary">Pontos que merecem atencao</p>
+          <p className="text-sm text-subtle mt-1">{items.join(' - ')}</p>
         </div>
       </div>
     </div>
@@ -243,7 +244,7 @@ export function DashboardPage() {
   const processingCount = sessionList.filter((session) => session.status === 'IN_PROGRESS').length
   const readyCount = sessionList.filter((session) => session.status === 'ENDED').length
   const rootSessions = sessionList.filter((session) => !session.folderId)
-  const selectedName = isRootFolder ? '/root' : selectedFolder?.name
+  const selectedName = isRootFolder ? 'Sem caderno' : selectedFolder?.name
   const selectedModalFolderId = isRootFolder ? null : selectedFolderId
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR')
   const scopedSessions = (normalizedQuery ? selectedSessions : selectedFolder || isRootFolder ? selectedSessions : rootSessions)
@@ -254,14 +255,14 @@ export function DashboardPage() {
       <div className="nebula-page-header flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
           {(selectedFolder || isRootFolder) && (
-            <button onClick={() => navigate('/')} className="text-sm text-ink-400 hover:text-ink-800 mb-2">
+            <button onClick={() => navigate('/')} className="text-sm text-subtle hover:text-primary mb-2">
               Sessoes / {selectedName}
             </button>
           )}
-          <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">
+          <h1 className="font-display text-2xl font-semibold text-primary tracking-tight">
             {selectedName ?? 'Sua biblioteca'}
           </h1>
-          <p className="text-sm text-ink-500 mt-1">
+          <p className="text-sm text-subtle mt-1">
             {selectedFolder || isRootFolder
               ? `${selectedSessions.length} sessao${selectedSessions.length !== 1 ? 'es' : ''} neste caderno`
               : 'Suas conversas, ideias e documentos. Tudo em um só lugar.'}
@@ -286,7 +287,7 @@ export function DashboardPage() {
                 <MetricCard label="Sessoes" value={sessionList.length} icon={Mic} detail="Tudo que ja foi criado" />
                 <MetricCard label="Processando" value={processingCount} icon={Activity} detail="Audios aguardando resultado" />
                 <MetricCard label="Cadernos" value={folderList.length} icon={Layers} detail="Pastas e subpastas" />
-                <MetricCard label="Prontas" value={readyCount} icon={Clock} detail="Documentos finalizados" />
+                <MetricCard label="Encerradas" value={readyCount} icon={Clock} detail="Sessões encerradas" />
               </div>
 
               <AlertPanel active={activeCount} processing={processingCount} root={rootSessions.length} />
@@ -294,7 +295,7 @@ export function DashboardPage() {
               {recentSessions.length > 0 && (
                 <section>
                   <div className="flex items-center justify-between gap-4 mb-3">
-                    <h2 className="font-display font-semibold text-lg text-ink-900">Continuar de onde parou</h2>
+                    <h2 className="font-display font-semibold text-lg text-primary">Continuar de onde parou</h2>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {recentSessions.map((session) => (
@@ -309,10 +310,10 @@ export function DashboardPage() {
           <section>
             <div className="flex items-center justify-between gap-4 mb-3">
               <div>
-                <h2 className="font-display font-semibold text-lg text-ink-900">
+                <h2 className="font-display font-semibold text-lg text-primary">
                   {selectedFolder || isRootFolder ? 'Subpastas' : 'Cadernos'}
                 </h2>
-                <p className="text-sm text-ink-400">
+                <p className="text-sm text-subtle">
                   {selectedFolder || isRootFolder
                     ? 'Entre nas divisoes deste caderno.'
                     : 'Organize aulas e reunioes por tema, turma ou cliente.'}
@@ -321,10 +322,10 @@ export function DashboardPage() {
             </div>
 
             {(!isRootFolder && (childFolders.length > 0 || (!selectedFolder && rootSessions.length > 0))) ? (
-              <div className="nebula-surface bg-white border border-ink-100 rounded-2xl shadow-soft overflow-hidden">
+              <div className="nebula-surface bg-surface border border-line rounded-2xl shadow-soft overflow-hidden">
                 {!selectedFolder && rootSessions.length > 0 && (
                   <NotebookRow
-                    name="/root"
+                    name="Sem caderno"
                     sessions={rootSessions}
                     childCount={0}
                     onOpen={() => navigate('/?folder=root')}
@@ -347,25 +348,25 @@ export function DashboardPage() {
                 })}
               </div>
             ) : (
-              <div className="nebula-surface bg-white border border-ink-100 rounded-2xl p-8 text-center shadow-soft">
-                <Folder className="w-9 h-9 mx-auto text-ink-300" />
-                <p className="font-medium text-ink-700 mt-3">{selectedFolder || isRootFolder ? 'Nenhuma subpasta' : 'Nenhum caderno ainda'}</p>
-                <p className="text-sm text-ink-400 mt-1">Use a barra lateral para criar a estrutura dos seus estudos e reunioes.</p>
+              <div className="nebula-surface bg-surface border border-line rounded-2xl p-8 text-center shadow-soft">
+                <Folder className="w-9 h-9 mx-auto text-subtle" />
+                <p className="font-medium text-secondary mt-3">{selectedFolder || isRootFolder ? 'Nenhuma subpasta' : 'Nenhum caderno ainda'}</p>
+                <p className="text-sm text-subtle mt-1">Use a barra lateral para criar a estrutura dos seus estudos e reunioes.</p>
               </div>
             )}
           </section>
 
           <section>
             <div className="flex items-center justify-between gap-4 mb-3">
-              <h2 className="font-display font-semibold text-lg text-ink-900">
+              <h2 className="font-display font-semibold text-lg text-primary">
                 {normalizedQuery ? 'Resultados da busca' : selectedFolder || isRootFolder ? 'Sessões deste caderno' : 'Sessões sem caderno'}
               </h2>
             </div>
 
-            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-ink-200/70 bg-white/70 px-4 py-2.5 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
-              <Search className="h-4 w-4 shrink-0 text-ink-400" />
-              <input aria-label="Buscar sessões por título ou template" placeholder={selectedFolder || isRootFolder ? 'Buscar neste caderno…' : 'Buscar em todas as sessões…'} value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm text-ink-900 outline-none" />
-              {query && <button type="button" aria-label="Limpar busca" className="nebula-icon-button text-ink-500" onClick={() => setQuery('')}><X className="h-4 w-4" /></button>}
+            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-line/70 bg-surface px-4 py-2.5 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+              <Search className="h-4 w-4 shrink-0 text-subtle" />
+              <input aria-label="Buscar sessões por título ou template" placeholder={selectedFolder || isRootFolder ? 'Buscar neste caderno…' : 'Buscar em todas as sessões…'} value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm text-primary outline-none" />
+              {query && <button type="button" aria-label="Limpar busca" className="nebula-icon-button text-subtle" onClick={() => setQuery('')}><X className="h-4 w-4" /></button>}
             </div>
             {scopedSessions.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -374,10 +375,10 @@ export function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="nebula-surface bg-white border border-ink-100 rounded-2xl p-8 text-center shadow-soft">
-                <Mic className="w-9 h-9 mx-auto text-ink-300" />
-                <p className="font-medium text-ink-700 mt-3">{normalizedQuery ? 'Nenhuma sessão encontrada' : 'Nenhuma sessão aqui'}</p>
-                <p className="text-sm text-ink-400 mt-1">{normalizedQuery ? 'Tente outro título ou nome de template.' : 'Crie sua primeira sessão neste espaço.'}</p>
+              <div className="nebula-surface bg-surface border border-line rounded-2xl p-8 text-center shadow-soft">
+                <Mic className="w-9 h-9 mx-auto text-subtle" />
+                <p className="font-medium text-secondary mt-3">{normalizedQuery ? 'Nenhuma sessão encontrada' : 'Nenhuma sessão aqui'}</p>
+                <p className="text-sm text-subtle mt-1">{normalizedQuery ? 'Tente outro título ou nome de template.' : 'Crie sua primeira sessão neste espaço.'}</p>
                 <Button variant="primary" className="mt-4" onClick={() => openNewSession(selectedModalFolderId)}>
                   <Plus className="w-4 h-4" />
                   Nova sessao

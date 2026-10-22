@@ -7,7 +7,7 @@ const statusCopy: Record<ServiceHealthStatus, { label: string; className: string
   healthy: { label: 'Saudavel', className: 'bg-jade-50 text-jade-700 border-jade-100', icon: CheckCircle2 },
   degraded: { label: 'Degradado', className: 'bg-amber-50 text-amber-700 border-amber-100', icon: AlertTriangle },
   down: { label: 'Indisponivel', className: 'bg-rose-50 text-rose-700 border-rose-100', icon: XCircle },
-  inactive: { label: 'Inativo', className: 'bg-ink-50 text-ink-500 border-ink-100', icon: Clock },
+  inactive: { label: 'Inativo', className: 'bg-muted text-subtle border-line', icon: Clock },
 }
 const MIN_INITIAL_LOADING_MS = 700
 type DiagramNodeStatus = ServiceHealthStatus | 'external'
@@ -33,12 +33,10 @@ const nodeLayout: Record<string, { x: number; y: number; label: string; icon: ty
   llm: { x: 710, y: 70, label: 'LLM', icon: BrainCircuit },
 }
 
-function statusTone(status: ServiceHealthStatus | 'external') {
-  if (status === 'healthy') return { fill: '#edfaf4', stroke: '#22b584', text: '#0f5c3a', line: '#22b584' }
-  if (status === 'degraded') return { fill: '#fff6e6', stroke: '#f08c1a', text: '#7a4200', line: '#f08c1a' }
-  if (status === 'down') return { fill: '#fef0f3', stroke: '#e84e6a', text: '#8b1a2e', line: '#e84e6a' }
-  if (status === 'inactive') return { fill: '#f6f6f8', stroke: '#bfc1ca', text: '#61636e', line: '#777985' }
-  return { fill: '#ffffff', stroke: '#dcdee5', text: '#303138', line: '#bfc1ca' }
+function statusTone(status: DiagramNodeStatus) {
+  const palette = status === 'healthy' ? 'jade' : status === 'degraded' ? 'amber' : status === 'down' ? 'rose' : null
+  return palette ? { fill: 'rgb(var(--' + palette + '-surface))', stroke: 'rgb(var(--' + palette + '-border))', text: 'rgb(var(--' + palette + '-text))', line: 'rgb(var(--' + palette + '-border))' }
+    : { fill: 'rgb(var(--surface))', stroke: 'rgb(var(--line))', text: 'rgb(var(--secondary))', line: 'rgb(var(--secondary))' }
 }
 
 function formatTime(value: string) {
@@ -68,34 +66,34 @@ function StatusPill({ status }: { status: ServiceHealthStatus }) {
 
 function ServiceCard({ service }: { service: ServiceHealth }) {
   return (
-    <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+    <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Server className="h-4 w-4 text-ink-400" />
-            <h2 className="truncate text-sm font-semibold text-ink-900">{service.label}</h2>
+            <Server className="h-4 w-4 text-subtle" />
+            <h2 className="truncate text-sm font-semibold text-primary">{service.label}</h2>
           </div>
-          <p className="mt-2 line-clamp-2 text-sm text-ink-500">{service.message}</p>
+          <p className="mt-2 line-clamp-2 text-sm text-subtle">{service.message}</p>
         </div>
         <StatusPill status={service.status} />
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-        <div className="rounded-xl bg-ink-50 px-3 py-2">
-          <p className="text-ink-400">Latencia</p>
-          <p className="mt-1 font-semibold text-ink-800">{service.latencyMs}ms</p>
+        <div className="rounded-xl bg-muted px-3 py-2">
+          <p className="text-subtle">Latencia</p>
+          <p className="mt-1 font-semibold text-primary">{service.latencyMs}ms</p>
         </div>
-        <div className="rounded-xl bg-ink-50 px-3 py-2">
-          <p className="text-ink-400">Breaker</p>
-          <p className="mt-1 font-semibold text-ink-800">{service.breaker.state}</p>
+        <div className="rounded-xl bg-muted px-3 py-2">
+          <p className="text-subtle">Breaker</p>
+          <p className="mt-1 font-semibold text-primary">{service.breaker.state}</p>
         </div>
-        <div className="rounded-xl bg-ink-50 px-3 py-2">
-          <p className="text-ink-400">Falhas</p>
-          <p className="mt-1 font-semibold text-ink-800">{service.breaker.failures}</p>
+        <div className="rounded-xl bg-muted px-3 py-2">
+          <p className="text-subtle">Falhas</p>
+          <p className="mt-1 font-semibold text-primary">{service.breaker.failures}</p>
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-ink-400">Ultima checagem: {formatTime(service.checkedAt)}</p>
+      <p className="mt-3 text-xs text-subtle">Ultima checagem: {formatTime(service.checkedAt)}</p>
     </div>
   )
 }
@@ -131,17 +129,17 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
 
   return (
-    <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+    <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-ink-400" />
-          <h2 className="text-sm font-semibold text-ink-900">Conexoes</h2>
+          <GitBranch className="h-4 w-4 text-subtle" />
+          <h2 className="text-sm font-semibold text-primary">Conexoes</h2>
         </div>
-        <span className="text-xs text-ink-400">{data.connections.length} links</span>
+        <span className="text-xs text-subtle">{data.connections.length} links</span>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl bg-ink-50 p-3">
-        <svg className="h-[360px] min-w-[760px] w-full" viewBox="0 0 820 380" role="img" aria-label="Diagrama animado dos servicos conectados">
+      <div className="mt-4 overflow-x-auto rounded-xl bg-muted p-3">
+        <svg className="h-[360px] min-w-[760px] w-full" viewBox="0 0 820 380" role="img" aria-label="Diagrama dos serviços conectados">
           <defs>
             <filter id="diagramShadow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="4" stdDeviation="5" floodColor="#0f0f12" floodOpacity="0.09" />
@@ -160,7 +158,7 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
                 <path
                   d={`M ${from.x + 58} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 58} ${to.y}`}
                   fill="none"
-                  stroke="#dcdee5"
+                  stroke="rgb(var(--line))"
                   strokeWidth="2"
                 />
                 <path
@@ -172,15 +170,7 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
                   strokeWidth="3"
                   opacity="0.85"
                 >
-                  <animate attributeName="stroke-dashoffset" from="44" to="0" dur={`${1.7 + index * 0.12}s`} repeatCount="indefinite" />
                 </path>
-                <circle r="4" fill={tone.line}>
-                  <animateMotion
-                    dur={`${2.4 + index * 0.16}s`}
-                    repeatCount="indefinite"
-                    path={`M ${from.x + 58} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - 58} ${to.y}`}
-                  />
-                </circle>
               </g>
             )
           })}
@@ -191,18 +181,15 @@ function ServiceDiagram({ data }: { data: SystemStatus }) {
             return (
               <g key={node.id} filter="url(#diagramShadow)">
                 <circle cx={node.x} cy={node.y} r="33" fill={tone.fill} stroke={tone.stroke} strokeWidth="2">
-                  {node.status === 'healthy' && (
-                    <animate attributeName="r" values="33;37;33" dur="2.4s" repeatCount="indefinite" />
-                  )}
                 </circle>
                 <foreignObject x={node.x - 12} y={node.y - 12} width="24" height="24">
                   <Icon className="h-6 w-6" style={{ color: tone.text }} />
                 </foreignObject>
-                <rect x={node.x - 58} y={node.y + 43} width="116" height="38" rx="10" fill="white" stroke="#eceef3" />
-                <text x={node.x} y={node.y + 60} textAnchor="middle" className="fill-ink-900 text-[12px] font-semibold">
+                <rect x={node.x - 58} y={node.y + 43} width="116" height="38" rx="10" fill="rgb(var(--surface))" stroke="rgb(var(--line))" />
+                <text x={node.x} y={node.y + 60} textAnchor="middle" className="fill-primary text-[12px] font-semibold">
                   {node.label}
                 </text>
-                <text x={node.x} y={node.y + 74} textAnchor="middle" className="fill-ink-400 text-[10px]">
+                <text x={node.x} y={node.y + 74} textAnchor="middle" className="fill-secondary text-[10px]">
                   {node.status === 'external' ? 'interface' : statusCopy[node.status].label}
                 </text>
               </g>
@@ -220,7 +207,7 @@ function SkeletonBlock({ className }: { className: string }) {
 
 function ServiceCardSkeleton() {
   return (
-    <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+    <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -235,7 +222,7 @@ function ServiceCardSkeleton() {
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="rounded-xl bg-ink-50 px-3 py-2">
+          <div key={index} className="rounded-xl bg-muted px-3 py-2">
             <SkeletonBlock className="h-3 w-12" />
             <SkeletonBlock className="mt-2 h-4 w-10" />
           </div>
@@ -264,7 +251,7 @@ function StatusPageSkeleton() {
 
       <section className="grid gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+          <div key={index} className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
             <SkeletonBlock className="h-3 w-20" />
             <SkeletonBlock className="mt-3 h-8 w-16" />
           </div>
@@ -278,13 +265,13 @@ function StatusPageSkeleton() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-        <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+        <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
           <div className="flex items-center gap-2">
             <SkeletonBlock className="h-4 w-4 rounded" />
             <SkeletonBlock className="h-4 w-24" />
           </div>
-          <div className="mt-4 rounded-xl bg-ink-50 p-3">
-            <div className="relative h-[320px] min-w-[360px] overflow-hidden rounded-lg">
+          <div className="mt-4 rounded-xl bg-muted p-3">
+            <div className="relative h-[320px] w-full overflow-hidden rounded-lg">
               <SkeletonBlock className="absolute left-[4%] top-[42%] h-16 w-16 rounded-full" />
               <SkeletonBlock className="absolute left-[29%] top-[42%] h-16 w-16 rounded-full" />
               <SkeletonBlock className="absolute left-[56%] top-[8%] h-16 w-16 rounded-full" />
@@ -301,7 +288,7 @@ function StatusPageSkeleton() {
           </div>
         </div>
 
-        <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
+        <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
           <div className="flex items-center justify-between gap-3">
             <SkeletonBlock className="h-4 w-24" />
             <SkeletonBlock className="h-4 w-56" />
@@ -319,11 +306,11 @@ function StatusPageSkeleton() {
 
 function QueueRow({ name, queue }: { name: string; queue: QueueHealth }) {
   return (
-    <div className="grid grid-cols-[1fr_repeat(4,64px)] items-center gap-2 rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm">
-      <span className="truncate font-medium text-ink-800">{name}</span>
-      <span className="text-right text-ink-500">{queue.waiting}</span>
-      <span className="text-right text-ink-500">{queue.active}</span>
-      <span className="text-right text-ink-500">{queue.completed}</span>
+    <div className="grid grid-cols-[1fr_repeat(4,64px)] items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm">
+      <span className="truncate font-medium text-primary">{name}</span>
+      <span className="text-right text-subtle">{queue.waiting}</span>
+      <span className="text-right text-subtle">{queue.active}</span>
+      <span className="text-right text-subtle">{queue.completed}</span>
       <span className="text-right text-rose-600">{queue.failed}</span>
     </div>
   )
@@ -392,11 +379,11 @@ export function StatusPage() {
       <header className="nebula-page-header flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-ink-500" />
-            <p className="text-sm font-medium text-ink-500">Status operacional</p>
+            <Activity className="h-5 w-5 text-subtle" />
+            <p className="text-sm font-medium text-subtle">Status operacional</p>
           </div>
-          <h1 className="mt-2 font-display text-3xl font-semibold text-ink-900">Servicos do Nebula</h1>
-          <p className="mt-2 max-w-2xl text-sm text-ink-500">
+          <h1 className="mt-2 font-display text-3xl font-semibold text-primary">Servicos do Nebula</h1>
+          <p className="mt-2 max-w-2xl text-sm text-subtle">
             {data ? overallCopy(data.status) : 'Aguardando status dos servicos.'}
           </p>
         </div>
@@ -404,7 +391,7 @@ export function StatusPage() {
         <Button variant="secondary"
           onClick={() => load(true)}
           disabled={refreshing}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-4 text-sm font-medium text-ink-700 hover:border-ink-300 hover:bg-ink-50 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-sm font-medium text-secondary hover:border-line hover:bg-muted disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Atualizando…' : 'Atualizar'}
@@ -420,20 +407,20 @@ export function StatusPage() {
       {data && (
         <>
           <section className="grid gap-3 sm:grid-cols-4">
-            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Geral</p>
-              <p className="mt-2 text-2xl font-semibold text-ink-900">{data.status === 'healthy' ? 'Operacional' : data.status === 'degraded' ? 'Com alertas' : 'Indisponível'}</p>
+            <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
+              <p className="text-xs font-medium uppercase tracking-wide text-subtle">Geral</p>
+              <p className="mt-2 text-2xl font-semibold text-primary">{data.status === 'healthy' ? 'Operacional' : data.status === 'degraded' ? 'Com alertas' : 'Indisponível'}</p>
             </div>
-            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Saudaveis</p>
+            <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
+              <p className="text-xs font-medium uppercase tracking-wide text-subtle">Saudaveis</p>
               <p className="mt-2 text-2xl font-semibold text-jade-700">{counts.healthy}</p>
             </div>
-            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Alertas</p>
+            <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
+              <p className="text-xs font-medium uppercase tracking-wide text-subtle">Alertas</p>
               <p className="mt-2 text-2xl font-semibold text-amber-700">{counts.degraded + counts.inactive}</p>
             </div>
-            <div className="nebula-surface rounded-2xl border border-ink-100 bg-white p-4 shadow-soft">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Indisponiveis</p>
+            <div className="nebula-surface rounded-2xl border border-line bg-surface p-4 shadow-soft">
+              <p className="text-xs font-medium uppercase tracking-wide text-subtle">Indisponiveis</p>
               <p className="mt-2 text-2xl font-semibold text-rose-700">{counts.down}</p>
             </div>
           </section>
@@ -447,10 +434,10 @@ export function StatusPage() {
           <section className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
             <ServiceDiagram data={data} />
 
-            <div className="nebula-surface nebula-queue-panel min-w-0 overflow-x-auto rounded-2xl border border-ink-100 bg-white p-5 shadow-soft">
+            <div className="nebula-surface nebula-queue-panel min-w-0 overflow-x-auto rounded-2xl border border-line bg-surface p-5 shadow-soft">
               <div className="flex min-w-[440px] items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-ink-900">Filas BullMQ</h2>
-                <div className="grid grid-cols-4 gap-2 text-right text-xs font-medium text-ink-400">
+                <h2 className="text-sm font-semibold text-primary">Filas BullMQ</h2>
+                <div className="grid grid-cols-4 gap-2 text-right text-xs font-medium text-subtle">
                   <span className="w-16">Wait</span>
                   <span className="w-16">Active</span>
                   <span className="w-16">Done</span>
@@ -463,7 +450,7 @@ export function StatusPage() {
                     <QueueRow key={name} name={name} queue={queue} />
                   ))
                 ) : (
-                  <p className="rounded-xl bg-ink-50 px-3 py-2 text-sm text-ink-500">
+                  <p className="rounded-xl bg-muted px-3 py-2 text-sm text-subtle">
                     Nenhuma metrica de fila disponivel.
                   </p>
                 )}
@@ -471,7 +458,7 @@ export function StatusPage() {
             </div>
           </section>
 
-          <p className="text-xs text-ink-400">
+          <p className="text-xs text-subtle">
             Atualizado as {formatTime(data.checkedAt)}. Uptime da API: {data.uptimeSec}s.
           </p>
         </>

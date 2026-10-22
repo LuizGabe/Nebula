@@ -41,7 +41,7 @@ function setup() {
   const tree = exports.DocumentEditor({ sessionId: 's1' })
   function find(node) {
     if (!node || typeof node !== 'object') return null
-    if (node.props?.title === 'Reprocessar') return node
+    if (node.props?.['aria-label'] === 'Gerar nova versão do documento') return node
     for (const child of [node.props?.children].flat(Infinity)) {
       const found = find(child)
       if (found) return found

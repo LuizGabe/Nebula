@@ -1,4 +1,7 @@
+import { MenuSurface } from '../components/ui/MenuSurface'
+import { Segmented } from '../components/ui/Segmented'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BookOpen, Check, ChevronDown, Loader2, Pencil, Plus, Save, Settings, SlidersHorizontal, Trash2, User, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import {
@@ -64,35 +67,6 @@ const DETAIL_OPTIONS: Array<{ value: DocumentDetailLevel; label: string }> = [
   { value: 'detailed', label: 'Detalhado' },
 ]
 
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T
-  options: Array<{ value: T; label: string }>
-  onChange: (value: T) => void
-}) {
-  return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl border border-ink-100 bg-ink-50 p-1">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
-          className={clsx(
-            'rounded-lg px-2 py-2 text-xs font-medium transition-all',
-            value === option.value ? 'bg-white text-ink-900 shadow-soft' : 'text-ink-500 hover:text-ink-900'
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function CheckboxRow({
   checked,
   label,
@@ -110,6 +84,11 @@ function CheckboxRow({
 export function SettingsPage() {
   const { user, setUser } = useAuthStore()
   const [section, setSection] = useState<Section>('templates')
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const next = searchParams.get('section')
+    if (next === 'account' || next === 'templates' || next === 'model' || next === 'docs') setSection(next)
+  }, [searchParams])
   const [models, setModels] = useState<LLMModel[]>([])
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({})
   const [selected, setSelected] = useState<string>('')
@@ -258,17 +237,17 @@ export function SettingsPage() {
   return (
     <div className="nebula-page max-w-6xl mx-auto px-4 py-8 sm:px-8 sm:py-10">
       <div className="nebula-page-header flex items-center gap-3 mb-8">
-        <div className="w-9 h-9 rounded-xl bg-ink-100 flex items-center justify-center">
-          <Settings className="w-5 h-5 text-ink-600" />
+        <div className="w-9 h-9 rounded-xl bg-hover flex items-center justify-center">
+          <Settings className="w-5 h-5 text-secondary" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">Configurações</h1>
-          <p className="text-sm text-ink-400">Templates, modelo e conta</p>
+          <h1 className="font-display text-2xl font-semibold text-primary tracking-tight">Configurações</h1>
+          <p className="text-sm text-subtle">Templates, modelo e conta</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-6">
-        <aside className="nebula-surface bg-white rounded-2xl border border-ink-100 shadow-soft p-2 h-max">
+        <aside className="nebula-surface bg-surface rounded-2xl border border-line shadow-soft p-2 h-max">
           {sections.map((item) => {
             const Icon = item.icon
             return (
@@ -278,7 +257,7 @@ export function SettingsPage() {
                 aria-pressed={section === item.id}
                 className={clsx(
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  section === item.id ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
+                  section === item.id ? 'bg-action text-on-action' : 'text-secondary hover:text-primary hover:bg-muted'
                 )}
               >
                 <Icon className="w-4 h-4" />
@@ -288,15 +267,15 @@ export function SettingsPage() {
           })}
         </aside>
 
-        <section className="nebula-surface bg-white rounded-2xl border border-ink-100 shadow-soft">
+        <section className="nebula-surface bg-surface rounded-2xl border border-line shadow-soft">
           {section === 'model' && (
             <div className="px-6 py-5">
-              <h2 className="font-medium text-ink-800 text-sm mb-0.5">Modelo LLM padrao</h2>
-              <p className="text-xs text-ink-400 mb-4">Modelo usado para gerar documentos e responder perguntas.</p>
+              <h2 className="font-medium text-primary text-sm mb-0.5">Modelo LLM padrao</h2>
+              <p className="text-xs text-subtle mb-4">Modelo usado para gerar documentos e responder perguntas.</p>
 
               {modelError && <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{modelError}</p>}
               {loadingModels ? (
-                <div className="flex items-center gap-2 text-sm text-ink-400">
+                <div className="flex items-center gap-2 text-sm text-subtle">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Carregando modelos...
                 </div>
@@ -309,34 +288,34 @@ export function SettingsPage() {
                   )}
 
                   <div className="flex items-center gap-3">
-                    <div className="relative flex-1 max-w-sm">
+                    <div className="relative min-w-0 flex-1 max-w-sm">
                       <button
                         onClick={() => onlineModels.length > 0 && setShowDropdown(!showDropdown)}
                         disabled={onlineModels.length === 0}
-                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-ink-200 bg-white text-sm text-ink-900 hover:border-ink-300 transition-all disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400"
+                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-line bg-surface text-sm text-primary hover:border-line transition-all disabled:cursor-not-allowed disabled:bg-muted disabled:text-subtle"
                       >
                         <span className="font-mono truncate">
                           {selectedModel?.label ?? (onlineModels.length > 0 ? 'Selecione um modelo online' : 'Nenhum modelo online')}
                         </span>
-                        <ChevronDown className="w-4 h-4 text-ink-400 shrink-0" />
+                        <ChevronDown className="w-4 h-4 text-subtle shrink-0" />
                       </button>
 
                       {showDropdown && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
-                          <div className="absolute left-0 top-full mt-1 bg-white border border-ink-100 rounded-xl shadow-float z-20 w-full py-1 max-h-56 overflow-y-auto">
+                          <MenuSurface label="Modelos disponíveis" onClose={() => setShowDropdown(false)} className="absolute left-0 top-full mt-1 w-full py-1 max-h-56 overflow-y-auto">
                             {onlineModels.map((model) => (
                               <button
                                 key={model.id}
                                 onClick={() => { setSelected(model.id); setShowDropdown(false) }}
-                                className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-ink-50 flex items-center justify-between gap-3 text-ink-700"
+                                className="w-full text-left px-3 py-2 text-xs font-mono hover:bg-muted flex items-center justify-between gap-3 text-secondary"
                               >
                                 <span>{model.label}</span>
                                 <span className="text-jade-600 text-xs">online</span>
                                 {selected === model.id && <Check className="w-3 h-3 text-jade-500 shrink-0" />}
                               </button>
                             ))}
-                          </div>
+                          </MenuSurface>
                         </>
                       )}
                     </div>
@@ -354,8 +333,8 @@ export function SettingsPage() {
             <div className="px-6 py-5">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="font-medium text-ink-800 text-sm mb-0.5">Templates de documento</h2>
-                  <p className="text-xs text-ink-400">Configure como o documento final deve ser escrito.</p>
+                  <h2 className="font-medium text-primary text-sm mb-0.5">Templates de documento</h2>
+                  <p className="text-xs text-subtle">Configure como o documento final deve ser escrito.</p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={resetTemplateForm}>
                   <Plus className="w-4 h-4" />
@@ -364,24 +343,24 @@ export function SettingsPage() {
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)] gap-5">
-                <div className="border border-ink-100 rounded-xl overflow-hidden h-max">
+                <div className="border border-line rounded-xl overflow-hidden h-max">
                   {loadingTemplates ? (
-                    <div className="p-4 flex items-center gap-2 text-sm text-ink-400">
+                    <div className="p-4 flex items-center gap-2 text-sm text-subtle">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Carregando...
                     </div>
                   ) : templateList.length === 0 ? (
-                    <p className="p-4 text-sm text-ink-400">Nenhum template cadastrado.</p>
+                    <p className="p-4 text-sm text-subtle">Nenhum template cadastrado.</p>
                   ) : (
                     templateList.map((template) => (
-                      <div key={template.id} className="p-3 border-b border-ink-50 last:border-b-0 flex items-center gap-2">
+                      <div key={template.id} className="p-3 border-b border-line last:border-b-0 flex items-center gap-2">
                         <button className="flex-1 text-left min-w-0" onClick={() => startEdit(template)}>
-                          <p className="text-sm font-medium text-ink-800 truncate">{template.name}</p>
-                          <p className="text-xs text-ink-400">
+                          <p className="text-sm font-medium text-primary truncate">{template.name}</p>
+                          <p className="text-xs text-subtle">
                             {template.isDefault ? 'Padrao' : 'Personalizado'} / {template.isPublic ? 'Publico' : 'Privado'}
                           </p>
                         </button>
-                        <button className="p-1.5 rounded-lg text-ink-400 hover:text-ink-800 hover:bg-ink-50" onClick={() => startEdit(template)} title="Editar">
+                        <button className="p-1.5 rounded-lg text-subtle hover:text-primary hover:bg-muted" onClick={() => startEdit(template)} title="Editar">
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50" onClick={() => deleteTemplate(template)} title="Remover">
@@ -399,13 +378,13 @@ export function SettingsPage() {
                       value={draft.name}
                       onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
                       placeholder="Nome do template"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all"
                     />
                     <select
                       aria-label="Tipo de transcrição"
                       value={draft.transcriptionMode}
                       onChange={(event) => setDraft((current) => ({ ...current, transcriptionMode: event.target.value as DocumentTranscriptionMode }))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus transition-all"
                     >
                       <option value="MEETING">Transcricao: reuniao</option>
                       <option value="CLASS">Transcricao: aula</option>
@@ -418,21 +397,21 @@ export function SettingsPage() {
                     onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
                     placeholder="Descricao curta do uso deste template"
                     rows={2}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all resize-y"
                   />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <p className="mb-2 text-xs font-medium text-ink-500">Formalidade</p>
+                      <p className="mb-2 text-xs font-medium text-subtle">Formalidade</p>
                       <Segmented value={draft.formality} options={FORMALITY_OPTIONS} onChange={(value) => setDraft((current) => ({ ...current, formality: value }))} />
                     </div>
                     <div>
-                      <p className="mb-2 text-xs font-medium text-ink-500">Nivel de detalhe</p>
+                      <p className="mb-2 text-xs font-medium text-subtle">Nivel de detalhe</p>
                       <Segmented value={draft.detailLevel} options={DETAIL_OPTIONS} onChange={(value) => setDraft((current) => ({ ...current, detailLevel: value }))} />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-ink-100 bg-ink-50/60 p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-line bg-muted/60 p-3">
                     <CheckboxRow checked={draft.useTitle} label="Usar titulo principal" onChange={(value) => setDraft((current) => ({ ...current, useTitle: value }))} />
                     <CheckboxRow checked={draft.useHeadings} label="Organizar em secoes" onChange={(value) => setDraft((current) => ({ ...current, useHeadings: value }))} />
                     <CheckboxRow checked={draft.useSubheadings} label="Usar subsecoes quando apropriado" onChange={(value) => setDraft((current) => ({ ...current, useSubheadings: value }))} />
@@ -442,14 +421,14 @@ export function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-ink-500">Instrucoes adicionais</label>
+                    <label className="mb-1.5 block text-xs font-medium text-subtle">Instrucoes adicionais</label>
                     <textarea
                       aria-label="Instruções adicionais"
                       value={draft.instructions}
                       onChange={(event) => setDraft((current) => ({ ...current, instructions: event.target.value }))}
                       placeholder="Descreva o foco, organizacao e criterios do documento final"
                       rows={9}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-ink-200 text-sm bg-white text-ink-900 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-100 placeholder:text-ink-400 transition-all resize-y leading-6"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all resize-y leading-6"
                     />
                   </div>
 
@@ -475,21 +454,21 @@ export function SettingsPage() {
 
           {section === 'docs' && (
             <div className="px-6 py-5">
-              <h2 className="font-medium text-ink-800 text-sm mb-0.5">Como personalizar seus documentos</h2>
-              <p className="text-xs text-ink-400 mb-5">Templates definem a estrutura e o estilo do documento. O Nebula injeta automaticamente transcricao, contexto e regras internas.</p>
+              <h2 className="font-medium text-primary text-sm mb-0.5">Como personalizar seus documentos</h2>
+              <p className="text-xs text-subtle mb-5">Templates definem a estrutura e o estilo do documento. O Nebula injeta automaticamente transcricao, contexto e regras internas.</p>
 
-              <div className="space-y-4 text-sm text-ink-700">
-                <div className="rounded-xl border border-ink-100 px-3 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Markdown</h3>
-                  <p className="text-xs leading-5 text-ink-500">Todo documento gerado e Markdown. Essa regra pertence a plataforma e nao pode ser desativada por template.</p>
+              <div className="space-y-4 text-sm text-secondary">
+                <div className="rounded-xl border border-line px-3 py-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle mb-2">Markdown</h3>
+                  <p className="text-xs leading-5 text-subtle">Todo documento gerado e Markdown. Essa regra pertence a plataforma e nao pode ser desativada por template.</p>
                 </div>
-                <div className="rounded-xl border border-ink-100 px-3 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Contexto vs instrucoes</h3>
-                  <p className="text-xs leading-5 text-ink-500">Contexto descreve a sessao. Instrucoes descrevem como transformar a transcricao em documento.</p>
+                <div className="rounded-xl border border-line px-3 py-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle mb-2">Contexto vs instrucoes</h3>
+                  <p className="text-xs leading-5 text-subtle">Contexto descreve a sessao. Instrucoes descrevem como transformar a transcricao em documento.</p>
                 </div>
-                <div className="rounded-xl border border-ink-100 px-3 py-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">Referencias de audio</h3>
-                  <p className="text-xs leading-5 text-ink-500">O switch de audio controla internamente se o modelo pode usar marcadores como [audio:00:12]. Nao e necessario escrever esses detalhes nas instrucoes.</p>
+                <div className="rounded-xl border border-line px-3 py-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-subtle mb-2">Referencias de audio</h3>
+                  <p className="text-xs leading-5 text-subtle">O switch de audio controla internamente se o modelo pode usar marcadores como [audio:00:12]. Nao e necessario escrever esses detalhes nas instrucoes.</p>
                 </div>
               </div>
             </div>
@@ -497,14 +476,14 @@ export function SettingsPage() {
 
           {section === 'account' && (
             <div className="px-6 py-5">
-              <h2 className="font-medium text-ink-800 text-sm mb-3">Conta</h2>
+              <h2 className="font-medium text-primary text-sm mb-3">Conta</h2>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-ink-100 flex items-center justify-center">
-                  <span className="text-sm font-semibold text-ink-600">{user?.username?.[0]?.toUpperCase()}</span>
+                <div className="w-9 h-9 rounded-full bg-hover flex items-center justify-center">
+                  <span className="text-sm font-semibold text-secondary">{user?.username?.[0]?.toUpperCase()}</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-ink-800">{user?.username}</p>
-                  <p className="text-xs text-ink-400">Usuario local</p>
+                  <p className="text-sm font-medium text-primary">{user?.username}</p>
+                  <p className="text-xs text-subtle">Usuario local</p>
                 </div>
               </div>
             </div>

@@ -1,332 +1,235 @@
-  @tailwind base;
-  @tailwind components;
-  @tailwind utilities;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:where(button, a, input, select, textarea, audio):focus-visible {
-  outline: 2px solid #007aff;
-  outline-offset: 3px;
+:root, [data-theme='dark'] {
+  --canvas: 17 18 20; --sidebar: 23 24 28; --surface: 32 34 40;
+  --muted: 26 28 33; --hover: 43 46 54;
+  --primary: 236 238 242; --secondary: 183 189 200; --text-muted: 165 171 182;
+  --line: 64 68 79; --control-line: 112 120 137; --focus: 185 169 255; --selection: 64 53 94;
+  --overlay: 0 0 0; --action: 169 154 245; --action-hover: 192 180 255; --on-action: 22 18 35;
+  --shadow-soft: 0 1px 3px rgb(0 0 0 / .12); --shadow-float: 0 16px 48px rgb(0 0 0 / .32);
+  --jade-surface: 25 48 40; --jade-border: 81 151 122; --jade-text: 135 222 182;
+  --amber-surface: 53 42 26; --amber-border: 168 129 65; --amber-text: 241 200 130;
+  --rose-surface: 56 31 38; --rose-border: 188 103 122; --rose-text: 255 166 182;
+  --blue-surface: 28 43 61; --blue-border: 111 153 205; --blue-text: 165 202 249;
+  --sky-surface: 28 43 61; --sky-border: 111 153 205; --sky-text: 165 202 249;
+  --orange-surface: 55 39 28; --orange-border: 190 135 89; --orange-text: 244 192 149;
+  --danger-fill: 255 166 182; --danger-ink: 47 12 22;
+  --notebook-violet: 183 167 239; --notebook-sage: 153 194 171; --notebook-sand: 220 193 146; --notebook-blue: 157 187 224;
+  --speaker-1: 225 179 165; --speaker-2: 169 194 226; --speaker-3: 176 204 171; --speaker-4: 222 202 158;
+  --wave-base: #66617e; --wave-progress: #b5a5ff;
 }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-
-/* Materials shared by the application canvas, recording stage and floating UI. */
+[data-theme='light'] {
+  --canvas: 246 247 249; --sidebar: 237 239 244; --surface: 255 255 255;
+  --muted: 242 243 247; --hover: 230 232 240;
+  --primary: 32 34 40; --secondary: 76 83 96; --text-muted: 92 99 112;
+  --line: 210 214 225; --control-line: 126 134 150; --focus: 104 76 190; --selection: 232 225 250;
+  --action: 103 76 184; --action-hover: 84 57 161; --on-action: 255 255 255;
+  --shadow-soft: 0 1px 3px rgb(25 27 35 / .05); --shadow-float: 0 16px 48px rgb(25 27 35 / .16);
+  --jade-surface: 232 246 238; --jade-border: 82 139 111; --jade-text: 30 105 70;
+  --amber-surface: 255 244 222; --amber-border: 166 120 48; --amber-text: 127 81 10;
+  --rose-surface: 255 236 240; --rose-border: 187 94 112; --rose-text: 159 37 62;
+  --blue-surface: 235 243 255; --blue-border: 103 143 195; --blue-text: 47 93 151;
+  --sky-surface: 235 243 255; --sky-border: 103 143 195; --sky-text: 47 93 151;
+  --orange-surface: 255 241 229; --orange-border: 178 124 76; --orange-text: 135 77 28;
+  --danger-fill: 159 37 62; --danger-ink: 255 255 255;
+  --notebook-violet: 111 86 167; --notebook-sage: 62 111 81; --notebook-sand: 130 98 43; --notebook-blue: 64 104 154;
+  --speaker-1: 135 86 77; --speaker-2: 80 98 124; --speaker-3: 75 105 76; --speaker-4: 118 92 41;
+  --wave-base: #a8a0bf; --wave-progress: #674cb8;
+}
+:root {
+  --legacy-ink-50: var(--muted); --legacy-ink-100: var(--hover); --legacy-ink-200: var(--line);
+  --legacy-ink-300: var(--line); --legacy-ink-400: var(--text-muted); --legacy-ink-500: var(--text-muted);
+  --legacy-ink-600: var(--secondary); --legacy-ink-700: var(--secondary); --legacy-ink-800: var(--primary);
+  --legacy-ink-900: var(--primary); --legacy-ink-950: var(--primary);
+  --sidebar-width: 248px;
+}
+@layer base {
+  * { box-sizing: border-box; }
+  html { background: rgb(var(--canvas)); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body { margin: 0; min-width: 320px; min-height: 100vh; background: rgb(var(--canvas)); color: rgb(var(--primary)); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5; }
+  button, input, textarea, select { font: inherit; }
+  button, a, input, select, textarea, audio, [tabindex], [contenteditable] { -webkit-tap-highlight-color: transparent; }
+  :where(button, a, input, select, textarea, audio, [tabindex], [contenteditable]):focus-visible { outline: 2px solid rgb(var(--focus)); outline-offset: 3px; }
+  :where(button):disabled { cursor: not-allowed; }
+  :where(input:not([type=checkbox]):not([type=range]), textarea, select) { background-color: rgb(var(--surface)); color: rgb(var(--primary)); border-color: rgb(var(--line)); max-width: 100%; }
+  ::placeholder { color: rgb(var(--text-muted)); opacity: 1; }
+  ::selection { background: rgb(var(--selection)); color: rgb(var(--primary)); }
+  mark { background: rgb(var(--amber-surface)); color: rgb(var(--amber-text)); }
+  dialog { background: rgb(var(--surface)); color: rgb(var(--primary)); border: 1px solid rgb(var(--line)); max-height: 90dvh; overflow: auto; }
+  dialog::backdrop { background: rgb(var(--overlay) / .65); }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 8px; }
+}
+@layer utilities {
+  .text-subtle { color: rgb(var(--text-muted)); }
+  .text-danger-contrast { color: rgb(var(--danger-ink)); }
+  .bg-danger { background-color: rgb(var(--danger-fill)); }
+  .z-menu { z-index: 20; } .z-notice { z-index: 30; } .z-player { z-index: 40; }
+  .z-navigation { z-index: 50; } .z-overlay { z-index: 60; }
+}
 @layer components {
-  .nebula-shell {
-    background: radial-gradient(ellipse at 85% 0%, rgba(210, 221, 241, .28), transparent 48%), #f6f6f8;
-    font-variant-numeric: tabular-nums;
-    isolation: isolate;
-  }
-
-  .nebula-sidebar {
-    background: rgba(241, 242, 246, .78);
-    backdrop-filter: blur(24px) saturate(150%);
-    -webkit-backdrop-filter: blur(24px) saturate(150%);
-    box-shadow: 1px 0 0 rgba(32, 33, 38, .04);
-  }
-
-  .nebula-surface.bg-white,
-  .nebula-login .nebula-surface,
-  .nebula-recorder {
-    background: rgba(255, 255, 255, .76);
-    border-color: rgba(255, 255, 255, .9);
-    box-shadow: 0 8px 32px rgba(30, 35, 55, .035), 0 1px 3px rgba(30, 35, 55, .04), inset 0 1px 0 rgba(255, 255, 255, .95);
-  }
-
-  .nebula-recorder {
-    background: radial-gradient(ellipse at 50% 45%, rgba(224, 235, 253, .35), transparent 65%), rgba(255, 255, 255, .8);
-    backdrop-filter: blur(16px) saturate(150%);
-    -webkit-backdrop-filter: blur(16px) saturate(150%);
-  }
-
-  .nebula-recording-stage { padding-block: 8px; }
-  .nebula-recording-stage > label { max-width: 360px; width: 100%; margin-inline: auto; }
-  .nebula-recording-stage > label select { border-radius: 12px; background: rgba(246, 246, 248, .8); }
-  .nebula-recording-stage .relative.bg-rose-500 { box-shadow: 0 0 14px rgba(255, 59, 48, .4); }
-  .nebula-live-wave { filter: drop-shadow(0 6px 12px rgba(0, 122, 255, .14)); }
-
-  .nebula-button { min-height: 36px; }
-  .nebula-button:focus-visible { outline: 2px solid #007aff; outline-offset: 3px; }
-  .nebula-button.nebula-record-pill {
-    min-height: 52px;
-    padding-inline: 28px;
-    border-radius: 999px;
-    box-shadow: 0 6px 20px rgba(255, 59, 48, .18), inset 0 1px 0 rgba(255, 255, 255, .2);
-  }
-  .nebula-record-pill:disabled { box-shadow: none; }
-  .nebula-record-pill:not(:disabled):hover { background: #ed352b; transform: translateY(-1px); }
-
-  .nebula-player {
-    padding: 16px 20px;
-    border: 1px solid rgba(255, 255, 255, .85);
-    border-radius: 24px;
-    background: rgba(246, 248, 252, .84);
-    backdrop-filter: blur(24px) saturate(150%);
-    -webkit-backdrop-filter: blur(24px) saturate(150%);
-    box-shadow: 0 12px 36px rgba(28, 35, 55, .1), inset 0 1px 0 rgba(255, 255, 255, .9);
-  }
-  .nebula-player audio { margin-top: 8px; }
-  .nebula-modal { box-shadow: 0 32px 96px rgba(15, 15, 18, .22), 0 8px 24px rgba(15, 15, 18, .08); }
-
-  .nebula-transcript article { border-left: 2px solid var(--speaker-color, #c5c9d4); border-radius: 0 10px 10px 0; padding: 6px 10px; }
-  .nebula-transcript article[data-active='true'] { background: rgba(0, 122, 255, .055); border-left-color: #007aff; }
-  .nebula-transcript [data-current='true'] { background: #dcecff; color: #154e8c; }
-
-  .nebula-page { width: 100%; animation: fadeIn .25s ease-out; }
-  .nebula-page-header h1 { font-size: clamp(1.55rem, 2.5vw, 2rem); line-height: 1.2; letter-spacing: -.035em; overflow-wrap: anywhere; }
+  .nebula-shell { min-width: 0; font-variant-numeric: tabular-nums; isolation: isolate; background: rgb(var(--canvas)); }
+  .nebula-shell[data-collapsed='true'] { --sidebar-width: 64px; }
+  .nebula-main { min-width: 0; flex: 1; }
+  .nebula-page { width: 100%; min-width: 0; }
+  .nebula-page-header h1 { font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -.025em; overflow-wrap: anywhere; }
   .nebula-page-header p { line-height: 1.6; }
-  .nebula-login { background: radial-gradient(ellipse at 50% 25%, #e8edf8 0%, transparent 60%), #f6f6f8; }
-  .nebula-login .nebula-surface { backdrop-filter: blur(24px) saturate(150%); }
-  .nebula-surface { border-radius: 24px; min-width: 0; }
-  .nebula-surface button.group:hover { transform: translateY(-1px); }
-  button.nebula-surface:hover { box-shadow: 0 12px 32px rgba(30, 35, 55, .075), 0 1px 4px rgba(30, 35, 55, .04); }
-  .nebula-icon-button { display: inline-flex; min-width: 32px; min-height: 32px; align-items: center; justify-content: center; border-radius: 10px; transition: background .15s ease, color .15s ease; }
-  .nebula-icon-button:hover { background: rgba(115, 117, 128, .08); }
-  .nebula-drawer { box-shadow: -16px 0 64px rgba(15, 15, 18, .12); padding-bottom: env(safe-area-inset-bottom); }
-  .nebula-audio-dock { padding-bottom: max(12px, env(safe-area-inset-bottom)); pointer-events: none; }
-  .nebula-audio-dock > div { pointer-events: auto; border: 1px solid rgba(255, 255, 255, .9); border-radius: 28px; padding: 10px 16px; background: rgba(246, 248, 252, .9); backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); box-shadow: 0 12px 48px rgba(28, 35, 55, .14), 0 2px 6px rgba(28, 35, 55, .05); }
-  .nebula-audio-dock .nebula-player { padding: 0; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; }
-  .nebula-audio-dock .nebula-player audio { margin-top: 4px; }
+  .nebula-surface, .nebula-recorder { min-width: 0; background: rgb(var(--surface)); border-color: rgb(var(--line) / .65); border-radius: 16px; box-shadow: var(--shadow-soft); }
+  .nebula-login { background: rgb(var(--canvas)); }
+  .nebula-wordmark { display: inline-flex; color: rgb(var(--focus)); font-size: 18px; font-weight: 650; letter-spacing: -.04em; line-height: 1; }
+  .nebula-initial { font: inherit; }
+  .nebula-button { min-height: 36px; border-radius: 8px; transition: background-color .12s, border-color .12s, color .12s; }
+  .nebula-button[aria-busy='true'] { cursor: progress; }
+  .nebula-button.nebula-record-pill { min-height: 48px; padding-inline: 24px; border-radius: 12px; }
+  .nebula-icon-button { display: inline-flex; min-width: 36px; min-height: 36px; align-items: center; justify-content: center; border-radius: 8px; }
+  .nebula-icon-button:hover { background: rgb(var(--hover)); }
+  .nebula-sidebar { width: var(--sidebar-width); height: 100dvh; position: sticky; top: 0; display: flex; flex-direction: column; flex-shrink: 0; background: rgb(var(--sidebar)); border-right: 1px solid rgb(var(--line) / .6); transition: width .16s ease; }
+  .nebula-brand-row { display: flex; align-items: center; gap: 8px; padding: 20px 12px 16px; min-height: 72px; }
+  .nebula-nav-item { position: relative; display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; border-radius: 8px; color: rgb(var(--secondary)); font-size: 14px; font-weight: 500; white-space: nowrap; }
+  .nebula-nav-item svg { width: 18px; height: 18px; stroke-width: 1.75; flex-shrink: 0; }
+  .nebula-nav-item:hover { background: rgb(var(--hover)); color: rgb(var(--primary)); }
+  .nebula-nav-item[aria-current='page'] { background: rgb(var(--selection)); color: rgb(var(--focus)); }
+  .nebula-nav-create { background: rgb(var(--action)); color: rgb(var(--on-action)); }
+  .nebula-nav-create:hover { background: rgb(var(--action-hover)); color: rgb(var(--on-action)); }
+  .nebula-folders { flex: 1; min-height: 0; padding: 16px 8px; overflow: auto; }
+  .nebula-nav-footer { padding: 12px 8px; border-top: 1px solid rgb(var(--line) / .6); }
+  .nebula-mobile-bar, .nebula-nav-backdrop { display: none; }
+  .nebula-tooltip { display: none; position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); padding: 6px 10px; border: 1px solid rgb(var(--line)); border-radius: 6px; background: rgb(var(--surface)); color: rgb(var(--primary)); box-shadow: var(--shadow-float); white-space: nowrap; font-size: 12px; z-index: 70; pointer-events: none; }
+  .nebula-sidebar[data-collapsed='true'] .nebula-nav-label, .nebula-sidebar[data-collapsed='true'] .nebula-brand-name { display: none; }
+  .nebula-sidebar[data-collapsed='true'] .nebula-folders { visibility: hidden; padding: 0; overflow: hidden; }
+  .nebula-sidebar[data-collapsed='true'] .nebula-nav-item { justify-content: center; padding-inline: 0; }
+  .nebula-sidebar[data-collapsed='true'] .nebula-brand-row { flex-direction: column; padding-inline: 8px; }
+  .nebula-sidebar[data-collapsed='true'] .nebula-nav-item:is(:hover,:focus-visible) .nebula-tooltip { display: block; }
+  .nebula-sidebar :where(button,a):focus-visible { opacity: 1; }
+  .nebula-sidebar .group\/folder:focus-within .opacity-0 { opacity: 1; }
+  .nebula-modal { background: rgb(var(--surface)); border-radius: 24px; border-color: rgb(var(--line)); box-shadow: var(--shadow-float); }
+  .nebula-drawer { background: rgb(var(--surface)); box-shadow: var(--shadow-float); padding-bottom: env(safe-area-inset-bottom); }
+  .nebula-player { padding: 12px 16px; min-width: 0; border-radius: 16px; background: rgb(var(--surface)); border: 1px solid rgb(var(--line)); }
+  .nebula-audio-dock { left: var(--sidebar-width); padding-bottom: max(12px, env(safe-area-inset-bottom)); pointer-events: none; transition: left .16s ease; }
+  .nebula-audio-dock > div { pointer-events: auto; border: 1px solid rgb(var(--line)); border-radius: 16px; padding: 12px 16px; background: rgb(var(--surface)); box-shadow: var(--shadow-float); }
+  .nebula-audio-dock .nebula-player { padding: 0; border: 0; background: transparent; }
+  .nebula-transcript article { border-left: 2px solid var(--speaker-color, rgb(var(--line))); border-radius: 0 8px 8px 0; padding: 8px 12px; }
+  .nebula-transcript article[data-active='true'] { background: rgb(var(--selection) / .55); border-left-color: rgb(var(--focus)); }
+  .nebula-transcript [data-current='true'] { background: rgb(var(--selection)); color: rgb(var(--primary)); text-decoration: underline; text-underline-offset: 3px; }
   .nebula-transcript-scroll { scrollbar-gutter: stable; overflow-anchor: none; }
-  .nebula-transcript-meta { margin-bottom: 3px; }
   .nebula-transcript-tools input { flex-basis: 180px; min-height: 36px; }
   .nebula-transcript-tools select { min-height: 36px; padding-inline: 8px; }
-  .nebula-switch-track { display: inline-flex; width: 32px; height: 20px; padding: 2px; border-radius: 999px; background: #c6c8d0; transition: background .2s ease; }
-  .nebula-switch-track > span { width: 16px; height: 16px; border-radius: 999px; background: white; box-shadow: 0 1px 3px rgba(15, 15, 18, .18); transition: transform .2s ease; }
-  .nebula-follow-switch[aria-checked='true'] .nebula-switch-track { background: #007aff; }
-  .nebula-follow-switch[aria-checked='true'] .nebula-switch-track > span { transform: translateX(12px); }
-  .nebula-follow-switch:hover { background: rgba(115, 117, 128, .06); }
-  .nebula-sidebar nav [aria-current='page'] { background: rgba(255, 255, 255, .9); color: #202126; box-shadow: 0 1px 4px rgba(30, 35, 55, .08); }
-  .nebula-sidebar nav [aria-current='page'] svg { color: #007aff; }
-  .nebula-sidebar :where(button, a):focus-visible { opacity: 1; }
-  .nebula-page :where(input, textarea, select) { accent-color: #007aff; }
-
-  @media (min-width: 640px) {
-    .nebula-transcript article { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 12px; padding-block: 7px; }
-    .nebula-transcript-meta { align-content: start; align-items: center; margin-bottom: 0; }
-  }
-  @media (min-width: 768px) {
-    .nebula-audio-dock { left: 256px; }
-  }
-
-  @supports (corner-shape: squircle) {
-    .nebula-recorder, .nebula-modal, .nebula-player, .nebula-button { corner-shape: squircle; }
-    .nebula-record-pill { corner-shape: round; }
-  }
-
+  .nebula-switch-track { display: inline-flex; width: 36px; height: 22px; padding: 3px; border-radius: 12px; background: rgb(var(--line)); flex-shrink: 0; }
+  .nebula-switch-track > span { width: 16px; height: 16px; border-radius: 50%; background: rgb(var(--primary)); transition: transform .12s; }
+  .nebula-follow-switch[aria-checked='true'] .nebula-switch-track { background: rgb(var(--action)); }
+  .nebula-follow-switch[aria-checked='true'] .nebula-switch-track > span { transform: translateX(14px); background: rgb(var(--on-action)); }
+  .nebula-follow-switch:hover { background: rgb(var(--hover)); }
+  .nebula-speaker-1 { color: rgb(var(--speaker-1)); background: rgb(var(--speaker-1) / .12); }
+  .nebula-speaker-2 { color: rgb(var(--speaker-2)); background: rgb(var(--speaker-2) / .12); }
+  .nebula-speaker-3 { color: rgb(var(--speaker-3)); background: rgb(var(--speaker-3) / .12); }
+  .nebula-speaker-4 { color: rgb(var(--speaker-4)); background: rgb(var(--speaker-4) / .12); }
+  .shimmer { background: linear-gradient(90deg, rgb(var(--muted)) 25%, rgb(var(--hover)) 50%, rgb(var(--muted)) 75%); background-size: 200% 100%; animation: shimmer 1.6s infinite; }
+  .fade-in { animation: fadeIn .14s ease-out; }
+  .slide-in-right { animation: slideInRight .16s ease-out; }
+  @keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideInRight { from { transform: translateX(16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @media (min-width: 640px) { .nebula-transcript article { display: grid; grid-template-columns: 124px minmax(0,1fr); gap: 12px; } }
   @media (max-width: 767px) {
-    .nebula-shell { flex-direction: column; }
-    .nebula-sidebar { width: 100%; height: auto; position: relative; border-bottom: 1px solid #dcdee5; }
-    .nebula-sidebar > .flex-1 { max-height: 200px; }
-    .nebula-sidebar[data-mobile-open='false'] > :is(nav, .flex-1, .border-t) { display: none; }
-    .nebula-sidebar > div:first-child { padding-block: 12px; }
-    .nebula-shell main > .p-8 { padding: 24px 16px; }
-    .nebula-player { padding: 12px; }
-    .nebula-audio-dock > div { padding: 10px 12px; }
-    .nebula-drawer { border-radius: 24px 0 0 24px; }
+    .nebula-shell { display: block; }
+    .nebula-mobile-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; min-height: 56px; border-bottom: 1px solid rgb(var(--line)); background: rgb(var(--sidebar)); }
+    .nebula-sidebar { display: none; width: min(300px, calc(100vw - 40px)); height: 100dvh; position: fixed; inset: 0 auto 0 0; z-index: 50; }
+    .nebula-sidebar[data-mobile-open='true'] { display: flex; }
+    .nebula-nav-backdrop[data-open='true'] { display: block; position: fixed; inset: 0; background: rgb(var(--overlay) / .65); z-index: 49; }
+    .nebula-sidebar[data-collapsed='true'] .nebula-nav-label, .nebula-sidebar[data-collapsed='true'] .nebula-brand-name { display: initial; }
+    .nebula-sidebar[data-collapsed='true'] .nebula-folders { visibility: visible; padding: 16px 8px; overflow: auto; }
+    .nebula-sidebar[data-collapsed='true'] .nebula-brand-row { flex-direction: row; padding: 16px 12px; }
+    .nebula-sidebar[data-collapsed='true'] .nebula-nav-item { justify-content: flex-start; padding-inline: 12px; }
+    .nebula-sidebar .nebula-tooltip { display: none !important; }
+    .nebula-audio-dock { left: 0; }
+    .nebula-drawer { max-width: 100%; }
+    .nebula-icon-button, .nebula-nav-item { min-height: 44px; }
   }
-  @media (hover: none) {
-    .nebula-sidebar .opacity-0 { opacity: 1; }
+  @media (hover: none) { .nebula-sidebar .opacity-0 { opacity: 1; } .nebula-sidebar button { min-height: 36px; } }
+  @supports (backdrop-filter: blur(16px)) {
+    .nebula-sidebar { background: rgb(var(--sidebar) / .96); backdrop-filter: blur(16px); }
+    .nebula-audio-dock > div { background: rgb(var(--surface) / .94); backdrop-filter: blur(16px); }
   }
 }
+/* Crepe owns its menus as well as the editable document. Override its public theme variables. */
+.milkdown {
+  --crepe-color-hover: rgb(var(--hover)); --crepe-color-selected: rgb(var(--selection)); --crepe-color-inline-area: rgb(var(--muted));
+  --crepe-color-background: rgb(var(--surface)); --crepe-color-on-background: rgb(var(--primary));
+  --crepe-color-surface: rgb(var(--muted)); --crepe-color-surface-low: rgb(var(--surface));
+  --crepe-color-on-surface: rgb(var(--primary)); --crepe-color-on-surface-variant: rgb(var(--secondary));
+  --crepe-color-outline: rgb(var(--secondary)); --crepe-color-primary: rgb(var(--focus));
+  --crepe-color-secondary: rgb(var(--selection)); --crepe-color-on-secondary: rgb(var(--primary));
+  --crepe-color-inverse: rgb(var(--primary)); --crepe-color-on-inverse: rgb(var(--canvas));
+  --crepe-color-inline-code: rgb(var(--rose-text)); --crepe-color-error: rgb(var(--rose-text));
+  --crepe-font-default: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --crepe-font-title: var(--crepe-font-default); --crepe-font-code: 'Cascadia Code', Consolas, monospace;
+  --crepe-shadow-1: var(--shadow-soft); --crepe-shadow-2: var(--shadow-float);
+  color: rgb(var(--primary)); background: rgb(var(--surface)); min-width: 0;
 }
-
-  @layer base {
-    * {
-      box-sizing: border-box;
-    }
-
-    html {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    body {
-      @apply bg-ink-50 text-ink-900 font-sans;
-      min-height: 100vh;
-    }
-
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-      @apply bg-transparent;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      @apply bg-ink-200 rounded-full;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      @apply bg-ink-300;
-    }
-  }
-
-  @layer components {
-    .nebula-wordmark {
-      display: inline-flex;
-      align-items: baseline;
-      color: #67449c;
-      line-height: 1;
-      vertical-align: middle;
-      transform: translateY(0.12em);
-    }
-
-    .nebula-initial {
-      font-family: 'League Script', cursive;
-      font-size: 1.65em;
-      font-weight: 400;
-      line-height: 0.8;
-      letter-spacing: 0;
-      -webkit-text-stroke: 0.025em currentColor;
-    }
-
-    .tiptap {
-      @apply outline-none min-h-[200px];
-    }
-
-    .tiptap p {
-      @apply mb-3 leading-relaxed;
-    }
-
-    .tiptap h1 {
-      @apply text-2xl font-display font-semibold mb-4 mt-6 text-ink-900;
-    }
-
-    .tiptap h2 {
-      @apply text-xl font-display font-semibold mb-3 mt-5 text-ink-900;
-    }
-
-    .tiptap h3 {
-      @apply text-lg font-semibold mb-2 mt-4 text-ink-800;
-    }
-
-    .tiptap ul {
-      @apply list-disc list-outside pl-5 mb-3 space-y-1;
-    }
-
-    .tiptap ol {
-      @apply list-decimal list-outside pl-5 mb-3 space-y-1;
-    }
-
-    .tiptap blockquote {
-      @apply border-l-2 border-jade-400 pl-4 text-ink-600 italic my-4;
-    }
-
-    .tiptap code {
-      @apply font-mono text-sm bg-ink-100 text-rose-500 px-1.5 py-0.5 rounded;
-    }
-
-    .tiptap pre {
-      @apply font-mono text-sm bg-ink-900 text-ink-100 p-4 rounded-xl my-4 overflow-x-auto;
-    }
-
-    .tiptap pre code {
-      @apply bg-transparent text-inherit p-0;
-    }
-
-    .tiptap strong {
-      @apply font-semibold text-ink-900;
-    }
-
-    .tiptap em {
-      @apply italic;
-    }
-
-    .tiptap p.is-editor-empty:first-child::before {
-      @apply text-ink-400;
-      content: attr(data-placeholder);
-      float: left;
-      height: 0;
-      pointer-events: none;
-    }
-
-    /* Recording pulse animation */
-    @keyframes pulse-ring {
-      0% { transform: scale(1); opacity: 0.6; }
-      100% { transform: scale(1.5); opacity: 0; }
-    }
-
-    .recording-pulse::before {
-      content: '';
-      @apply absolute inset-0 rounded-full bg-rose-400;
-      animation: pulse-ring 1.2s ease-out infinite;
-    }
-
-    /* SSE status bar animation */
-    @keyframes shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-
-    .shimmer {
-      background: linear-gradient(
-        90deg,
-        theme('colors.ink.100') 25%,
-        theme('colors.ink.200') 50%,
-        theme('colors.ink.100') 75%
-      );
-      background-size: 200% 100%;
-      animation: shimmer 1.6s infinite;
-    }
-
-    /* Fade in animation */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .fade-in {
-      animation: fadeIn 0.3s ease-out forwards;
-    }
-
-    /* Drawer slide in */
-    @keyframes slideInRight {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
-    }
-
-    .slide-in-right {
-      animation: slideInRight 0.25s ease-out forwards;
-    }
-  }
-
+.milkdown .cm-tooltip { z-index: 20; }
+.milkdown .ProseMirror { padding: 16px; min-height: 240px; overflow-wrap: anywhere; }
+.milkdown .ProseMirror h1 { font-size: 24px; }
+.milkdown .ProseMirror h2 { font-size: 20px; }
+.milkdown .ProseMirror h3 { font-size: 18px; }
+.milkdown .ProseMirror p { line-height: 1.75; }
+.milkdown .ProseMirror table { max-width: 100%; }
 /* Scoped Markdown presentation: standard GFM structure, independent of the editor. */
 @layer components {
   .nebula-markdown { overflow-wrap: anywhere; }
   .nebula-markdown p { @apply mb-3; }
-  .nebula-markdown h1 { @apply mb-4 mt-6 font-display text-2xl font-semibold text-ink-900; }
-  .nebula-markdown h2 { @apply mb-3 mt-5 font-display text-xl font-semibold text-ink-900; }
-  .nebula-markdown h3 { @apply mb-2 mt-4 text-lg font-semibold text-ink-800; }
-  .nebula-markdown h4, .nebula-markdown h5, .nebula-markdown h6 { @apply mb-2 mt-3 font-semibold text-ink-800; }
+  .nebula-markdown h1 { @apply mb-4 mt-6 font-display text-2xl font-semibold text-primary; }
+  .nebula-markdown h2 { @apply mb-3 mt-5 font-display text-xl font-semibold text-primary; }
+  .nebula-markdown h3 { @apply mb-2 mt-4 text-lg font-semibold text-primary; }
+  .nebula-markdown h4, .nebula-markdown h5, .nebula-markdown h6 { @apply mb-2 mt-3 font-semibold text-primary; }
   .nebula-markdown ul { @apply mb-3 list-disc pl-5; }
   .nebula-markdown ol { @apply mb-3 list-decimal pl-5; }
   .nebula-markdown li { @apply my-1; }
   .nebula-markdown li > ul, .nebula-markdown li > ol { @apply mb-0; }
   .nebula-markdown .contains-task-list { @apply list-none; }
   .nebula-markdown input[type='checkbox'] { @apply mr-2 accent-jade-500; }
-  .nebula-markdown strong { @apply font-semibold text-ink-900; }
+  .nebula-markdown strong { @apply font-semibold text-primary; }
   .nebula-markdown em { @apply italic; }
   .nebula-markdown a { @apply text-jade-700 underline underline-offset-2; }
-  .nebula-markdown blockquote { @apply my-4 border-l-2 border-jade-400 pl-4 italic text-ink-600; }
-  .nebula-markdown code { @apply rounded bg-ink-100 px-1.5 py-0.5 font-mono text-xs text-rose-500; }
-  .nebula-markdown pre { @apply my-4 overflow-x-auto rounded-lg bg-ink-100 p-4; overflow-wrap: normal; }
-  .nebula-markdown pre code { @apply bg-transparent p-0 text-ink-800; }
-  .nebula-markdown hr { @apply my-6 border-ink-200; }
+  .nebula-markdown blockquote { @apply my-4 border-l-2 border-jade-400 pl-4 italic text-secondary; }
+  .nebula-markdown code { @apply rounded bg-hover px-1.5 py-0.5 font-mono text-xs text-rose-500; }
+  .nebula-markdown pre { @apply my-4 overflow-x-auto rounded-lg bg-hover p-4; overflow-wrap: normal; }
+  .nebula-markdown pre code { @apply bg-transparent p-0 text-primary; }
+  .nebula-markdown hr { @apply my-6 border-line; }
   .nebula-markdown img { @apply my-3 max-w-full rounded-lg; }
-  .nebula-markdown .markdown-table-scroll { @apply my-4 max-w-full overflow-x-auto rounded-lg border border-ink-200; }
+  .nebula-markdown .markdown-table-scroll { @apply my-4 max-w-full overflow-x-auto rounded-lg border border-line; }
   .nebula-markdown table { @apply w-full border-collapse; }
-  .nebula-markdown th, .nebula-markdown td { @apply border-b border-r border-ink-200 px-4 py-2; min-width: 7rem; }
-  .nebula-markdown th { @apply bg-ink-50 font-semibold text-ink-900; }
-  .nebula-markdown tbody tr:nth-child(even) { @apply bg-ink-50; }
+  .nebula-markdown th, .nebula-markdown td { @apply border-b border-r border-line px-4 py-2; min-width: 7rem; }
+  .nebula-markdown th { @apply bg-muted font-semibold text-primary; }
+  .nebula-markdown tbody tr:nth-child(even) { @apply bg-muted; }
   .nebula-markdown tr > :last-child { border-right: 0; }
   .nebula-markdown tbody tr:last-child td { border-bottom: 0; }
   .nebula-markdown > :first-child { margin-top: 0; }
   .nebula-markdown > :last-child { margin-bottom: 0; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Above utility resets such as outline-none, without changing their default state. */
+:root :where(button, a, input, select, textarea, audio, [tabindex], [contenteditable]):focus-visible { outline: 2px solid rgb(var(--focus)); outline-offset: 3px; }
+.nebula-menu { background: rgb(var(--surface)); border: 1px solid rgb(var(--line)); border-radius: 12px; box-shadow: var(--shadow-float); z-index: 20; }
+.nebula-menu button { min-height: 36px; }
+
+[data-tooltip]::after { display: none; position: absolute; top: calc(100% + 8px); left: 0; content: attr(data-tooltip); white-space: nowrap; padding: 6px 10px; border-radius: 6px; background: rgb(var(--surface)); color: rgb(var(--primary)); border: 1px solid rgb(var(--line)); box-shadow: var(--shadow-float); font-size: 12px; z-index: 70; pointer-events: none; }
+[data-tooltip]:is(:hover,:focus-visible)::after { display: block; }
+@media (pointer: coarse) { .nebula-button, .nebula-menu button { min-height: 44px; } }
+
+body:has(dialog[open]) { overflow: hidden; }
+.nebula-main > .nebula-page { min-width: 0; }
+.milkdown .ProseMirror > * { max-width: 100%; }
+
+:root :where(input:not([type=checkbox]):not([type=range]), textarea, select):not(:disabled) { border-color: rgb(var(--control-line)); }
+:root :where(input,textarea,select)[aria-invalid='true'] { border-color: rgb(var(--rose-text)); }
+.nebula-switch-track { box-shadow: inset 0 0 0 1px rgb(var(--control-line)); }
+
+:where(.nebula-page,.nebula-modal,.nebula-drawer) :where(h1,h2,h3,p) { overflow-wrap: anywhere; }
+:where(input,textarea,select) { min-width: 0; }

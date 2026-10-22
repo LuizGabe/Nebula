@@ -50,19 +50,19 @@ export function LoginPage() {
   }
 
   return (
-    <div className="nebula-login min-h-screen bg-ink-50 flex items-center justify-center px-4 py-12">
+    <div className="nebula-login min-h-screen bg-muted flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <img src={nebulaIcon} alt="" className="mb-4 h-16 w-16 object-contain" />
-          <h1 className="font-display text-3xl font-semibold text-ink-900 tracking-tight"><NebulaWordmark /></h1>
-          <p className="text-sm text-ink-500 mt-1">gravação e transcrição de áudio</p>
+          <h1 className="font-display text-3xl font-semibold text-primary tracking-tight"><NebulaWordmark /></h1>
+          <p className="text-sm text-subtle mt-1">gravação e transcrição de áudio</p>
         </div>
 
         {/* Card */}
-        <div className="nebula-surface rounded-[32px] border border-white/80 shadow-card p-7 sm:p-8">
+        <div className="nebula-surface rounded-3xl border border-line/80 shadow-card p-7 sm:p-8">
           {/* Tabs */}
-          <div className="flex bg-ink-50 rounded-xl p-1 mb-6">
+          <div className="flex bg-muted rounded-xl p-1 mb-6">
             {(['login', 'register'] as const).map((t) => (
               <button
                 key={t}
@@ -71,8 +71,8 @@ export function LoginPage() {
                 disabled={loading}
                 onClick={() => { setTab(t); setError('') }}
                 className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${tab === t
-                    ? 'bg-white text-ink-900 shadow-soft'
-                    : 'text-ink-500 hover:text-ink-700'
+                    ? 'bg-surface text-primary shadow-soft'
+                    : 'text-subtle hover:text-secondary'
                   }`}
               >
                 {t === 'login' ? 'Entrar' : 'Cadastrar'}
@@ -102,7 +102,7 @@ export function LoginPage() {
               required
               error={error || undefined}
             />
-            <button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(value => !value)} className="inline-flex items-center gap-2 self-end text-xs text-ink-500 hover:text-ink-900">
+            <button type="button" aria-pressed={showPassword} onClick={() => setShowPassword(value => !value)} className="inline-flex items-center gap-2 self-end text-xs text-subtle hover:text-primary">
               {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}{showPassword ? 'Ocultar senha' : 'Mostrar senha'}
             </button>
             <Button type="submit" variant="primary" size="lg" loading={loading} className="mt-1 w-full">

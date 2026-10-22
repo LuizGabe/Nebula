@@ -22,7 +22,7 @@ export function RequireAuth() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-ink-50">
+      <div className="flex min-h-screen bg-muted">
         <Skeleton className="hidden min-h-screen w-64 shrink-0 rounded-none lg:block" />
         <div className="flex-1"><SessionSkeleton /></div>
       </div>

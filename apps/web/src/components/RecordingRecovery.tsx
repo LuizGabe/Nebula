@@ -46,10 +46,10 @@ export function RecordingRecovery() {
     finally { setBusy(false) }
   }
   if (!items.length) return error ? <p role="alert" className="p-3 text-rose-700">{error}</p> : null
-  return <><div className="fixed right-4 top-4 z-40"><Button variant="secondary" onClick={() => dialog.current?.showModal()}>Revisar {items.length} gravação(ões) local(is)</Button></div><dialog ref={dialog} aria-labelledby="recovery-title" onCancel={e => { if (busy) e.preventDefault() }} className="w-full max-w-xl rounded-2xl p-6 shadow-float backdrop:bg-ink-900/40">
+  return <><div className="fixed right-4 top-4 z-player"><Button variant="secondary" onClick={() => dialog.current?.showModal()}>Revisar {items.length} gravação(ões) local(is)</Button></div><dialog ref={dialog} aria-labelledby="recovery-title" onCancel={e => { if (busy) e.preventDefault() }} className="w-full max-w-xl rounded-2xl p-6 shadow-float backdrop:bg-action/40">
     <h2 id="recovery-title" className="text-lg font-semibold">Gravações recuperadas</h2>
-    <p className="my-3 text-sm text-ink-500">O áudio salvo neste dispositivo está disponível para envio ou download. O último fragmento pode não ter sido finalizado pelo navegador.</p>
-    {items.map(item => <div key={item.sessionId} className="my-3 rounded-xl border border-ink-100 p-3">
+    <p className="my-3 text-sm text-subtle">O áudio salvo neste dispositivo está disponível para envio ou download. O último fragmento pode não ter sido finalizado pelo navegador.</p>
+    {items.map(item => <div key={item.sessionId} className="my-3 rounded-xl border border-line p-3">
       <Link to={'/sessions/' + item.sessionId} onClick={() => dialog.current?.close()} className="text-sm underline">Sessão de {new Date(item.createdAt).toLocaleString()}</Link>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button disabled={busy} onClick={() => void act(item, 'upload')}>Finalizar envio</Button>

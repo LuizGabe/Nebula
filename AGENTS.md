@@ -18,6 +18,15 @@
 - Groq worker tests: from `apps/groq_worker`, run `python -m pytest`.
 - No ESLint/Prettier/Ruff/Mypy scripts are configured; do not invent them in completion notes.
 
+## Commit Conventions
+
+- Follow the existing Conventional Commits format: `type(scope): description`.
+- Write commit subjects in English, using lowercase types/scopes and a concise imperative description without a trailing period.
+- Use `feat` for new functionality and `fix` for bug fixes. For other changes, use an appropriate type such as `refactor`, `docs`, `test`, `build`, or `chore`.
+- Choose the scope for the affected area, such as `audio`, `transcription`, `sessions`, `prompts`, `settings`, `system`, or `web`. Check recent history with `git log -10 --format=%s` for context.
+- Describe the final change; add an English body when needed to explain behavior, rationale, or validation.
+- Examples: `feat(transcription): add resilient recording and synchronized transcript tools`, `fix(audio): align groq timestamps with playback`.
+
 ## Architecture
 
 - Preserve flow: Web `client.ts` -> Fastify routes -> `lib/*`/`jobs/*`/`events/*` -> Prisma/Redis/MinIO/workers.

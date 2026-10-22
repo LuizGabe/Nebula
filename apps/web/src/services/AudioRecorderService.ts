@@ -23,6 +23,7 @@ export function isRecordingActive(sessionId: string) {
 export class AudioRecorderService {
   snapshot: RecorderSnapshot = { state: 'idle', elapsed: 0, saved: false, uploaded: false, error: '', analyser: null }
   private listeners = new Set<() => void>()
+  usesBrowserTranscription = false
   private recorder: MediaRecorder | null = null
   private stream: MediaStream | null = null
   private context: AudioContext | null = null
@@ -60,6 +61,7 @@ export class AudioRecorderService {
   }
   async start(transcribe: boolean, deviceId?: string) {
     if (this.snapshot.uploaded || !['idle', 'failed'].includes(this.snapshot.state) || this.recorder) return false
+    this.usesBrowserTranscription = !transcribe
     this.update({ state: 'requestingPermission', error: '' })
     try {
       await this.lock()

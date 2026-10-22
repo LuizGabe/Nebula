@@ -14,11 +14,11 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
       className={clsx(
         'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
         {
-          'bg-ink-100 text-ink-600': variant === 'default',
+          'bg-hover text-secondary': variant === 'default',
           'bg-jade-50 text-jade-700': variant === 'jade',
           'bg-amber-50 text-amber-700': variant === 'amber',
           'bg-rose-50 text-rose-700': variant === 'rose',
-          'bg-ink-900 text-ink-50': variant === 'ink',
+          'bg-action text-on-action': variant === 'ink',
           'bg-blue-50 text-blue-700': variant === 'blue',
           'bg-orange-50 text-orange-700': variant === 'orange'
         },
@@ -43,18 +43,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const errorId = `${inputId}-error`
     return (
     <div className="flex flex-col gap-1">
-      {label && <label htmlFor={inputId} className="text-sm font-medium text-ink-700">{label}</label>}
+      {label && <label htmlFor={inputId} className="text-sm font-medium text-secondary">{label}</label>}
       <input
         ref={ref}
         id={inputId}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         className={clsx(
-          'w-full px-3.5 py-2.5 rounded-xl border text-sm bg-white text-ink-900 outline-none transition-all',
-          'placeholder:text-ink-400',
+          'w-full px-3.5 py-2.5 rounded-xl border text-sm bg-surface text-primary outline-none transition-all',
+          'placeholder:text-subtle',
           error
             ? 'border-rose-400 focus:ring-2 focus:ring-rose-200'
-            : 'border-ink-200 focus:border-ink-400 focus:ring-2 focus:ring-ink-100',
+            : 'border-line focus:border-line focus:ring-2 focus:ring-focus',
           className
         )}
         {...props}
@@ -70,7 +70,7 @@ Input.displayName = 'Input'
 export function Spinner({ className }: { className?: string }) {
   return (
     <svg
-      className={clsx('animate-spin text-ink-400', className)}
+      className={clsx('animate-spin text-subtle', className)}
       viewBox="0 0 24 24"
       fill="none"
     >
@@ -82,7 +82,7 @@ export function Spinner({ className }: { className?: string }) {
 
 // ── Divider ───────────────────────────────────────────────────────────────────
 export function Divider({ className }: { className?: string }) {
-  return <hr className={clsx('border-ink-100', className)} />
+  return <hr className={clsx('border-line', className)} />
 }
 
 // ── Empty State ───────────────────────────────────────────────────────────────
@@ -93,13 +93,13 @@ export function EmptyState({ title, description, action }: {
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-      <div className="w-12 h-12 rounded-2xl bg-ink-100 flex items-center justify-center mb-1">
-        <svg className="w-6 h-6 text-ink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="w-12 h-12 rounded-2xl bg-hover flex items-center justify-center mb-1">
+        <svg className="w-6 h-6 text-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       </div>
-      <p className="font-medium text-ink-700">{title}</p>
-      {description && <p className="text-sm text-ink-400 max-w-xs">{description}</p>}
+      <p className="font-medium text-secondary">{title}</p>
+      {description && <p className="text-sm text-subtle max-w-xs">{description}</p>}
       {action}
     </div>
   )

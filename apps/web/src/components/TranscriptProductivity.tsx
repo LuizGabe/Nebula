@@ -52,21 +52,21 @@ export function TranscriptProductivity({ sessionId, reloadToken = 0, onSeekTo }:
     catch { setError('Não foi possível localizar a fonte da tarefa.') }
   }
   const sentiment = { positive: 'Positivo', negative: 'Negativo', neutral: 'Neutro', mixed: 'Misto', unknown: 'Indeterminado' }
-  return <section className="nebula-surface rounded-2xl border border-ink-100 bg-white p-6 shadow-soft" aria-label="Insights e exportação">
+  return <section className="nebula-surface rounded-2xl border border-line bg-surface p-6 shadow-soft" aria-label="Insights e exportação">
     <div className="flex flex-wrap items-center gap-3"><h3 className="mr-auto font-medium">Insights</h3>
       <Button disabled={working} onClick={() => void generate()}>{working ? 'Gerando insights…' : data ? 'Atualizar insights' : 'Gerar insights'}</Button>
-      <select aria-label="Formato de exportação" value={format} onChange={e => setFormat(e.target.value)} className="rounded-lg border border-ink-200 px-2 py-2 text-sm">{['srt','vtt','pdf','docx','json','md','txt'].map(f => <option key={f} value={f}>{f.toUpperCase()}</option>)}</select>
+      <select aria-label="Formato de exportação" value={format} onChange={e => setFormat(e.target.value)} className="rounded-lg border border-line px-2 py-2 text-sm">{['srt','vtt','pdf','docx','json','md','txt'].map(f => <option key={f} value={f}>{f.toUpperCase()}</option>)}</select>
       <Button variant="secondary" disabled={exporting} onClick={() => void download()}>{exporting ? 'Exportando…' : 'Exportar'}</Button>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
-    {working && !data && <div role="status" aria-label="Gerando insights" className="mt-4 h-32 animate-pulse rounded-xl bg-ink-50" />}
-    {data && <div className="mt-4 space-y-4 text-sm text-ink-700">
+    {working && !data && <div role="status" aria-label="Gerando insights" className="mt-4 h-32 animate-pulse rounded-xl bg-muted" />}
+    {data && <div className="mt-4 space-y-4 text-sm text-secondary">
       <ul className="list-disc space-y-2 pl-5">{data.summary.map((text,i) => <li key={i}>{text}</li>)}</ul>
       <h4 className="font-medium">Tarefas</h4>
-      {!data.actionItems.length && <p className="text-ink-400">Nenhuma tarefa explícita encontrada.</p>}
-      {data.actionItems.map((item,i) => <div key={i} className="rounded-xl border border-ink-100 p-3"><p>{item.text}</p><p className="mt-1 text-xs text-ink-500">Responsável: {item.owner || 'Não informado'} · Prazo: {item.dueDate || 'Não informado'}</p><Button size="sm" variant="ghost" onClick={() => void source(item.transcriptReferenceId)}>Ouvir fonte</Button></div>)}
+      {!data.actionItems.length && <p className="text-subtle">Nenhuma tarefa explícita encontrada.</p>}
+      {data.actionItems.map((item,i) => <div key={i} className="rounded-xl border border-line p-3"><p>{item.text}</p><p className="mt-1 text-xs text-subtle">Responsável: {item.owner || 'Não informado'} · Prazo: {item.dueDate || 'Não informado'}</p><Button size="sm" variant="ghost" onClick={() => void source(item.transcriptReferenceId)}>Ouvir fonte</Button></div>)}
       <div className="flex flex-wrap gap-2">{data.tags.map(tag => <span key={tag} className="rounded-full bg-jade-50 px-3 py-1 text-jade-700">{tag}</span>)}</div>
-      <p className="text-xs text-ink-500">Tom do texto: {sentiment[data.sentiment]}</p>
+      <p className="text-xs text-subtle">Tom do texto: {sentiment[data.sentiment]}</p>
     </div>}
   </section>
 }

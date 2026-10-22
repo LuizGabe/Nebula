@@ -57,7 +57,7 @@ interface AudioLinkedTextProps {
 
 export function AudioLinkedText({ content, onSeekTo }: AudioLinkedTextProps) {
   return (
-    <div className="nebula-markdown min-w-0 text-sm leading-7 text-ink-700">
+    <div className="nebula-markdown min-w-0 text-sm leading-7 text-secondary">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkAudioTags]}
         components={{

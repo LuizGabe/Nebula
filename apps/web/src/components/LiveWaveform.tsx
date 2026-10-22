@@ -36,14 +36,14 @@ export function LiveWaveform({ analyser, active }: { analyser: AnalyserNode | nu
   return <svg viewBox="0 0 600 128" className="nebula-live-wave h-32 w-full" role="img" aria-label={active ? 'Forma de onda do microfone' : 'Microfone em espera'}>
     <defs>
       <linearGradient id={gradientId}>
-        <stop offset="0%" stopColor="#0a84ff" stopOpacity="0.05" />
-        <stop offset="25%" stopColor="#0a84ff" stopOpacity="0.65" />
-        <stop offset="50%" stopColor="#007aff" />
-        <stop offset="75%" stopColor="#0a84ff" stopOpacity="0.65" />
-        <stop offset="100%" stopColor="#0a84ff" stopOpacity="0.05" />
+        <stop offset="0%" stopColor="rgb(var(--focus))" stopOpacity="0.05" />
+        <stop offset="25%" stopColor="rgb(var(--focus))" stopOpacity="0.65" />
+        <stop offset="50%" stopColor="rgb(var(--focus))" />
+        <stop offset="75%" stopColor="rgb(var(--focus))" stopOpacity="0.65" />
+        <stop offset="100%" stopColor="rgb(var(--focus))" stopOpacity="0.05" />
       </linearGradient>
     </defs>
-    <path d="M0 64 H600" stroke="#0a84ff" strokeOpacity="0.08" />
+    <path d="M0 64 H600" stroke="rgb(var(--focus))" strokeOpacity="0.08" />
     <path ref={pathRef} d="M0 64 L600 64" fill="none" stroke={`url(#${gradientId})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 }

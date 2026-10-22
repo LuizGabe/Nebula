@@ -202,7 +202,7 @@ export function SessionPage() {
     <div className="nebula-page nebula-session max-w-7xl mx-auto px-4 pb-44 pt-8 sm:px-8 sm:pt-10">
       <Link
         to="/"
-        className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900 mb-6 transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-subtle hover:text-primary mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         Sessoes
@@ -220,13 +220,13 @@ export function SessionPage() {
                 setPromptDraftId(session.promptId ?? promptList[0]?.id ?? '')
                 setShowPromptModal(true)
               }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-ink-500 hover:text-ink-900 hover:bg-ink-50 transition-colors"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-subtle hover:text-primary hover:bg-muted transition-colors"
               title="Editar template"
             >
               <Pencil className="w-3 h-3" />
               Editar template
             </button>
-            {session.status === 'ERROR' || status.startsWith('error:') ? <Badge variant="rose">Erro no processamento</Badge> : isEnded ? (
+            {session.status === 'ERROR' || status.startsWith('error:') ? <Badge variant="rose">Erro no processamento</Badge> : session.status === 'IN_PROGRESS' || processingHint ? <Badge variant="amber">Processando</Badge> : isEnded ? (
               <Badge variant="jade">
                 <CheckCircle2 className="w-3 h-3" />
                 Encerrada
@@ -234,7 +234,6 @@ export function SessionPage() {
             ) : (
               <Badge variant="rose">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
                 </span>
                 Ativa
@@ -252,48 +251,48 @@ export function SessionPage() {
                   if (e.key === 'Enter') handleRename()
                   if (e.key === 'Escape') setRenaming(false)
                 }}
-                className="font-display text-2xl font-semibold text-ink-900 tracking-tight bg-transparent border-b-2 border-ink-400 outline-none w-full"
+                className="font-display text-2xl font-semibold text-primary tracking-tight bg-transparent border-b-2 border-line outline-none w-full"
               />
               <Button size="sm" variant="primary" onClick={handleRename}>Salvar</Button>
               <Button size="sm" variant="secondary" onClick={() => setRenaming(false)}>Cancelar</Button>
             </div>
           ) : (
             <div className="flex items-center gap-2 mt-1 group">
-              <h1 className="font-display text-2xl font-semibold text-ink-900 tracking-tight">
+              <h1 className="font-display text-2xl font-semibold text-primary tracking-tight break-words">
                 {session.title || `${promptName} sem titulo`}
               </h1>
               <button
                 aria-label="Renomear sessão"
                 onClick={() => { setRenameValue(session.title ?? ''); setRenaming(true) }}
-                className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-ink-400 hover:text-ink-700 p-1 rounded-lg"
+                className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-subtle hover:text-secondary p-1 rounded-lg"
               >
                 <Pencil className="w-4 h-4" />
               </button>
             </div>
           )}
 
-          <p className="text-sm text-ink-400 mt-1">
+          <p className="text-sm text-subtle mt-1">
             {safeDate(session.createdAt)
               ? format(safeDate(session.createdAt)!, "d 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })
               : '-'
             }
           </p>
-          <details className="mt-2 text-xs text-ink-400"><summary className="cursor-pointer hover:text-ink-700">Detalhes da sessão</summary><p className="mt-1 break-all select-all">ID: {session.id}</p></details>
+          <details className="mt-2 text-xs text-subtle"><summary className="cursor-pointer hover:text-secondary">Detalhes da sessão</summary><p className="mt-1 break-all select-all">ID: {session.id}</p></details>
 
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-ink-400">
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-subtle">
             <Folder className="w-3.5 h-3.5" />
             <button
               onClick={() => navigate('/?folder=root')}
-              className="rounded-md px-1.5 py-0.5 font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-900"
+              className="rounded-md px-1.5 py-0.5 font-medium text-subtle hover:bg-muted hover:text-primary"
             >
-              /root
+              Sem caderno
             </button>
             {folderPath.map((folder) => (
-              <span key={folder.id} className="inline-flex items-center gap-1.5">
-                <ChevronRight className="w-3 h-3 text-ink-300" />
+              <span key={folder.id} className="inline-flex min-w-0 items-center gap-1.5">
+                <ChevronRight className="w-3 h-3 text-subtle" />
                 <button
                   onClick={() => navigate(`/?folder=${folder.id}`)}
-                  className="rounded-md px-1.5 py-0.5 font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-900"
+                  className="rounded-md px-1.5 py-0.5 font-medium text-subtle hover:bg-muted hover:text-primary"
                 >
                   {folder.name}
                 </button>
@@ -334,9 +333,9 @@ export function SessionPage() {
         )}
 
         {session.title?.includes('[testes]') && (
-          <div className="fade-in w-full max-w-4xl mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
-            <p className="text-sm text-yellow-800">Sessao para testes</p>
-            <div className="mt-2 p-3 bg-yellow-100 border border-yellow-300 rounded font-mono text-xs text-yellow-900 max-h-40 overflow-y-auto">
+          <div className="fade-in w-full max-w-4xl mt-4 p-4 bg-amber-50 border border-amber-200 rounded">
+            <p className="text-sm text-amber-800">Sessao para testes</p>
+            <div className="mt-2 p-3 bg-amber-100 border border-amber-300 rounded font-mono text-xs text-amber-900 max-h-40 overflow-y-auto">
               <div>Session ID: {session.id}</div>
               <div>Status: {session.status}</div>
               <div>Template: {promptName}</div>
@@ -373,10 +372,10 @@ export function SessionPage() {
       </div>
 
       {playerAudio && (
-        <div className="nebula-audio-dock fixed inset-x-0 bottom-0 z-40 px-3 py-3 sm:px-6">
+        <div className="nebula-audio-dock fixed right-0 bottom-0 z-player px-3 py-3 sm:px-6">
           <div className="mx-auto flex max-w-4xl flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-ink-500">
+              <p className="truncate text-xs font-medium text-subtle">
                 Áudio da sessão
                 {playerAudio.source === 'STREAM' && playerAudio.chunkIndex != null ? ` · Parte ${playerAudio.chunkIndex + 1}` : ''}
                 {playerAudio.source === 'UPLOAD' ? ' · Áudio completo' : ''}
@@ -404,18 +403,18 @@ export function SessionPage() {
 
       {showPromptModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/30 px-4 backdrop-blur-md"
+          className="fixed inset-0 z-overlay flex items-center justify-center bg-overlay/30 px-4 backdrop-blur-md"
           onClick={(event) => event.target === event.currentTarget && setShowPromptModal(false)}
         >
-          <div ref={promptDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Editar template" className="nebula-modal w-full max-w-md rounded-[32px] border border-white/80 bg-white/90 p-6 shadow-float backdrop-blur-xl">
+          <div ref={promptDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Editar template" className="nebula-modal w-full max-w-md rounded-3xl border border-line/80 bg-surface p-6 shadow-float backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="font-display text-lg font-semibold text-ink-900">Editar template</h2>
-                <p className="text-xs text-ink-400">Escolha o template usado para esta sessao.</p>
+                <h2 className="font-display text-lg font-semibold text-primary">Editar template</h2>
+                <p className="text-xs text-subtle">Escolha o template usado para esta sessao.</p>
               </div>
               <button
                 onClick={() => setShowPromptModal(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-muted"
                 title="Fechar"
               >
                 <X className="w-4 h-4" />
@@ -428,8 +427,8 @@ export function SessionPage() {
                   key={prompt.id}
                   onClick={() => setPromptDraftId(prompt.id)}
                   className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-all ${promptDraftId === prompt.id
-                    ? 'border-ink-900 bg-ink-900 text-white'
-                    : 'border-ink-200 text-ink-700 hover:border-ink-400 hover:bg-ink-50'
+                    ? 'border-line bg-action text-on-action'
+                    : 'border-line text-secondary hover:border-line hover:bg-muted'
                   }`}
                 >
                   <span className="min-w-0">

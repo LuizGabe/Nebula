@@ -1,6 +1,10 @@
+import { IconButton } from './Button'
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useAppearanceStore } from '../../store/appearance'
+import { useDialogFocus } from '../../hooks/useDialogFocus'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Menu, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
+import { Moon, Sun, PanelLeftClose, PanelLeftOpen, UserRound, Activity, Check, ChevronDown, ChevronRight, FilePlus2, Folder, FolderPlus, LayoutGrid, LogOut, Menu, Mic, Pencil, Plus, Settings, Trash2, X } from 'lucide-react'
 import nebulaIcon from '../../assets/nebula-icon.svg'
 import { NebulaWordmark } from './NebulaWordmark'
 import clsx from 'clsx'
@@ -136,7 +140,7 @@ function TreeFolder({
       >
         <button
           onClick={() => setOpen((value) => !value)}
-          className="w-5 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
+          className="w-5 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted"
           disabled={!hasChildren}
           title={open ? 'Recolher' : 'Expandir'}
         >
@@ -155,7 +159,7 @@ function TreeFolder({
                   setEditing(false)
                 }
               }}
-              className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-ink-200 text-xs outline-none focus:border-ink-400"
+              className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-line text-xs outline-none focus:border-line"
             />
             <button
               onClick={saveName}
@@ -169,7 +173,7 @@ function TreeFolder({
                 setEditName(node.name)
                 setEditing(false)
               }}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted"
               title="Cancelar"
             >
               <X className="w-3.5 h-3.5" />
@@ -178,7 +182,7 @@ function TreeFolder({
         ) : (
           <button
             onClick={() => navigate(`/?folder=${node.id}`)}
-            className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50"
+            className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-secondary hover:text-primary hover:bg-muted"
           >
             <Folder className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{node.name}</span>
@@ -186,21 +190,21 @@ function TreeFolder({
         )}
         <button
           onClick={() => setCreatingChild(true)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          className="w-6 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted opacity-0 group-hover/folder:opacity-100 transition-opacity"
           title="Nova subpasta"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={() => setEditing(true)}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-ink-700 hover:bg-ink-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          className="w-6 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted opacity-0 group-hover/folder:opacity-100 transition-opacity"
           title="Editar pasta"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={requestDelete}
-          className="w-6 h-7 flex items-center justify-center rounded-md text-ink-300 hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
+          className="w-6 h-7 flex items-center justify-center rounded-md text-subtle hover:text-rose-700 hover:bg-rose-50 opacity-0 group-hover/folder:opacity-100 transition-opacity"
           title="Excluir pasta"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -220,11 +224,11 @@ function TreeFolder({
                   if (e.key === 'Escape') setCreatingChild(false)
                 }}
                 placeholder="Subpasta"
-                className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-ink-200 text-xs outline-none focus:border-ink-400"
+                className="min-w-0 flex-1 h-7 px-2 rounded-lg border border-line text-xs outline-none focus:border-line"
               />
               <button
                 onClick={createChild}
-                className="w-7 h-7 rounded-lg flex items-center justify-center bg-ink-900 text-white disabled:opacity-40"
+                className="w-7 h-7 rounded-lg flex items-center justify-center bg-action text-on-action disabled:opacity-40"
                 disabled={!childName.trim()}
                 title="Criar subpasta"
               >
@@ -251,7 +255,7 @@ function TreeFolder({
                 event.dataTransfer.effectAllowed = 'move'
               }}
               onClick={() => navigate(`/sessions/${session.id}`)}
-              className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50 cursor-grab active:cursor-grabbing"
+              className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-subtle hover:text-primary hover:bg-muted cursor-grab active:cursor-grabbing"
               style={{ paddingLeft: depth * 10 + 31 }}
             >
               <Mic className="w-3 h-3 shrink-0" />
@@ -299,7 +303,7 @@ function RootFolder({
       >
         <button
           onClick={() => setOpen((value) => !value)}
-          className="w-5 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-ink-700 hover:bg-ink-50"
+          className="w-5 h-7 flex items-center justify-center rounded-md text-subtle hover:text-secondary hover:bg-muted"
           disabled={!hasChildren}
           title={open ? 'Recolher' : 'Expandir'}
         >
@@ -307,10 +311,10 @@ function RootFolder({
         </button>
         <button
           onClick={() => navigate('/?folder=root')}
-          className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-ink-600 hover:text-ink-900 hover:bg-ink-50"
+          className="min-w-0 flex-1 h-7 flex items-center gap-2 px-2 rounded-lg text-xs font-medium text-secondary hover:text-primary hover:bg-muted"
         >
           <Folder className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">/root</span>
+          <span className="truncate">Sem caderno</span>
         </button>
       </div>
 
@@ -323,7 +327,7 @@ function RootFolder({
             event.dataTransfer.effectAllowed = 'move'
           }}
           onClick={() => navigate(`/sessions/${session.id}`)}
-          className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-ink-500 hover:text-ink-900 hover:bg-ink-50 cursor-grab active:cursor-grabbing"
+          className="w-full h-7 flex items-center gap-2 pr-2 rounded-lg text-xs text-subtle hover:text-primary hover:bg-muted cursor-grab active:cursor-grabbing"
           style={{ paddingLeft: 31 }}
         >
           <Mic className="w-3 h-3 shrink-0" />
@@ -337,6 +341,14 @@ function RootFolder({
 export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | null) => void }) {
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    const update = () => { setIsMobile(media.matches); if (!media.matches) setMobileOpen(false) }
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  const { collapsed, toggleSidebar, theme, toggleTheme } = useAppearanceStore()
   useEffect(() => setMobileOpen(false), [location.pathname, location.search])
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
@@ -346,6 +358,15 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   const [folderName, setFolderName] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DeleteFolderTarget | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const drawerRef = useDialogFocus(() => setMobileOpen(false), isMobile && mobileOpen && !deleteTarget)
+  const deleteRef = useDialogFocus(() => { if (!deleting) setDeleteTarget(null) }, Boolean(deleteTarget))
+  useEffect(() => {
+    const main = document.getElementById('nebula-main')
+    if (!main) return
+    main.inert = isMobile && mobileOpen
+    return () => { main.inert = false }
+  }, [isMobile, mobileOpen])
 
   const loadTree = async () => {
     const [folderRes, sessionRes] = await Promise.all([folders.list(), sessions.list()])
@@ -387,85 +408,46 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
   const deleteFolder = async (sessionAction: 'moveToRoot' | 'delete') => {
     if (!deleteTarget) return
     setDeleting(true)
+    setDeleteError('')
     try {
       await folders.delete(deleteTarget.id, { sessionAction })
       setDeleteTarget(null)
       await loadTree()
       window.dispatchEvent(new Event('nebula:sessions-changed'))
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Não foi possível excluir o caderno.')
     } finally {
       setDeleting(false)
     }
   }
 
+  const label = (text: string) => <><span className="nebula-nav-label">{text}</span><span aria-hidden="true" className="nebula-tooltip">{text}</span></>
   return (
-    <aside data-mobile-open={mobileOpen} className="nebula-sidebar w-64 shrink-0 h-screen sticky top-0 flex flex-col border-r border-white/60">
-      <div className="px-5 py-5 flex items-center gap-2.5 border-b border-ink-100">
-        <img src={nebulaIcon} alt="" className="h-9 w-9 shrink-0 object-contain" />
-        <span className="flex h-9 items-center font-display font-semibold text-lg tracking-tight"><NebulaWordmark /></span>
-        <button type="button" aria-label={mobileOpen ? 'Fechar navegação' : 'Abrir navegação'} aria-expanded={mobileOpen} onClick={() => setMobileOpen(open => !open)} className="nebula-icon-button ml-auto md:hidden">
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+    <>
+      <div className="nebula-mobile-bar">
+        <IconButton label="Abrir navegação" aria-expanded={mobileOpen} aria-controls="nebula-navigation" onClick={() => setMobileOpen(true)} className="nebula-icon-button"><Menu className="h-5 w-5" /></IconButton>
+        <NavLink to="/" aria-label="Nebula — biblioteca"><NebulaWordmark /></NavLink>
       </div>
-
-      <nav className="px-3 py-4 flex flex-col gap-0.5 border-b border-ink-100">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) =>
-            clsx(
-              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
-              isActive ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
-            )
-          }
-        >
-          <LayoutGrid className="w-4 h-4" />
-          Sessoes
-        </NavLink>
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            clsx(
-              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
-              isActive ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
-            )
-          }
-        >
-          <Settings className="w-4 h-4" />
-          Configuracoes
-        </NavLink>
-        <NavLink
-          to="/status"
-          className={({ isActive }) =>
-            clsx(
-              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
-              isActive ? 'bg-ink-900 text-white' : 'text-ink-600 hover:text-ink-900 hover:bg-ink-50'
-            )
-          }
-        >
-          <Activity className="w-4 h-4" />
-          Status
-        </NavLink>
-        <button
-          onClick={() => { setMobileOpen(false); onNewSession?.(null) }}
-          className="mt-2 flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-ink-600 hover:text-jade-900 hover:bg-jade-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jade-400 transition-all"
-        >
-          <FilePlus2 className="w-4 h-4" />
-          Nova sessao
-        </button>
-      </nav>
-
-      <div className="flex-1 min-h-0 px-3 py-4 overflow-y-auto">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">Cadernos</p>
-          <button
-            onClick={() => setCreating(true)}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50"
-            title="Nova pasta"
-          >
-            <FolderPlus className="w-4 h-4" />
-          </button>
+      <div className="nebula-nav-backdrop" data-open={mobileOpen} onClick={() => setMobileOpen(false)} />
+      <div id="nebula-navigation" ref={drawerRef} tabIndex={-1} role={isMobile ? 'dialog' : undefined} aria-modal={isMobile && mobileOpen ? true : undefined} aria-label="Navegação principal" data-collapsed={collapsed} data-mobile-open={mobileOpen} className="nebula-sidebar" onClick={event => { if ((event.target as HTMLElement).closest('a')) setMobileOpen(false) }}>
+        <div className="nebula-brand-row">
+          <NavLink to="/" onClick={() => setMobileOpen(false)} aria-label="Nebula — biblioteca" className="flex min-w-0 items-center gap-2">
+            <img src={nebulaIcon} alt="" className="h-8 w-8 shrink-0" />
+            <span className="nebula-brand-name"><NebulaWordmark /></span>
+          </NavLink>
+          <IconButton label={collapsed ? 'Expandir navegação' : 'Recolher navegação'} aria-expanded={!collapsed} onClick={toggleSidebar} className="nebula-icon-button ml-auto hidden md:inline-flex" title={collapsed ? 'Expandir navegação' : 'Recolher navegação'}>{collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}</IconButton>
+          <IconButton label="Fechar navegação" onClick={() => setMobileOpen(false)} className="nebula-icon-button ml-auto md:hidden"><X className="h-5 w-5" /></IconButton>
         </div>
-
+        <nav aria-label="Biblioteca" className="flex flex-col gap-2 px-2">
+          <button type="button" aria-label="Nova sessão" onClick={() => { setMobileOpen(false); onNewSession?.(null) }} className="nebula-nav-item nebula-nav-create"><FilePlus2 />{label('Nova sessão')}</button>
+          <NavLink to="/" end aria-label="Biblioteca" className="nebula-nav-item"><LayoutGrid />{label('Biblioteca')}</NavLink>
+          <button type="button" aria-label="Expandir cadernos" onClick={toggleSidebar} className="nebula-nav-item hidden" style={!isMobile && collapsed ? { display: 'flex' } : undefined}><Folder />{label('Cadernos')}</button>
+        </nav>
+        <div className="nebula-folders">
+          <div className="mb-2 flex items-center justify-between gap-2 px-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Cadernos</p>
+            <button type="button" onClick={() => setCreating(true)} className="nebula-icon-button text-secondary" aria-label="Novo caderno" title="Novo caderno"><FolderPlus className="h-4 w-4" /></button>
+          </div>
         {creating && (
           <div className="mb-3 flex items-center gap-1">
             <input
@@ -477,11 +459,11 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
                 if (e.key === 'Escape') setCreating(false)
               }}
               placeholder="Nome da pasta"
-              className="min-w-0 flex-1 h-8 px-2 rounded-lg border border-ink-200 text-xs outline-none focus:border-ink-400"
+              className="min-w-0 flex-1 h-8 px-2 rounded-lg border border-line text-xs outline-none focus:border-line"
             />
             <button
               onClick={createFolder}
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-ink-900 text-white disabled:opacity-40"
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-action text-on-action disabled:opacity-40"
               disabled={!folderName.trim()}
               title="Criar"
             >
@@ -508,19 +490,28 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
         </div>
       </div>
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/40 px-4">
-          <div className="nebula-surface w-full max-w-md rounded-2xl bg-white p-5 shadow-float border border-ink-100">
+        <nav aria-label="Preferências e conta" className="nebula-nav-footer flex flex-col gap-1">
+          <NavLink to="/settings" aria-label="Configurações" className="nebula-nav-item"><Settings />{label('Configurações')}</NavLink>
+          <NavLink to="/status" aria-label="Status operacional" className="nebula-nav-item"><Activity />{label('Status operacional')}</NavLink>
+          <button type="button" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'} className="nebula-nav-item">{theme === 'dark' ? <Sun /> : <Moon />}{label(theme === 'dark' ? 'Tema claro' : 'Tema escuro')}</button>
+          <NavLink to="/settings?section=account" aria-label="Conta" className="nebula-nav-item"><UserRound /><span className="nebula-nav-label truncate">{user?.username ?? 'Conta'}</span><span className="nebula-tooltip" aria-hidden="true">Conta</span></NavLink>
+          <button type="button" onClick={() => logout()} aria-label="Sair" className="nebula-nav-item"><LogOut />{label('Sair')}</button>
+        </nav>
+      </div>
+
+      {deleteTarget && createPortal(
+        <div className="fixed inset-0 z-overlay flex items-center justify-center bg-overlay/40 px-4">
+          <div ref={deleteRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Excluir caderno" className="nebula-surface w-full max-w-md rounded-2xl bg-surface p-5 shadow-float border border-line">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-ink-900">Excluir pasta</h2>
-                <p className="mt-1 text-sm text-ink-500">
+                <h2 className="text-lg font-semibold text-primary">Excluir pasta</h2>
+                <p className="mt-1 text-sm text-subtle">
                   Escolha o que fazer com as sessoes dentro de "{deleteTarget.name}".
                 </p>
               </div>
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-400 hover:text-ink-900 hover:bg-ink-50"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-muted"
                 title="Fechar"
                 disabled={deleting}
               >
@@ -528,17 +519,18 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
               </button>
             </div>
 
-            <div className="mt-4 rounded-xl bg-ink-50 px-3 py-2 text-sm text-ink-600">
+            <div className="mt-4 rounded-xl bg-muted px-3 py-2 text-sm text-secondary">
               {deleteTarget.sessionCount} sessoes e {deleteTarget.folderCount} subpastas serao afetadas.
             </div>
 
+            {deleteError && <p role="alert" className="mt-3 text-sm text-rose-700">{deleteError}</p>}
             <div className="mt-5 flex flex-col gap-2">
               <button
                 onClick={() => deleteFolder('moveToRoot')}
                 disabled={deleting}
-                className="w-full rounded-xl border border-ink-200 px-4 py-3 text-left text-sm font-medium text-ink-700 hover:border-jade-300 hover:bg-jade-50 hover:text-jade-900 disabled:opacity-50"
+                className="w-full rounded-xl border border-line px-4 py-3 text-left text-sm font-medium text-secondary hover:border-jade-300 hover:bg-jade-50 hover:text-jade-900 disabled:opacity-50"
               >
-                Mover sessoes para /root
+                Preservar sessões em “Sem caderno”
               </button>
               <button
                 onClick={() => deleteFolder('delete')}
@@ -550,25 +542,8 @@ export function Sidebar({ onNewSession }: { onNewSession?: (folderId?: string | 
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      <div className="px-3 pb-4 border-t border-ink-100 pt-3 flex flex-col gap-0.5">
-        <div className="px-3 py-2 flex items-center gap-3">
-          <div className="w-7 h-7 rounded-full bg-ink-200 flex items-center justify-center shrink-0">
-            <span className="text-xs font-semibold text-ink-600">
-              {user?.username?.[0]?.toUpperCase()}
-            </span>
-          </div>
-          <span className="text-sm font-medium text-ink-700 truncate">{user?.username}</span>
-        </div>
-        <button
-          onClick={() => logout()}
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-ink-500 hover:text-ink-900 hover:bg-ink-50 transition-all w-full"
-        >
-          <LogOut className="w-4 h-4" />
-          Sair
-        </button>
-      </div>
-    </aside>
+    </>
   )
 }

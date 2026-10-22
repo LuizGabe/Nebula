@@ -143,29 +143,29 @@ export function RecordingPanel({
   const ACCEPTED = '.mp3,.wav,.webm,.ogg,.m4a,audio/*'
 
   return (
-    <div className="nebula-recorder rounded-[32px] border border-white/80 shadow-card p-6 sm:p-8">
+    <div className="nebula-recorder rounded-3xl border border-line/80 shadow-card p-6 sm:p-8">
       <div className="flex flex-col gap-8 md:flex-row">
         {/* ── Live recording side ── */}
         <div className={clsx('nebula-recording-stage min-w-0 flex-1 flex flex-col gap-5', inputSource === 'upload' && 'hidden')}>
           <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
             <div className="flex items-center gap-2">
-              <Mic className="w-4 h-4 text-ink-500" />
-              <span className="text-sm font-medium text-ink-700">Estúdio de gravação</span>
+              <Mic className="w-4 h-4 text-subtle" />
+              <span className="text-sm font-medium text-secondary">Estúdio de gravação</span>
             </div>
-            <div className="inline-flex items-center gap-1.5 rounded-lg border border-ink-100 bg-ink-50 px-2 py-1 text-xs font-medium text-ink-500">
+            <div className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-muted px-2 py-1 text-xs font-medium text-subtle">
               <Radio className={clsx('w-3 h-3', useBrowserSpeech ? 'text-sky-500' : 'text-jade-500')} />
               {liveEngineLabel}
             </div>
           </div>
 
           {/* Timer */}
-          <label className="flex flex-col gap-1 text-xs text-ink-500">
+          <label className="flex flex-col gap-1 text-xs text-subtle">
             Microfone
             <select
               value={deviceId}
               onChange={(event) => setDeviceId(event.target.value)}
               disabled={!isIdle && !isStopped}
-              className="w-full rounded-lg border border-ink-200 bg-white px-2 py-2 text-sm text-ink-700 disabled:opacity-60"
+              className="w-full rounded-lg border border-line bg-surface px-2 py-2 text-sm text-secondary disabled:opacity-60"
             >
               <option value="">Padrao do sistema</option>
               {devices.filter((device) => device.deviceId !== 'default').map((device, index) => (
@@ -175,25 +175,24 @@ export function RecordingPanel({
           </label>
           <LiveWaveform analyser={analyser} active={isRecording} />
           <div className="flex flex-wrap justify-center gap-3 text-xs" role="status">
-            <span className={saved ? 'text-jade-700' : 'text-ink-400'}>{saved ? '✓ ' : '○ '}Salvo no Dispositivo</span>
-            <span className={uploaded ? 'text-jade-700' : 'text-ink-400'}>{uploaded ? '✓ ' : '○ '}Enviado para Nuvem</span>
+            <span className={saved ? 'text-jade-700' : 'text-subtle'}>{saved ? '✓ ' : '○ '}Salvo no Dispositivo</span>
+            <span className={uploaded ? 'text-jade-700' : 'text-subtle'}>{uploaded ? '✓ ' : '○ '}Enviado para Nuvem</span>
           </div>
           <div className="flex items-center justify-center gap-3">
             {(isRecording || isPaused || isSaving || isStopped) && (
               <div className="flex items-center gap-2">
                 {isRecording && (
                   <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
                   </span>
                 )}
-                <span className="font-sans text-5xl tracking-tight font-medium text-ink-900 tabular-nums">
+                <span className="font-sans text-5xl tracking-tight font-medium text-primary tabular-nums">
                   {formatTime(elapsed)}
                 </span>
               </div>
             )}
             {isIdle && (
-              <span className="font-sans text-5xl tracking-tight font-medium text-ink-400 tabular-nums">00:00</span>
+              <span className="font-sans text-5xl tracking-tight font-medium text-subtle tabular-nums">00:00</span>
             )}
           </div>
 
@@ -232,7 +231,7 @@ export function RecordingPanel({
               </>
             )}
 
-            {isSaving && <span role="status" className="text-sm text-ink-500">{state === 'requestingPermission' ? 'Aguardando permissão do microfone…' : state === 'uploading' ? 'Enviando áudio para a nuvem…' : 'Finalizando e salvando áudio…'}</span>}
+            {isSaving && <span role="status" className="text-sm text-subtle">{state === 'requestingPermission' ? 'Aguardando permissão do microfone…' : state === 'uploading' ? 'Enviando áudio para a nuvem…' : 'Finalizando e salvando áudio…'}</span>}
             {(state === 'recoverable' || state === 'failed') && (
               <>
                 <Button variant="primary" onClick={handleEnd}>Tentar finalizar novamente</Button>
@@ -240,12 +239,12 @@ export function RecordingPanel({
               </>
             )}
             {isStopped && !recordError && (
-              <span className="text-sm text-ink-400">Gravação encerrada</span>
+              <span className="text-sm text-subtle">Gravação encerrada</span>
             )}
           </div>
           {recordError && <p className="text-xs text-rose-500">{recordError}</p>}
           {useBrowserSpeech && isRecording && (
-            <p className="text-xs text-ink-500">{browserSpeech.recognitionStatus}</p>
+            <p className="text-xs text-subtle">{browserSpeech.recognitionStatus}</p>
           )}
           {browserUnavailable && (
             <p className="text-xs text-rose-500">Web Speech API indisponivel neste navegador.</p>
@@ -253,13 +252,13 @@ export function RecordingPanel({
         </div>
 
         {/* Divider */}
-        {!inputSource && <div className="h-px bg-ink-200/60 self-stretch md:h-auto md:w-px" />}
+        {!inputSource && <div className="h-px bg-line/60 self-stretch md:h-auto md:w-px" />}
 
         {/* ── Upload side ── */}
         <div className={clsx('flex-1 flex flex-col gap-4', inputSource === 'microphone' && 'hidden')}>
           <div className="flex items-center gap-2 mb-1">
-            <Upload className="w-4 h-4 text-ink-500" />
-            <span className="text-sm font-medium text-ink-700">Enviar arquivo</span>
+            <Upload className="w-4 h-4 text-subtle" />
+            <span className="text-sm font-medium text-secondary">Enviar arquivo</span>
           </div>
 
           {!uploadFile ? (
@@ -269,20 +268,20 @@ export function RecordingPanel({
               className={clsx(
                 'flex flex-col items-center justify-center gap-3 min-h-44 rounded-2xl border border-dashed text-sm transition-all',
                 disabled || isStopped || isSaving || isRecording || isPaused
-                  ? 'border-ink-100 text-ink-300 cursor-not-allowed'
-                  : 'border-ink-200 text-ink-500 hover:border-jade-400 hover:text-jade-500 hover:bg-jade-50 cursor-pointer'
+                  ? 'border-line text-subtle cursor-not-allowed'
+                  : 'border-line text-subtle hover:border-jade-400 hover:text-jade-500 hover:bg-jade-50 cursor-pointer'
               )}
             >
               <Upload className="w-5 h-5" />
               <span>mp3, wav, webm, ogg, m4a</span>
             </button>
           ) : (
-            <div className="rounded-xl border border-ink-200 p-3 flex items-center gap-3">
+            <div className="rounded-xl border border-line p-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-ink-800 truncate">{uploadFile.name}</p>
-                <p className="text-xs text-ink-400">{(uploadFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                <p className="text-sm font-medium text-primary truncate">{uploadFile.name}</p>
+                <p className="text-xs text-subtle">{(uploadFile.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
-              <button aria-label="Remover arquivo selecionado" onClick={() => setUploadFile(null)} className="text-ink-400 hover:text-ink-700">
+              <button aria-label="Remover arquivo selecionado" onClick={() => setUploadFile(null)} className="text-subtle hover:text-secondary">
                 <X className="w-4 h-4" />
               </button>
             </div>

@@ -14,13 +14,14 @@ const outfile = path.join(cache, `transcript-${randomUUID()}.mjs`)
 try {
   await build({
     absWorkingDir: web,
-    entryPoints: ['tests/transcriptInteraction.test.tsx'],
+    entryPoints: [process.argv[2] ?? 'tests/transcriptInteraction.test.tsx'],
     outfile,
     bundle: true,
     packages: 'external',
     platform: 'node',
     format: 'esm',
     jsx: 'automatic',
+    loader: { '.svg': 'text' },
     define: { 'import.meta.env': JSON.stringify({ VITE_API_BASE_URL: 'http://localhost:3001' }) },
     logLevel: 'silent',
   })

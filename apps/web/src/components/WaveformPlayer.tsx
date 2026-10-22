@@ -62,7 +62,7 @@ export const WaveformPlayer = forwardRef<SessionAudioPlayerHandle, Props>(functi
       if (controller.signal.aborted || !result.peaks?.[0]?.length || !result.durationMs || !waveRef.current) return
       // Precomputed peaks: WaveSurfer never fetches/decodes the complete audio.
       wave.current = WaveSurfer.create({ container: waveRef.current, media: audio, peaks: result.peaks,
-        duration: result.durationMs / 1000, height: 48, waveColor: '#bfd6f6', progressColor: '#007aff', cursorColor: '#0a84ff', barWidth: 2, barGap: 1 })
+        duration: result.durationMs / 1000, height: 48, waveColor: getComputedStyle(document.documentElement).getPropertyValue('--wave-base').trim(), progressColor: getComputedStyle(document.documentElement).getPropertyValue('--wave-progress').trim(), cursorColor: getComputedStyle(document.documentElement).getPropertyValue('--wave-progress').trim(), barWidth: 2, barGap: 1 })
       setWaveReady(true)
     }).catch(() => { /* Native playback remains available for legacy media. */ })
     return () => {
@@ -72,6 +72,14 @@ export const WaveformPlayer = forwardRef<SessionAudioPlayerHandle, Props>(functi
       window.removeEventListener('keydown', keyboard); usePlaybackStore.getState().setTime(-1)
     }
   }, [src, sessionId, mediaId, offsetMs])
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const colors = getComputedStyle(document.documentElement)
+      wave.current?.setOptions({ waveColor: colors.getPropertyValue('--wave-base').trim(), progressColor: colors.getPropertyValue('--wave-progress').trim(), cursorColor: colors.getPropertyValue('--wave-progress').trim() })
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
   const prepare = async () => {
     const audio = audioRef.current
     if (!audio) return
@@ -90,8 +98,8 @@ export const WaveformPlayer = forwardRef<SessionAudioPlayerHandle, Props>(functi
     <div ref={waveRef} className={waveReady ? 'h-12' : 'hidden'} aria-hidden="true" />
     <audio ref={audioRef} src={src} preload="metadata" controls className="h-9 w-full" aria-label="Áudio da sessão. Espaço reproduz ou pausa; setas avançam cinco segundos."
       onLoadedMetadata={() => void prepare()} onError={() => setError('Não foi possível carregar o áudio.')} />
-    {!ready && !error && <div className="h-2 animate-pulse rounded bg-ink-100" role="status" aria-label="Carregando áudio" />}
+    {!ready && !error && <div className="h-2 animate-pulse rounded bg-hover" role="status" aria-label="Carregando áudio" />}
     {error && <div role="alert" className="text-xs text-rose-700">{error} <Button size="sm" onClick={() => { setError(''); audioRef.current?.load() }}>Tentar novamente</Button></div>}
-    {ready && !waveReady && <p className="text-xs text-ink-400">Forma de onda indisponível para este áudio.</p>}
+    {ready && !waveReady && <p className="text-xs text-subtle">Forma de onda indisponível para este áudio.</p>}
   </div>
 })
