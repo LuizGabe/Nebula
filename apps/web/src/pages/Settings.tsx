@@ -1,90 +1,28 @@
 import { MenuSurface } from '../components/ui/MenuSurface'
-import { Segmented } from '../components/ui/Segmented'
+import { TemplateManager } from '../components/TemplateManager'
+import { useDraftGuard } from '../hooks/useDraftGuard'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BookOpen, Check, ChevronDown, Loader2, Pencil, Plus, Save, Settings, SlidersHorizontal, Trash2, User, Wand2 } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, Loader2, Settings, SlidersHorizontal, User, Wand2 } from 'lucide-react'
 import clsx from 'clsx'
 import {
   llm,
   LLMModel,
-  type DocumentDetailLevel,
-  type DocumentFormality,
-  type DocumentTranscriptionMode,
   type LLMModelStatus,
-  prompts,
-  type Prompt,
   users,
 } from '../api/client'
 import { useAuthStore } from '../store/auth'
 import { Button } from '../components/ui/Button'
-import { Toggle } from '../components/ui/Toggle'
 
 type Section = 'templates' | 'model' | 'docs' | 'account'
-
-type TemplateDraft = {
-  name: string
-  description: string
-  instructions: string
-  formality: DocumentFormality
-  detailLevel: DocumentDetailLevel
-  useTitle: boolean
-  useHeadings: boolean
-  useSubheadings: boolean
-  preferLists: boolean
-  preferTables: boolean
-  includeAudioCitations: boolean
-  transcriptionMode: DocumentTranscriptionMode
-  isDefault: boolean
-  isPublic: boolean
-}
-
-const EMPTY_TEMPLATE: TemplateDraft = {
-  name: '',
-  description: '',
-  instructions: '',
-  formality: 'neutral',
-  detailLevel: 'balanced',
-  useTitle: true,
-  useHeadings: true,
-  useSubheadings: true,
-  preferLists: true,
-  preferTables: false,
-  includeAudioCitations: true,
-  transcriptionMode: 'MEETING',
-  isDefault: false,
-  isPublic: false,
-}
-
-const FORMALITY_OPTIONS: Array<{ value: DocumentFormality; label: string }> = [
-  { value: 'informal', label: 'Informal' },
-  { value: 'neutral', label: 'Neutra' },
-  { value: 'formal', label: 'Formal' },
-]
-
-const DETAIL_OPTIONS: Array<{ value: DocumentDetailLevel; label: string }> = [
-  { value: 'concise', label: 'Conciso' },
-  { value: 'balanced', label: 'Equilibrado' },
-  { value: 'detailed', label: 'Detalhado' },
-]
-
-function CheckboxRow({
-  checked,
-  label,
-  onChange,
-}: {
-  checked: boolean
-  label: string
-  onChange: (value: boolean) => void
-}) {
-  return (
-    <Toggle checked={checked} onChange={onChange} label={label} />
-  )
-}
 
 export function SettingsPage() {
   const { user, setUser } = useAuthStore()
   const [section, setSection] = useState<Section>('templates')
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [templateDirty, setTemplateDirty] = useState(false)
+  const [templateBusy, setTemplateBusy] = useState(false)
+  const draftGuard = useDraftGuard(templateDirty, templateBusy)
   useEffect(() => {
     const next = searchParams.get('section')
     if (next === 'account' || next === 'templates' || next === 'model' || next === 'docs') setSection(next)
@@ -98,23 +36,6 @@ export function SettingsPage() {
   const [modelError, setModelError] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
 
-  const [templateList, setTemplateList] = useState<Prompt[]>([])
-  const [loadingTemplates, setLoadingTemplates] = useState(true)
-  const [savingTemplate, setSavingTemplate] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<TemplateDraft>(EMPTY_TEMPLATE)
-  const [templateError, setTemplateError] = useState<string | null>(null)
-
-  const loadTemplates = async () => {
-    setLoadingTemplates(true)
-    try {
-      const res = await prompts.list()
-      setTemplateList(res.prompts ?? [])
-    } finally {
-      setLoadingTemplates(false)
-    }
-  }
-
   useEffect(() => {
     let closed = false
 
@@ -127,7 +48,6 @@ export function SettingsPage() {
       .catch(() => { })
       .finally(() => setLoadingModels(false))
 
-    loadTemplates().catch(() => setTemplateList([]))
 
     const source = llm.status()
     source.addEventListener('message', (event) => {
@@ -168,65 +88,6 @@ export function SettingsPage() {
     }
   }
 
-  const startEdit = (template: Prompt) => {
-    setEditingId(template.id)
-    setDraft({
-      name: template.name,
-      description: template.description ?? '',
-      instructions: template.instructions ?? '',
-      formality: template.formality ?? 'neutral',
-      detailLevel: template.detailLevel ?? 'balanced',
-      useTitle: template.useTitle ?? true,
-      useHeadings: template.useHeadings ?? true,
-      useSubheadings: template.useSubheadings ?? true,
-      preferLists: template.preferLists ?? true,
-      preferTables: template.preferTables ?? false,
-      includeAudioCitations: template.includeAudioCitations ?? true,
-      transcriptionMode: template.transcriptionMode ?? 'MEETING',
-      isDefault: template.isDefault,
-      isPublic: template.isPublic,
-    })
-    setTemplateError(null)
-  }
-
-  const resetTemplateForm = () => {
-    setEditingId(null)
-    setDraft(EMPTY_TEMPLATE)
-    setTemplateError(null)
-  }
-
-  const saveTemplate = async () => {
-    if (!draft.name.trim() || !draft.instructions.trim()) return
-
-    setSavingTemplate(true)
-    setTemplateError(null)
-    try {
-      const payload = {
-        ...draft,
-        description: draft.description.trim() || null,
-        instructions: draft.instructions.trim(),
-      }
-      if (editingId) {
-        await prompts.update(editingId, payload)
-      } else {
-        await prompts.create(payload)
-      }
-      resetTemplateForm()
-      await loadTemplates()
-    } catch (error) {
-      setTemplateError(error instanceof Error ? error.message : 'Nao foi possivel salvar o template.')
-    } finally {
-      setSavingTemplate(false)
-    }
-  }
-
-  const deleteTemplate = async (template: Prompt) => {
-    if (!confirm(`Remover o template "${template.name}"?`)) return
-    await prompts.delete(template.id)
-    if (editingId === template.id) resetTemplateForm()
-    await loadTemplates()
-  }
-
   const sections = [
     { id: 'templates' as const, label: 'Templates', icon: Wand2 },
     { id: 'model' as const, label: 'Modelo', icon: SlidersHorizontal },
@@ -247,16 +108,16 @@ export function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-6">
-        <aside className="nebula-surface bg-surface rounded-2xl border border-line shadow-soft p-2 h-max">
+        <aside className="nebula-surface bg-surface rounded-2xl border border-line shadow-soft p-2 h-max flex gap-1 overflow-x-auto lg:block">
           {sections.map((item) => {
             const Icon = item.icon
             return (
               <button
                 key={item.id}
-                onClick={() => setSection(item.id)}
+                onClick={() => draftGuard.request(() => setSearchParams({ section: item.id }))}
                 aria-pressed={section === item.id}
                 className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                  'shrink-0 flex items-center gap-3 px-3 py-2.5 rounded-xl whitespace-nowrap lg:w-full text-sm font-medium transition-all',
                   section === item.id ? 'bg-action text-on-action' : 'text-secondary hover:text-primary hover:bg-muted'
                 )}
               >
@@ -329,128 +190,7 @@ export function SettingsPage() {
             </div>
           )}
 
-          {section === 'templates' && (
-            <div className="px-6 py-5">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="font-medium text-primary text-sm mb-0.5">Templates de documento</h2>
-                  <p className="text-xs text-subtle">Configure como o documento final deve ser escrito.</p>
-                </div>
-                <Button size="sm" variant="secondary" onClick={resetTemplateForm}>
-                  <Plus className="w-4 h-4" />
-                  Novo
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)] gap-5">
-                <div className="border border-line rounded-xl overflow-hidden h-max">
-                  {loadingTemplates ? (
-                    <div className="p-4 flex items-center gap-2 text-sm text-subtle">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Carregando...
-                    </div>
-                  ) : templateList.length === 0 ? (
-                    <p className="p-4 text-sm text-subtle">Nenhum template cadastrado.</p>
-                  ) : (
-                    templateList.map((template) => (
-                      <div key={template.id} className="p-3 border-b border-line last:border-b-0 flex items-center gap-2">
-                        <button className="flex-1 text-left min-w-0" onClick={() => startEdit(template)}>
-                          <p className="text-sm font-medium text-primary truncate">{template.name}</p>
-                          <p className="text-xs text-subtle">
-                            {template.isDefault ? 'Padrao' : 'Personalizado'} / {template.isPublic ? 'Publico' : 'Privado'}
-                          </p>
-                        </button>
-                        <button className="p-1.5 rounded-lg text-subtle hover:text-primary hover:bg-muted" onClick={() => startEdit(template)} title="Editar">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-50" onClick={() => deleteTemplate(template)} title="Remover">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input
-                      aria-label="Nome do template"
-                      value={draft.name}
-                      onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Nome do template"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all"
-                    />
-                    <select
-                      aria-label="Tipo de transcrição"
-                      value={draft.transcriptionMode}
-                      onChange={(event) => setDraft((current) => ({ ...current, transcriptionMode: event.target.value as DocumentTranscriptionMode }))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus transition-all"
-                    >
-                      <option value="MEETING">Transcricao: reuniao</option>
-                      <option value="CLASS">Transcricao: aula</option>
-                    </select>
-                  </div>
-
-                  <textarea
-                    aria-label="Descrição do template"
-                    value={draft.description}
-                    onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
-                    placeholder="Descricao curta do uso deste template"
-                    rows={2}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all resize-y"
-                  />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="mb-2 text-xs font-medium text-subtle">Formalidade</p>
-                      <Segmented value={draft.formality} options={FORMALITY_OPTIONS} onChange={(value) => setDraft((current) => ({ ...current, formality: value }))} />
-                    </div>
-                    <div>
-                      <p className="mb-2 text-xs font-medium text-subtle">Nivel de detalhe</p>
-                      <Segmented value={draft.detailLevel} options={DETAIL_OPTIONS} onChange={(value) => setDraft((current) => ({ ...current, detailLevel: value }))} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 rounded-xl border border-line bg-muted/60 p-3">
-                    <CheckboxRow checked={draft.useTitle} label="Usar titulo principal" onChange={(value) => setDraft((current) => ({ ...current, useTitle: value }))} />
-                    <CheckboxRow checked={draft.useHeadings} label="Organizar em secoes" onChange={(value) => setDraft((current) => ({ ...current, useHeadings: value }))} />
-                    <CheckboxRow checked={draft.useSubheadings} label="Usar subsecoes quando apropriado" onChange={(value) => setDraft((current) => ({ ...current, useSubheadings: value }))} />
-                    <CheckboxRow checked={draft.preferLists} label="Preferir listas quando apropriado" onChange={(value) => setDraft((current) => ({ ...current, preferLists: value }))} />
-                    <CheckboxRow checked={draft.preferTables} label="Preferir tabelas quando ajudarem" onChange={(value) => setDraft((current) => ({ ...current, preferTables: value }))} />
-                    <CheckboxRow checked={draft.includeAudioCitations} label="Referenciar momentos do audio" onChange={(value) => setDraft((current) => ({ ...current, includeAudioCitations: value }))} />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-subtle">Instrucoes adicionais</label>
-                    <textarea
-                      aria-label="Instruções adicionais"
-                      value={draft.instructions}
-                      onChange={(event) => setDraft((current) => ({ ...current, instructions: event.target.value }))}
-                      placeholder="Descreva o foco, organizacao e criterios do documento final"
-                      rows={9}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-line text-sm bg-surface text-primary outline-none focus:border-line focus:ring-2 focus:ring-focus placeholder:text-subtle transition-all resize-y leading-6"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <CheckboxRow checked={draft.isDefault} label="Padrao para novas sessoes" onChange={(value) => setDraft((current) => ({ ...current, isDefault: value }))} />
-                    <CheckboxRow checked={draft.isPublic} label="Publico" onChange={(value) => setDraft((current) => ({ ...current, isPublic: value }))} />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button variant="primary" onClick={saveTemplate} loading={savingTemplate} disabled={!draft.name.trim() || !draft.instructions.trim()}>
-                      <Save className="w-4 h-4" />
-                      {editingId ? 'Salvar template' : 'Criar template'}
-                    </Button>
-                    {editingId && <Button variant="secondary" onClick={resetTemplateForm}>Cancelar</Button>}
-                  </div>
-                  {templateError && (
-                    <p className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">{templateError}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          {section === 'templates' && <TemplateManager onDirtyChange={setTemplateDirty} onBusyChange={setTemplateBusy} guard={draftGuard.request} />}
 
           {section === 'docs' && (
             <div className="px-6 py-5">
@@ -490,6 +230,7 @@ export function SettingsPage() {
           )}
         </section>
       </div>
+      {draftGuard.dialog}
     </div>
   )
 }

@@ -42,6 +42,7 @@ const { useAuthStore } = await import('../src/store/auth')
 const { folders, sessions } = await import('../src/api/client')
 const { Sidebar } = await import('../src/components/ui/Sidebar')
 const { CaptureNavigationGuard } = await import('../src/components/CaptureNavigationGuard')
+const { useDraftGuard } = await import('../src/hooks/useDraftGuard')
 const { useDialogFocus } = await import('../src/hooks/useDialogFocus')
 const { MenuSurface } = await import('../src/components/ui/MenuSurface')
 const { getRecorder } = await import('../src/services/AudioRecorderService')
@@ -60,10 +61,11 @@ function Workspace() {
   useEffect(() => { mounts++; return () => { mounts-- } }, [])
   return <textarea aria-label="Rascunho" value={draft} onChange={event => setDraft(event.target.value)} />
 }
+function PassiveDraftGuard() { useDraftGuard(false); return null }
 function Shell() {
   const collapsed = useAppearanceStore(state => state.collapsed)
   navigate = useNavigate(); currentPath = useLocation().pathname
-  return <div className="nebula-shell" data-collapsed={collapsed}><CaptureNavigationGuard /><Sidebar /><main id="nebula-main"><Workspace /></main></div>
+  return <div className="nebula-shell" data-collapsed={collapsed}><CaptureNavigationGuard /><PassiveDraftGuard /><Sidebar /><main id="nebula-main"><Workspace /></main></div>
 }
 const host = document.createElement('div'); document.body.append(host)
 const root = createRoot(host)

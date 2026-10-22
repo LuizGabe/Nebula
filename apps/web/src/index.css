@@ -233,3 +233,5 @@ body:has(dialog[open]) { overflow: hidden; }
 
 :where(.nebula-page,.nebula-modal,.nebula-drawer) :where(h1,h2,h3,p) { overflow-wrap: anywhere; }
 :where(input,textarea,select) { min-width: 0; }
+.nebula-modal [data-tooltip]::after { left: auto; right: 0; width: max-content; max-width: min(260px, calc(100vw - 48px)); white-space: normal; }
+.nebula-template-readonly :disabled { opacity: 1; color: rgb(var(--secondary)); -webkit-text-fill-color: rgb(var(--secondary)); cursor: default; }

@@ -1,6 +1,6 @@
 import { config } from '@/config'
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) { super(message) }
+  constructor(message: string, readonly status: number, readonly sessionId?: string) { super(message) }
 }
 
 async function request<T>(path: string, options?: RequestInit, responseType: 'json' | 'blob' = 'json'): Promise<T> {
@@ -19,7 +19,7 @@ async function request<T>(path: string, options?: RequestInit, responseType: 'js
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new ApiError(typeof body?.error === 'string' ? body.error : body?.message ?? `HTTP ${res.status}`, res.status)
+    throw new ApiError(typeof body?.error === 'string' ? body.error : body?.message ?? `HTTP ${res.status}`, res.status, typeof body?.sessionId === 'string' ? body.sessionId : undefined)
   }
 
   if (res.status === 204) return undefined as T
@@ -85,6 +85,10 @@ export interface Prompt {
   createdAt: string
   updatedAt?: string
   ownerId?: string | null
+  platformKey?: string | null
+  deletedAt?: string | null
+  origin?: 'platform' | 'own' | 'shared' | 'legacy'
+  capabilities?: { canUse: boolean; canEdit: boolean; canDelete: boolean; canDuplicate: boolean; canSetDefault: boolean }
   owner?: { id: string; username: string } | null
 }
 
@@ -185,6 +189,7 @@ export interface SelectedTranscriptionEngine {
 }
 
 export const sessions = {
+  creationOptions: () => request<{ youtubeMaxDurationMinutes: number }>('/sessions/creation-options'),
   list: () => request<{ sessions: Session[] }>('/sessions'),
 
   get: (id: string) => request<{ session: Session }>(`/sessions/${id}`),
@@ -289,7 +294,9 @@ export const folders = {
 // Prompts
 
 export const prompts = {
-  list: () => request<{ prompts: Prompt[] }>('/prompts'),
+  list: () => request<{ prompts: Prompt[]; defaultPromptId?: string | null }>('/prompts'),
+  setDefault: (promptId: string | null) => request<{ defaultPromptId: string | null }>('/prompts/default', { method: 'PUT', body: JSON.stringify({ promptId }) }),
+  duplicate: (id: string) => request<{ prompt: Prompt }>(`/prompts/${id}/duplicate`, { method: 'POST', body: JSON.stringify({}) }),
 
   create: (data: {
     name: string

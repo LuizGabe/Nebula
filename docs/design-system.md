@@ -1,4 +1,4 @@
-# Nebula — sistema visual e biblioteca, etapas 1 e 2
+# Nebula — sistema visual e biblioteca, etapas 1, 2 e 3
 
 ## Escopo
 
@@ -166,3 +166,18 @@ Inspeção em navegador local: biblioteca desktop 1440×1000 e mobile 390×844 e
 Pendência para a próxima etapa: permissões e padrão pessoal de templates; a inicialização/listagem atual ainda pode repor os templates nativos. Esta entrega não promete corrigir essa arquitetura. Permanecem os avisos já existentes de bundle grande e base Browserslist antiga.
 
 Resultado final da etapa 2: builds de API e frontend, Prisma validate/generate, integração PostgreSQL, listagem/YouTube, biblioteca, aparência/navegação, transcrição e documentGeneration passaram. A inspeção mobile confirmou Escape e restauração ao acionador Novo caderno após o diálogo de cores. Dados temporários de QA foram removidos.
+
+
+## Etapa 3 — templates e criação progressiva
+
+A política completa, migração, comportamento dos legados e comandos de teste estão em [template-policy.md](template-policy.md). A pendência de permissões e padrão pessoal registrada na etapa 2 foi resolvida nesta etapa: listagem sem escrita, identidade estável da plataforma, capacidades efetivas, padrão por conta e exclusão lógica com referências preservadas.
+
+- **ConfirmDialog:** portal na camada de diálogo, título acessível, cancelamento seguro como primeiro foco, ações explícitas, contenção/Escape/restauração pelo useDialogFocus. Substitui confirmações nativas do gerenciamento e descarte; o aviso de fechamento/recarregamento da janela permanece nativo por exigência do navegador.
+- **TemplateManager:** grupos Da plataforma, Meus templates, Compartilhados e política identificada de legado sem proprietário. Seleção por botão separado de duplicar/padrão/excluir. Lista com altura limitada e rolagem própria; abas de Configurações em linha rolável no mobile. Conteúdo readonly mantém contraste; readonly não equivale a texto apagado.
+- **TemplateOptionsFields:** agrupamentos compartilhados de estilo, estrutura, referências e tipo de transcrição, com Segmented/Toggle existentes. Nome, descrição e instruções têm labels associados, limites e contadores.
+- **Nova sessão:** diálogo de uma coluna, até 576 px, superfície neutra, altura limitada ao viewport e rolagem interna. Fonte, template com descrição/origem, título, destino compacto com caminho/cor e dois details fechados inicialmente: Contexto e Ajustes desta sessão. Sem coluna permanente para árvore de cadernos.
+- **Herança:** resumo Do template/Personalizado; campos não alterados seguem por referência. Restaurar ajustes é explícito. TemplateSwitchDialog oferece Manter ajustes, Usar valores do novo template e Cancelar; instruções específicas são descritas como substituição das instruções do template.
+- **Envio:** rótulos Continuar para gravação / Continuar para envio / Importar vídeo. A espera bloqueia controles e fechamento, com status textual. Erros de consulta, vazio, destino indisponível e criação são distintos; retry de consulta preserva campos. Um sessionId em uma falha de importação oferece acesso à sessão existente e impede repetir a criação.
+- **Rascunho:** useDraftGuard protege troca de template, seção, rota, histórico e saída. Gerenciar a partir da criação preserva a instância, sinaliza o rascunho suspenso e oferece Voltar à nova sessão. Novas leituras não redefinem ajustes. Nada é apresentado como recuperação do rascunho após recarga.
+
+Inspeção real e QA visual cobriram desktop/mobile nos dois temas, ajustes expandidos, controles readonly, falhas e diálogos sobrepostos. O tooltip de fechamento fica alinhado à borda direita do diálogo para não transbordar no mobile. A página local de QA usa dados claramente simulados e não altera contas ou sessões reais. Capturas e limitações estão documentadas na política da etapa 3.

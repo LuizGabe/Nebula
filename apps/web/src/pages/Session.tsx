@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ChevronRight, FileText, Folder, MessageSquare, Pencil, Trash2, X } from 'lucide-react'
 import { folders as foldersApi, prompts as promptsApi, sessions as sessionsApi, system as systemApi, type Folder as FolderItem, type Prompt, type SelectedTranscriptionEngine, type Session, type SessionAudioMedia } from '../api/client'
+import { TemplateSwitchDialog } from '../components/TemplateSwitchDialog'
+import { emptyOverrides, hasOverrides } from '../utils/templates'
 import { RecordingPanel } from '../components/RecordingPanel'
 import { TranscriptProductivity } from '../components/TranscriptProductivity'
 import { RecordingMilestones } from '../components/RecordingMilestones'
@@ -30,7 +32,11 @@ export function SessionPage() {
   const [ended, setEnded] = useState(false)
   const [showQA, setShowQA] = useState(false)
   const [showPromptModal, setShowPromptModal] = useState(false)
-  const promptDialogRef = useDialogFocus(() => setShowPromptModal(false), showPromptModal)
+  const [promptBusy, setPromptBusy] = useState(false)
+  const [promptError, setPromptError] = useState('')
+  const [confirmPromptSwitch, setConfirmPromptSwitch] = useState(false)
+  const promptSaveLock = useRef(false)
+  const promptDialogRef = useDialogFocus(() => { if (!promptSaveLock.current) setShowPromptModal(false) }, showPromptModal)
   const [reprocessTrigger, setReprocessTrigger] = useState(0)
   const [promptList, setPromptList] = useState<Prompt[]>([])
   const [folderList, setFolderList] = useState<FolderItem[]>([])
@@ -113,12 +119,24 @@ export function SessionPage() {
     loadAudioMedia()
   }, [loadAudioMedia, transcriptVersion, audioVersion])
 
-  const handlePromptChange = async () => {
-    if (!id || !session) return
-    const { session: updated } = await sessionsApi.update(id, { promptId: promptDraftId })
-    setSession((current) => current ? { ...current, ...updated } : updated)
-    setShowPromptModal(false)
+  const savePromptChange = async (reset = false) => {
+    if (!id || !session || promptSaveLock.current) return
+    promptSaveLock.current = true; setPromptBusy(true); setPromptError(''); setConfirmPromptSwitch(false)
+    try {
+      const { session: updated } = await sessionsApi.update(id, { promptId: promptDraftId, ...(reset ? emptyOverrides : {}) })
+      setSession(current => current ? { ...current, ...updated } : updated)
+      setShowPromptModal(false)
+    } catch (error) { setPromptError(error instanceof Error ? error.message : 'Não foi possível trocar o template.') }
+    finally { promptSaveLock.current = false; setPromptBusy(false) }
   }
+  const handlePromptChange = () => {
+    if (session && promptDraftId !== session.promptId && hasOverrides(session)) setConfirmPromptSwitch(true)
+    else void savePromptChange()
+  }
+  useEffect(() => {
+    if (!showPromptModal) return
+    promptsApi.list().then(result => { setPromptList(result.prompts); setPromptError('') }).catch(() => setPromptError('Não foi possível carregar os templates. Feche e abra novamente para tentar de novo.'))
+  }, [showPromptModal])
 
   const handleUploadStarted = () => {
     setProcessingHint(true)
@@ -221,10 +239,10 @@ export function SessionPage() {
                 setShowPromptModal(true)
               }}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-subtle hover:text-primary hover:bg-muted transition-colors"
-              title="Editar template"
+              title="Trocar template"
             >
               <Pencil className="w-3 h-3" />
-              Editar template
+              Trocar template
             </button>
             {session.status === 'ERROR' || status.startsWith('error:') ? <Badge variant="rose">Erro no processamento</Badge> : session.status === 'IN_PROGRESS' || processingHint ? <Badge variant="amber">Processando</Badge> : isEnded ? (
               <Badge variant="jade">
@@ -404,16 +422,16 @@ export function SessionPage() {
       {showPromptModal && (
         <div
           className="fixed inset-0 z-overlay flex items-center justify-center bg-overlay/30 px-4 backdrop-blur-md"
-          onClick={(event) => event.target === event.currentTarget && setShowPromptModal(false)}
+          onClick={(event) => { if (event.target === event.currentTarget && !promptBusy) setShowPromptModal(false) }}
         >
-          <div ref={promptDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Editar template" className="nebula-modal w-full max-w-md rounded-3xl border border-line/80 bg-surface p-6 shadow-float backdrop-blur-xl">
+          <div ref={promptDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Trocar template" className="nebula-modal w-full max-w-md rounded-3xl border border-line/80 bg-surface p-6 shadow-float backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="font-display text-lg font-semibold text-primary">Editar template</h2>
+                <h2 className="font-display text-lg font-semibold text-primary">Trocar template</h2>
                 <p className="text-xs text-subtle">Escolha o template usado para esta sessao.</p>
               </div>
               <button
-                onClick={() => setShowPromptModal(false)}
+                disabled={promptBusy} onClick={() => setShowPromptModal(false)}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-subtle hover:text-primary hover:bg-muted"
                 title="Fechar"
               >
@@ -421,11 +439,13 @@ export function SessionPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid max-h-80 grid-cols-1 gap-2 overflow-y-auto">
+              {promptError && <p role="alert" className="text-sm text-rose-700">{promptError}</p>}
+              {session.prompt?.capabilities?.canUse === false && <p className="text-sm text-secondary">O template associado ficou indisponível. Os documentos foram preservados. Escolha outro para futuras gerações.</p>}
               {promptList.map((prompt) => (
                 <button
                   key={prompt.id}
-                  onClick={() => setPromptDraftId(prompt.id)}
+                  disabled={promptBusy} onClick={() => setPromptDraftId(prompt.id)}
                   className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm transition-all ${promptDraftId === prompt.id
                     ? 'border-line bg-action text-on-action'
                     : 'border-line text-secondary hover:border-line hover:bg-muted'
@@ -441,12 +461,13 @@ export function SessionPage() {
             </div>
 
             <div className="mt-5 flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setShowPromptModal(false)}>Cancelar</Button>
-              <Button variant="primary" className="flex-1" disabled={!promptDraftId} onClick={handlePromptChange}>Salvar</Button>
+              <Button variant="secondary" className="flex-1" disabled={promptBusy} onClick={() => setShowPromptModal(false)}>Cancelar</Button>
+              <Button variant="primary" className="flex-1" loading={promptBusy} disabled={!promptList.some(item => item.id === promptDraftId && item.capabilities?.canUse !== false)} onClick={handlePromptChange}>Salvar</Button>
             </div>
           </div>
         </div>
       )}
+      {confirmPromptSwitch && <TemplateSwitchDialog onCancel={() => { setConfirmPromptSwitch(false); setPromptDraftId(session?.promptId ?? '') }} onKeep={() => void savePromptChange(false)} onReset={() => void savePromptChange(true)} />}
     </div>
   )
 }
