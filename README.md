@@ -182,6 +182,8 @@ Platform and third-party public templates are read-only; duplicate one to make a
 
 The creation dialog accepts watch, short-link and Shorts URLs. `/sessions/creation-options` exposes the account's duration limit; the worker checks duration before downloading. Live streams, private/protected videos and playlists without a selected video are unsupported.
 
+Only import material you are entitled to download and process, through access permitted by the platform's terms. A publicly viewable video is not automatically authorized for download. See the [publication review](docs/legal-review.md) and [YouTube terms](https://www.youtube.com/static?template=terms).
+
 The batch worker uses yt-dlp, FFmpeg and Node.js, retries transient downloads and preserves custom session titles. Long audio is split for Groq while retaining timestamps on the original timeline. YouTube ingestion invokes batch processing directly; its storage path is excluded from webhook transcription to avoid duplicate jobs. Long transcripts are synthesized in stages before final document generation.
 
 ### API map
@@ -209,4 +211,11 @@ README visuals use a subtle engineering-notebook grid and sketch arrows, preserv
 
 ## License
 
-The API package declares ISC in its [package metadata](apps/api/package.json). The repository currently has no standalone license file.
+Nebula is **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- Personal and other noncommercial use, modification and redistribution are permitted under the license conditions.
+- The license expressly permits use by charitable organizations, educational institutions, public research organizations, public safety or health organizations, environmental protection organizations and government institutions, regardless of funding source.
+- Commercial use outside those permissions, including ordinary internal business use, requires a separate license. Contact [LuizGabe](https://github.com/LuizGabe) to discuss permission.
+- Distributions must preserve the license terms or their URL and the required notice in [NOTICE](NOTICE). Third-party components retain their [own terms](THIRD_PARTY_NOTICES.md).
+
+The [license text](LICENSE) governs; this summary adds no restrictions or permissions. Earlier valid license grants are not revoked by this change. See the [publication and licensing review](docs/legal-review.md) for findings and unresolved questions.

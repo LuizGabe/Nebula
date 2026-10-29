@@ -1,0 +1,17 @@
+Nebula
+
+Required Notice: Copyright (c) 2026 LuizGabe (https://github.com/LuizGabe)
+
+First-party code, documentation and artwork in this revision are offered
+under the PolyForm Noncommercial License 1.0.0 in LICENSE, except where
+separate terms are explicitly identified. Preserve the required notice
+when distributing copies as specified by that license.
+
+Third-party software, model weights, container contents and other materials
+remain subject to their own licenses and notices. The Nebula license does
+not replace or restrict rights granted by those third-party licenses.
+See THIRD_PARTY_NOTICES.md for an overview and release-review requirements.
+
+Earlier revisions identified ISC in the API package metadata and README.
+This notice does not purport to revoke rights validly granted under an
+earlier license, or to relicense third-party material.

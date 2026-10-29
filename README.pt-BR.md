@@ -182,6 +182,8 @@ Templates da plataforma e templates públicos de terceiros são somente leitura;
 
 O diálogo de criação aceita URLs de vídeos, links curtos e Shorts. `/sessions/creation-options` informa o limite de duração da conta; o worker verifica a duração antes de baixar. Lives, vídeos privados/protegidos e playlists sem vídeo selecionado não são aceitos.
 
+Importe apenas material que você tenha direito de baixar e processar, por meios de acesso permitidos pelos termos da plataforma. Um vídeo disponível publicamente não está automaticamente autorizado para download. Consulte a [análise de publicação, em inglês](docs/legal-review.md) e os [termos do YouTube](https://www.youtube.com/static?template=terms).
+
 O worker batch usa yt-dlp, FFmpeg e Node.js, tenta novamente downloads com falhas transitórias e mantém títulos personalizados. Áudios longos são divididos para o Groq com timestamps na linha do tempo original. A importação chama diretamente o processamento batch; seu caminho no storage é excluído da transcrição por webhook para evitar jobs duplicados. Transcrições longas são sintetizadas em etapas antes da geração final do documento.
 
 ### Mapa da API
@@ -209,4 +211,11 @@ Os visuais dos READMEs usam quadriculado discreto de caderno de engenharia e set
 
 ## Licença
 
-O pacote da API declara ISC nos [metadados do pacote](apps/api/package.json). O repositório ainda não tem um arquivo de licença separado.
+O Nebula tem **código-fonte disponível (source-available)** sob a [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- Uso pessoal e outros usos não comerciais, modificações e redistribuição são permitidos nas condições da licença.
+- A licença permite expressamente o uso por organizações beneficentes, instituições educacionais, organizações públicas de pesquisa, organizações de segurança pública ou de saúde, organizações de proteção ambiental e instituições governamentais, independentemente da origem do financiamento.
+- Uso comercial fora dessas permissões, incluindo o uso interno habitual de empresas, exige uma licença separada. Entre em contato com [LuizGabe](https://github.com/LuizGabe) para conversar sobre a autorização.
+- A distribuição deve preservar os termos da licença ou sua URL e o aviso obrigatório de [NOTICE](NOTICE). Componentes de terceiros mantêm seus [próprios termos](THIRD_PARTY_NOTICES.md).
+
+O [texto da licença](LICENSE) prevalece; este resumo não acrescenta restrições ou permissões. Autorizações válidas de versões anteriores não são revogadas pela mudança. Consulte a [análise de publicação e licenciamento, em inglês](docs/legal-review.md) para os achados e questões pendentes.
