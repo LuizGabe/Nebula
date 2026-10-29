@@ -1,318 +1,212 @@
+[English](README.md) · [Português brasileiro](README.pt-BR.md)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/header.en.dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/readme/header.en.light.svg">
+  <img src="assets/readme/header.en.light.svg" alt="Nebula — From audio to working knowledge. Record → Transcribe → Generate → Review." width="1000" height="260">
+</picture>
+
 # Nebula
 
-Nebula e uma aplicacao para gravar ou enviar audio, transcrever o conteudo e gerar documentos com IA. O projeto combina um frontend React, uma API Fastify, PostgreSQL, Redis/BullMQ, MinIO e workers Python para processamento de audio.
+Turn recordings, uploaded audio and YouTube videos into searchable transcripts and structured documents. Nebula brings audio capture, asynchronous transcription and AI document generation into a single workspace for meetings, classes and interviews.
 
-O fluxo principal e simples: o usuario cria uma sessao, escolhe um prompt cadastrado no banco, grava ou envia um audio, acompanha o processamento e revisa o documento Markdown gerado. Os prompts nao vivem mais em arquivos compartilhados; eles sao registros editaveis no banco de dados.
+Choose a document template, follow processing as it happens, then review the result alongside the source audio. Behind that workflow are a React application, a Fastify API and independent Python workers connected through queues, events and object storage.
 
-## Funcionalidades
+[Capabilities](#capabilities) · [Architecture](#architecture) · [Local setup](#local-setup) · [Development](#development) · [Technical notes](#technical-notes)
 
-- Autenticacao local com usuario e senha.
-- Redirecionamento automatico de `/login` para o dashboard quando o usuario ja esta logado.
-- Dashboard de sessoes com criacao por prompt dinamico.
-- Gravacao pelo navegador e upload de arquivos de audio.
-- Importacao de audio de videos do YouTube, com transcricao e documento automaticos.
-- Upload seguro para MinIO usando presigned URLs.
-- Processamento assincrono com Redis e BullMQ.
-- Transcricao por workers Python.
-- Geracao de documentos com LLM via Groq ou Ollama.
-- Editor Markdown para revisar documentos gerados.
-- Q&A via SSE sobre a transcricao da sessao.
-- CRUD de prompts em `/prompts`.
-- Prompts publicos e privados, com dono (`ownerId`) e prompt padrao (`isDefault`).
+## Capabilities
 
-## Arquitetura
+| Stage | What you can do |
+| --- | --- |
+| Capture | Record in the browser, upload audio or import a YouTube video. Pause and resume recordings, with local recovery support. |
+| Transcribe | Process uploads with Groq; use browser speech recognition or the optional gRPC worker for live transcription, depending on configuration and browser support. |
+| Organize | Keep sessions in notebooks with folders and colors, and search your library. |
+| Review | Edit transcripts, navigate synchronized audio and timestamps, and rename speakers when speaker data is available. |
+| Generate | Use platform templates or your own instructions, adjusting tone, detail, structure and audio references. Generate documents through Groq or Ollama. |
+| Reuse | Edit generated Markdown, ask questions about a session through streaming Q&A, and export transcripts as SRT, VTT, PDF, DOCX, JSON, Markdown or text. |
 
-```text
-nebula/
-|-- apps/
-|   |-- api/                 # Backend Fastify + Prisma + BullMQ
-|   |   |-- prisma/          # Schema, SQL bootstrap e seed
-|   |   `-- src/
-|   |       |-- events/      # Eventos de pipeline e status
-|   |       |-- jobs/        # Filas e processadores
-|   |       |-- lib/         # Prisma, Redis, storage, LLM e prompts
-|   |       |-- routes/      # Rotas REST, SSE e WebSocket
-|   |       `-- workers/     # Inicializacao de workers Node
-|   |-- web/                 # Frontend React + Vite + Tailwind
-|   |   `-- src/
-|   |       |-- api/         # Client HTTP
-|   |       |-- components/  # Recorder, editor, status, UI
-|   |       |-- hooks/       # Recorder e status de processamento
-|   |       |-- pages/       # Login, Dashboard, Session, Settings
-|   |       `-- store/       # Estado de autenticacao
-|   |-- groq_worker/         # Worker Python para processamento Groq/batch
-|   `-- parakeet_worker/     # Worker Python/gRPC para transcricao
-|-- scripts/                 # Utilitarios, como download de modelos
-|-- docker-compose.yml       # Ambiente production-like local
-|-- docker-compose.dev.yml   # Ambiente de desenvolvimento com volumes
-|-- pnpm-workspace.yaml
-`-- package.json
+Local accounts use cookie-based sessions. Public templates share their instructions; session audio, transcripts and documents remain scoped to their owner.
+
+The current interface and built-in document instructions are primarily in Brazilian Portuguese. The two READMEs provide bilingual repository documentation; application localization is separate.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Web[React workspace] --> API[Fastify API]
+    API --> DB[(PostgreSQL)]
+    API --> Storage[(MinIO / S3)]
+    API --> Queue[Redis / BullMQ]
+    Queue --> Batch[Python batch worker]
+    Queue --> Docs[Node document worker]
+    Batch --> Groq[Groq transcription]
+    Docs --> LLM[Groq / Ollama]
+    API <-->|gRPC| Live[Optional live worker]
+    Batch --> Events[Pipeline events]
+    Docs --> Events
+    Events --> DB
+    Events --> Redis[Redis status channels]
+    Redis --> API
+    API -->|SSE| Web
 ```
 
-## Stack
+Uploads enter `transcription-jobs`; document generation runs on `post-processing`. Pipeline events are persisted as `SessionEvent` records and published to Redis for live status updates. The batch worker handles audio preprocessing and YouTube ingestion; the optional Parakeet/faster-whisper worker handles gRPC streaming and inference.
 
-| Area | Tecnologias |
+| Layer | Technologies |
 | --- | --- |
-| Web | React 18, Vite, Tailwind CSS, Zustand, Milkdown/Crepe, lucide-react |
-| API | Node.js, Fastify, Prisma 7, Zod, BullMQ, secure-session |
-| Banco/Fila/Storage | PostgreSQL 16, Redis 7, MinIO |
-| IA | Groq SDK, Ollama, workers Python |
-| Audio | Web MediaRecorder, workers Python, gRPC, FFmpeg |
+| Web | React 18, TypeScript, Vite, Tailwind CSS, Zustand, Milkdown/Crepe, Lucide |
+| API | Node.js, Fastify, Prisma 7 with `@prisma/adapter-pg`, Zod, secure sessions |
+| Processing | BullMQ, Python async workers, FFmpeg, yt-dlp, gRPC |
+| Data | PostgreSQL 16, Redis 7, MinIO / S3 |
+| AI | Groq, Ollama, optional Parakeet/faster-whisper inference |
 
-## Variaveis de Ambiente
+```text
+apps/
+├── api/
+│   ├── prisma/          # Data model, additive SQL and template seed
+│   └── src/
+│       ├── routes/      # Authenticated REST, SSE and WebSocket endpoints
+│       ├── lib/         # Storage, models, prompts and domain logic
+│       ├── jobs/        # Queues and document processing
+│       └── events/      # Persisted pipeline status and publishing
+├── web/src/
+│   ├── api/client.ts    # Shared API client
+│   ├── components/     # Capture, transcript, document and UI components
+│   ├── pages/          # Login, library, session and settings
+│   └── store/          # Auth, appearance and playback state
+├── groq_worker/         # Batch transcription, preprocessing and ingestion
+└── parakeet_worker/     # Optional streaming gRPC and GPU inference
+docs/                   # Design and implementation notes
+assets/readme/          # Localized light/dark SVG headers
+scripts/                # Utilities and README asset generator
+```
 
-Use `.env.example` como base para criar `.env` na raiz do projeto.
+## Local setup
 
-Variaveis principais:
+Use Docker Compose for the services and **pnpm 9** for workspace commands. Local Node development needs a version compatible with the installed dependencies, including Prisma 7.
 
-- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- `DATABASE_URL`
-- `REDIS_URL`
-- `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`
-- `MINIO_PUBLIC_ENDPOINT`, `MINIO_INTERNAL_ENDPOINT`, `MINIO_ENDPOINT`
-- `MINIO_WEBHOOK_SECRET`
-- `SESSION_SECRET`, `SESSION_SALT`
-- `REGISTRATION_ENABLED`
-- `GROQ_API_KEY`
-- `OLLAMA_URL`
-- `DEFAULT_MODEL`
-- `VITE_API_BASE_URL`
+### Configure the environment
 
-Prompts ficam na tabela `prompts` e sao carregados dinamicamente pela API.
+Copy [`.env.example`](.env.example) to `.env` at the repository root. In PowerShell:
 
-## Rodando com Docker
+```powershell
+Copy-Item .env.example .env
+```
 
-Para subir o ambiente principal:
+Replace the placeholders before starting:
+
+| Group | Variables |
+| --- | --- |
+| Database / queues | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL`, `REDIS_URL` |
+| Storage credentials | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET` |
+| Storage endpoints / events | `MINIO_PUBLIC_ENDPOINT`, `MINIO_INTERNAL_ENDPOINT`, `MINIO_ENDPOINT`, `MINIO_WEBHOOK_SECRET` |
+| Authentication | `SESSION_SECRET` (at least 32 characters), `SESSION_SALT` (exactly 16 characters), `REGISTRATION_ENABLED` |
+| Models / web | `GROQ_API_KEY`, `OLLAMA_URL`, `DEFAULT_MODEL`, `VITE_API_BASE_URL` |
+
+The sample salt must be replaced: its placeholder is not 16 characters long. For a simple local MinIO setup, match the access key/secret to the root credentials, or provision a service account with bucket access. The public storage endpoint must be reachable by the browser; internal endpoints must be reachable by their services. Ollama must be reachable from the API container when selected.
+
+### Initialize and start
+
+For a **new, empty local database**:
 
 ```bash
+pnpm install
+docker compose up -d postgres redis minio
+pnpm --filter api exec prisma generate
+pnpm --filter api exec prisma db push
 docker compose up -d --build
 ```
 
-Servicos expostos:
+Prisma reads the root `.env` through the API configuration. For local CLI access, `DATABASE_URL` must point to PostgreSQL on `localhost`. Existing databases use additive SQL and startup helpers; review the [template policy (Portuguese)](docs/template-policy.md) before an upgrade instead of applying the fresh-database procedure.
 
-- Web: `http://localhost:5173`
-- API: `http://localhost:3333`
-- MinIO API: `http://localhost:9000`
-- MinIO Console: `http://localhost:9001`
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
+| Service | Local address |
+| --- | --- |
+| Web | <http://localhost:5173> |
+| API / health | <http://localhost:3333/health> |
+| MinIO API / console | <http://localhost:9000> / <http://localhost:9001> |
+| PostgreSQL / Redis | `localhost:5432` / `localhost:6379` |
 
-O `docker-compose.yml` usa build production-like:
+The API creates the audio bucket if needed and provisions missing platform templates at startup. Upload transcription also requires a MinIO bucket subscription for object-created events targeting `arn:minio:sqs::API:webhook`. Compose configures the webhook target, but the bucket subscription must be configured in your MinIO installation. If an upload stalls, check this subscription and delivery to `/internal/minio-webhook`.
 
-- `web` serve arquivos estaticos via Nginx na porta interna `80`, exposta como `5173`.
-- `api` roda `pnpm run start`.
-- `groq_worker` roda separado.
-- `parakeet` fica em profile opcional.
+This is a local stack with production-style containers: Nginx serves the web build on internal port `80`, exposed as `5173`.
 
-Para subir o worker Parakeet:
+### First session
 
-```bash
-docker compose --profile parakeet up -d --build parakeet
-```
+1. Open the web app and register an account when registration is enabled.
+2. Create a session from a recording, an audio file or a YouTube link.
+3. Choose a template and optionally set the title, destination and context.
+4. Record or submit the source and follow processing status.
+5. Review the transcript and generated document; edit, ask questions or export.
 
-## Rodando em Desenvolvimento
+## Development
 
-Suba o compose de desenvolvimento:
+For source-mounted development with hot reload:
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-Esse arquivo monta volumes para `apps/api/src`, `apps/api/prisma` e `apps/web/src`, facilitando hot reload.
+To run Node applications on the host, keep infrastructure and the required Python workers available, configure host-accessible endpoints in `.env`, then run `pnpm install` and `pnpm dev`. Avoid running containerized web/API services on the same ports simultaneously.
 
-Tambem e possivel rodar Node localmente:
+| Task | Command |
+| --- | --- |
+| Build API and web | `pnpm build` |
+| Build API / web separately | `pnpm --filter api build` / `pnpm --filter nebula-frontend build` |
+| Document generation smoke test | `pnpm --filter api exec tsx tests/documentGeneration.test.ts` |
+| Provision missing platform templates | `pnpm --filter api db:seed` |
+| Validate / regenerate Prisma | `pnpm --filter api exec prisma validate` / `pnpm --filter api exec prisma generate` |
+| Test Groq worker | Run `python -m pytest` from `apps/groq_worker` with its Python dependencies installed |
+| API logs | `docker compose logs -f api` |
+| Regenerate README headers | `python scripts/generate_readme_assets.py` |
 
-```bash
-pnpm install
-pnpm dev
-```
+### Optional streaming worker
 
-## Videos do YouTube
-
-No modal **Nova sessao**, escolha **YouTube**, cole o link do video e selecione o prompt.
-Sao aceitos links `youtube.com/watch?v=...`, `youtu.be/...` e `youtube.com/shorts/...`.
-O worker verifica a duracao antes do download: ate 30 minutos por usuario ou 300 minutos para `luizgabe`.
-Lives, playlists sem video selecionado e videos privados/protegidos nao sao importados.
-
-O `groq_worker` usa `yt-dlp[default]`, FFmpeg e Node 22 para extracao do audio.
-Se o titulo da sessao estiver vazio, o titulo do video e aplicado automaticamente; titulos personalizados sao preservados.
-Downloads transitorios recebem ate tres tentativas; erros e progresso aparecem via SSE.
-O audio fica em `sessions/<id>/youtube/audio.mp3` no MinIO. Esse caminho nao dispara uma segunda
-transcricao pelo webhook: o job de ingestao chama o mesmo processamento batch de uploads.
-Videos longos sao divididos em requisicoes de ate dez minutos ao Groq, preservando timestamps
-na linha do tempo original. A geracao do documento continua usando a fila `post-processing` e
-esta sujeita aos limites do modelo de IA configurado.
-Transcricoes longas sao sintetizadas em etapas antes da geracao final, com referencias ao audio.
-O reprocessamento acompanha o job solicitado ate concluir ou falhar, preservando as versoes anteriores do documento.
-
-A API adiciona o estado `ERROR` ao enum de sessoes na inicializacao com SQL conservador.
-Configuracoes antigas de modelos Compound continuam aceitas e usam GPT-OSS 20B/120B no Groq.
-
-## Banco de Dados
-
-O schema Prisma fica em:
-
-```text
-apps/api/prisma/schema.prisma
-```
-
-Para gerar o Prisma Client:
+The main Compose file provides a `parakeet` profile. First configure `apps/parakeet_worker/.env`, model access and the NVIDIA container runtime. The service uses host networking, so verify database/storage routing and the API's `GRPC_WORKER_HOST` for your environment. Create the external volume if absent:
 
 ```bash
-cd apps/api
-pnpm exec prisma generate
+docker volume create model-cache
+docker compose --profile parakeet up -d --build parakeet
 ```
 
-Para validar o schema:
+The development Compose file does not define this profile. Keep both applications' gRPC contracts synchronized when changing streaming behavior.
 
-```bash
-pnpm exec prisma validate
-```
+## Technical notes
 
-Para aplicar o bootstrap conservador usado neste projeto:
+### Document templates
 
-```bash
-pnpm exec prisma db execute --file prisma/prompt_bootstrap.sql
-```
+Templates are database records managed through Settings and `/prompts`. Seven built-in templates cover executive briefings, articles, step-by-step guides, action plans, study material, idea maps and multiformat scripts.
 
-O arquivo `prompt_bootstrap.sql` existe para criar/adaptar a tabela de prompts sem derrubar dados antigos de sessoes/documentos.
+Platform and third-party public templates are read-only; duplicate one to make a private, editable copy. Users can publish their own templates and select a personal default. Logical deletion preserves historical session/document references. Generation rechecks availability and never silently replaces an unavailable session template. See the [template policy (Portuguese)](docs/template-policy.md) for ownership, defaults, overrides and compatibility.
 
-## Seed de Prompts
+### YouTube ingestion
 
-O seed atual cria ou atualiza tres prompts iniciais:
+The creation dialog accepts watch, short-link and Shorts URLs. `/sessions/creation-options` exposes the account's duration limit; the worker checks duration before downloading. Live streams, private/protected videos and playlists without a selected video are unsupported.
 
-- `Reuniao` como padrao
-- `Aula`
-- `Entrevista`
+The batch worker uses yt-dlp, FFmpeg and Node.js, retries transient downloads and preserves custom session titles. Long audio is split for Groq while retaining timestamps on the original timeline. YouTube ingestion invokes batch processing directly; its storage path is excluded from webhook transcription to avoid duplicate jobs. Long transcripts are synthesized in stages before final document generation.
 
-Todos sao marcados como publicos. Se existir o usuario `luizgabe`, eles tambem ficam associados a ele via `ownerId`.
+### API map
 
-Para rodar:
+| Area | Entry points |
+| --- | --- |
+| Accounts | `/auth/register`, `/auth/login`, `/auth/logout`, `/auth/me` |
+| Sessions | `/sessions`, `/sessions/creation-options`, `/sessions/:id`, `/sessions/:id/status/stream` |
+| Library | `/folders` |
+| Templates | `/prompts`, `/prompts/default`, `/prompts/:id/duplicate` |
+| Documents | `/sessions/:id/document`, `/sessions/:id/document/content`, `/sessions/:id/document/reprocess` |
+| Transcript export | `/sessions/:id/export?format=…` |
+| Audio | `/chunks/presigned-url`, `/uploads/audio/presigned-url`, `/ws/transcribe` |
+| Models / preferences | `/llm/models`, `/users/config` |
 
-```bash
-cd apps/api
-pnpm run db:seed
-```
+The [web API client](apps/web/src/api/client.ts) and [routes](apps/api/src/routes) define full contracts and supported methods.
 
-## Prompts
+### Further reading
 
-Prompts sao gerenciados pelo backend e pelo frontend.
+- [Design system (Portuguese)](docs/design-system.md)
+- [Transcription implementation notes (Portuguese)](docs/premium-transcription.md)
+- [Template policy (Portuguese)](docs/template-policy.md)
 
-Campos principais:
+README visuals use a subtle engineering-notebook grid and sketch arrows, preserving Nebula's document/audio icon and violet palette. Local SVGs provide English/Portuguese and light/dark variants from one generator.
 
-- `id`
-- `name`
-- `content`
-- `isDefault`
-- `isPublic`
-- `ownerId`
-- `createdAt`
+## License
 
-Regras atuais:
-
-- `GET /prompts` lista prompts publicos e prompts privados do usuario logado.
-- `POST /prompts` cria prompt do usuario logado.
-- `PUT /prompts/:id` edita prompt do usuario ou prompt sem dono.
-- `DELETE /prompts/:id` remove prompt do usuario ou prompt sem dono.
-- Ao criar uma sessao, o frontend envia `promptId`.
-- O job de pos-processamento busca o prompt da sessao no banco para gerar o documento.
-
-## Rotas Principais da API
-
-Autenticacao:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /auth/me`
-
-Sessoes:
-
-- `GET /sessions`
-- `POST /sessions`
-- `GET /sessions/:id`
-- `PATCH /sessions/:id/end`
-- `PATCH /sessions/:id`
-- `DELETE /sessions/:id`
-- `GET /sessions/:id/status/stream`
-- `POST /sessions/:id/question`
-
-Prompts:
-
-- `GET /prompts`
-- `POST /prompts`
-- `PUT /prompts/:id`
-- `DELETE /prompts/:id`
-
-Documentos:
-
-- `GET /sessions/:id/document`
-- `GET /sessions/:id/document/content`
-- `PATCH /sessions/:id/document`
-- `POST /sessions/:id/document/reprocess`
-
-Audio:
-
-- `POST /chunks/presigned-url`
-- `POST /uploads/audio/presigned-url`
-- `GET /ws/transcribe`
-
-LLM:
-
-- `GET /llm/models`
-- `PATCH /users/config`
-
-## Fluxo de Uso
-
-1. Acesse `http://localhost:5173`.
-2. Crie ou entre com um usuario.
-3. Abra Configuracoes para conferir ou editar prompts.
-4. No dashboard, clique em Nova sessao.
-5. Escolha um prompt cadastrado.
-6. Grave audio ou envie um arquivo.
-7. Encerre a sessao e acompanhe o status.
-8. Revise o documento gerado e use o Q&A quando necessario.
-
-## Comandos Uteis
-
-Na raiz:
-
-```bash
-pnpm install
-pnpm dev
-pnpm build
-docker compose up -d --build
-docker compose logs -f api
-docker compose logs -f web
-```
-
-Na API:
-
-```bash
-cd apps/api
-pnpm run dev
-pnpm run build
-pnpm run db:seed
-pnpm exec prisma generate
-pnpm exec prisma validate
-```
-
-No Web:
-
-```bash
-cd apps/web
-pnpm run dev
-pnpm run build
-pnpm run preview
-```
-
-## Observacoes
-
-- Prompts sao registros do banco e podem ser publicos ou privados.
-- O compose production-like expoe o Web em `5173`, mas o Nginx dentro do container escuta em `80`.
-- Se a API retornar `Route GET:/prompts not found`, o container da API esta com imagem antiga. Rode `docker compose up -d --build api web`.
-- Se os prompts nao aparecerem, confirme que o seed rodou no banco usado pelo container.
-
-## Licenca
-
-ISC.
+The API package declares ISC in its [package metadata](apps/api/package.json). The repository currently has no standalone license file.

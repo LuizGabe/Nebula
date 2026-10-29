@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="260" viewBox="0 0 1000 260" role="img" aria-labelledby="title description" xml:lang="en">
+  <title id="title">Nebula — From audio to working knowledge.</title>
+  <desc id="description">An engineering notebook sketch: record, transcribe, generate and review.</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#c5a4ed" stroke-opacity=".11" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect x="1" y="1" width="998" height="258" rx="18" fill="url(#grid)"/>
+  <g fill="#eee5f8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
+    <text x="40" y="66" font-size="42" font-weight="700" letter-spacing="-1.5">Nebula</text>
+    <path d="M40 79 Q101 73 175 80" fill="none" stroke="#c5a4ed" stroke-width="2" stroke-linecap="round"/>
+    <text x="40" y="116" font-size="26" font-weight="500">From audio to working knowledge.</text>
+    <text x="41" y="143" font-size="14" fill="#c0afcf">Audio capture / asynchronous processing / AI documents</text>
+    <g transform="translate(823 9) scale(.65)" aria-hidden="true"><defs xmlns="http://www.w3.org/2000/svg">
+    <linearGradient id="page" x1="35" y1="23" x2="178" y2="174" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4C0F1" />
+      <stop offset=".53" stop-color="#DCCBF3" />
+      <stop offset="1" stop-color="#CBB3E8" />
+    </linearGradient>
+    <linearGradient id="left" x1="29" y1="130" x2="80" y2="181" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#714BA8" />
+      <stop offset="1" stop-color="#67449C" />
+    </linearGradient>
+    <linearGradient id="center" x1="92" y1="87" x2="129" y2="177" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#654299" />
+      <stop offset=".58" stop-color="#654098" />
+      <stop offset="1" stop-color="#6E49A4" />
+    </linearGradient>
+    <linearGradient id="right" x1="139" y1="112" x2="176" y2="179" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8C68BF" />
+      <stop offset="1" stop-color="#8460B6" />
+    </linearGradient>
+  </defs>
+  <g xmlns="http://www.w3.org/2000/svg" id="documento">
+    <path fill="url(#page)" d="M28 125V49C28 28.5 44 13 64 13H125C133 13 138 15.5 144 21.5L173 50.5C179 56.5 181 62 181 70V160C181 174 172 184 156 184C144 184 137 176 137 164V156C134 151 132 149 129 147H100V132C97 126 94 120 90 117C72 100 50 102 28 125Z" />
+    <path id="aba-dobrada" fill="#BA9EDD" d="M137 16.8V43C137 54 142 59 153 59H178.5C177.3 56.2 175.5 53 173 50.5L144 21.5C141.6 19.1 139.4 17.8 137 16.8Z" />
+  </g>
+  <g xmlns="http://www.w3.org/2000/svg" id="barras-audio">
+    <path id="barra-esquerda" fill="url(#left)" d="M28 150C28 133 43 118 59 116C71 114.5 80 122 80 134V165C80 177 73 184 61 184H48C35 184 28 177 28 165Z" />
+    <path id="barra-central" fill="url(#center)" d="M90 94C90 82 98 74 109.5 74C121 74 129 82 129 94V164C129 176 122 184 109.5 184C97 184 90 176 90 164Z" />
+    <path id="barra-direita" fill="url(#right)" d="M137 124C137 112 145 103 156 103C167 103 175 111 175 123V163C175 176 168 184 156 184C144 184 137 176 137 164Z" />
+  </g>
+</g>
+    <g transform="translate(40 168)">
+      <rect width="194" height="52" rx="12" fill="#282032"/>
+      <text x="16" y="32" font-size="12" fill="#c0afcf" font-family="ui-monospace, monospace">01</text>
+      <text x="48" y="33" font-size="18" font-weight="600">Record</text>
+    </g><path d="M244 195 Q257 190 272 194 m-7 -5 7 5 -7 5"
+      fill="none" stroke="#c5a4ed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><g transform="translate(282 168)">
+      <rect width="194" height="52" rx="12" fill="#282032"/>
+      <text x="16" y="32" font-size="12" fill="#c0afcf" font-family="ui-monospace, monospace">02</text>
+      <text x="48" y="33" font-size="18" font-weight="600">Transcribe</text>
+    </g><path d="M486 195 Q499 190 514 194 m-7 -5 7 5 -7 5"
+      fill="none" stroke="#c5a4ed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><g transform="translate(524 168)">
+      <rect width="194" height="52" rx="12" fill="#282032"/>
+      <text x="16" y="32" font-size="12" fill="#c0afcf" font-family="ui-monospace, monospace">03</text>
+      <text x="48" y="33" font-size="18" font-weight="600">Generate</text>
+    </g><path d="M728 195 Q741 190 756 194 m-7 -5 7 5 -7 5"
+      fill="none" stroke="#c5a4ed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><g transform="translate(766 168)">
+      <rect width="194" height="52" rx="12" fill="#282032"/>
+      <text x="16" y="32" font-size="12" fill="#c0afcf" font-family="ui-monospace, monospace">04</text>
+      <text x="48" y="33" font-size="18" font-weight="600">Review</text>
+    </g>
+  </g>
+</svg>
